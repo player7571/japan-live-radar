@@ -28,8 +28,9 @@ test("filters by city and ticket access without horizontal overflow", async ({ p
   await expect(page.getByText("1개 공연")).toHaveCount(1);
   await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toHaveCount(1);
 
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-  expect(overflow).toBe(false);
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+    .toBe(true);
 });
 
 test("combines travel date and Korea-friendly filters", async ({ page }) => {
