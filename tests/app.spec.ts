@@ -24,8 +24,8 @@ test("filters by city and ticket access without horizontal overflow", async ({ p
   await page.locator("select").first().selectOption("오사카");
   await page.locator("select").nth(1).selectOption("일본 번호 필요");
 
-  await expect(page.getByText("1개 공연")).toBeVisible();
-  await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toBeVisible();
+  await expect(page.getByText("1개 공연")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toHaveCount(1);
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
