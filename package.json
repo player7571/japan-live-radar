@@ -8,12 +8,15 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
+    "db:migrate": "tsx scripts/apply-migrations.ts",
+    "db:check": "tsx scripts/check-database.ts",
     "sync:ticketmaster": "tsx scripts/sync-ticketmaster.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
     "@vitejs/plugin-react": "^5.0.0",
     "lucide-react": "^0.468.0",
+    "pg": "^8.20.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.8.0",
@@ -22,6 +25,7 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/node": "^25.6.0",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "tsx": "^4.21.0"
