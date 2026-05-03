@@ -30,3 +30,24 @@ test("filters by city and ticket access without horizontal overflow", async ({ p
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
 });
+
+test("combines travel date and Korea-friendly filters", async ({ page }) => {
+  await page.goto("/");
+
+  await page.locator("select").nth(2).selectOption("여름 원정");
+  await page.getByRole("button", { name: /한국에서 예매 쉬운 공연/ }).click();
+
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /NewJeans/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "NewJeans" })).toBeVisible();
+});
+
+test("shows an empty state when no concerts match", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("없는공연");
+
+  await expect(page.getByText("0개 공연")).toBeVisible();
+  await expect(page.getByText("조건에 맞는 공연이 없어요")).toBeVisible();
+  await expect(page.getByText("원정 조건을 조금 넓혀볼까요?")).toBeVisible();
+});

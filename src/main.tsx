@@ -13,6 +13,7 @@ import {
   Plane,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Smartphone,
   Ticket,
   X,
@@ -22,6 +23,7 @@ import "./styles.css";
 type City = "도쿄" | "오사카" | "요코하마" | "나고야" | "후쿠오카";
 type TicketAccess = "한국 구매 가능" | "일본 번호 필요" | "확인 필요";
 type SaleType = "추첨 접수" | "일반 판매" | "선착 판매" | "해외 판매";
+type DateWindow = "전체" | "60일 이내" | "90일 이내" | "여름 원정";
 
 type Event = {
   id: number;
@@ -153,11 +155,30 @@ const accessOptions: Array<TicketAccess | "전체"> = [
   "일본 번호 필요",
   "확인 필요",
 ];
+const dateWindowOptions: DateWindow[] = ["전체", "60일 이내", "90일 이내", "여름 원정"];
+const today = new Date("2026-05-04T00:00:00+09:00");
+
+function isInDateWindow(date: string, dateWindow: DateWindow) {
+  if (dateWindow === "전체") return true;
+
+  const eventDate = new Date(`${date}T00:00:00+09:00`);
+  if (dateWindow === "여름 원정") {
+    return eventDate >= new Date("2026-06-01T00:00:00+09:00") &&
+      eventDate <= new Date("2026-08-31T23:59:59+09:00");
+  }
+
+  const limitDays = dateWindow === "60일 이내" ? 60 : 90;
+  const limit = new Date(today);
+  limit.setDate(today.getDate() + limitDays);
+  return eventDate >= today && eventDate <= limit;
+}
 
 function App() {
   const [query, setQuery] = useState("");
   const [city, setCity] = useState<City | "전체">("전체");
   const [access, setAccess] = useState<TicketAccess | "전체">("전체");
+  const [dateWindow, setDateWindow] = useState<DateWindow>("전체");
+  const [koreaFriendlyOnly, setKoreaFriendlyOnly] = useState(false);
   const [selectedId, setSelectedId] = useState(events[0].id);
   const [saved, setSaved] = useState<number[]>([4]);
 
@@ -168,12 +189,15 @@ function App() {
       const queryMatch = !normalized || text.includes(normalized);
       const cityMatch = city === "전체" || event.city === city;
       const accessMatch = access === "전체" || event.ticketAccess === access;
-      return queryMatch && cityMatch && accessMatch;
+      const dateMatch = isInDateWindow(event.date, dateWindow);
+      const koreaFriendlyMatch =
+        !koreaFriendlyOnly || (event.ticketAccess === "한국 구매 가능" && !event.phoneRequired);
+      return queryMatch && cityMatch && accessMatch && dateMatch && koreaFriendlyMatch;
     });
-  }, [access, city, query]);
+  }, [access, city, dateWindow, koreaFriendlyOnly, query]);
 
-  const selectedEvent =
-    filteredEvents.find((event) => event.id === selectedId) ?? filteredEvents[0] ?? events[0];
+  const selectedEvent = filteredEvents.find((event) => event.id === selectedId) ?? filteredEvents[0];
+  const heroEvent = selectedEvent ?? events[0];
 
   const toggleSaved = (id: number) => {
     setSaved((current) =>
@@ -198,11 +222,11 @@ function App() {
         </header>
 
         <section className="hero-strip" aria-label="추천 공연">
-          <img src={selectedEvent.image} alt="" />
+          <img src={heroEvent.image} alt="" />
           <div className="hero-copy">
-            <span>{selectedEvent.city} · {selectedEvent.genre}</span>
-            <strong>{selectedEvent.artist}</strong>
-            <p>{selectedEvent.date.replaceAll("-", ".")} · {selectedEvent.venue}</p>
+            <span>{heroEvent.city} · {heroEvent.genre}</span>
+            <strong>{heroEvent.artist}</strong>
+            <p>{heroEvent.date.replaceAll("-", ".")} · {heroEvent.venue}</p>
           </div>
         </section>
 
@@ -241,18 +265,63 @@ function App() {
                 ))}
               </select>
             </label>
+            <label>
+              <CalendarDays size={15} />
+              <select
+                value={dateWindow}
+                onChange={(event) => setDateWindow(event.target.value as DateWindow)}
+              >
+                {dateWindowOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
           </div>
+        </section>
+
+        <section className="quick-filters" aria-label="원정 조건">
+          <button
+            className={koreaFriendlyOnly ? "active" : ""}
+            type="button"
+            onClick={() => setKoreaFriendlyOnly((current) => !current)}
+          >
+            <ShieldCheck size={16} />
+            한국에서 예매 쉬운 공연
+          </button>
+          <button type="button" onClick={() => setDateWindow("여름 원정")}>
+            <Plane size={16} />
+            여름 원정
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setCity("전체");
+              setAccess("전체");
+              setDateWindow("전체");
+              setKoreaFriendlyOnly(false);
+            }}
+          >
+            <SlidersHorizontal size={16} />
+            초기화
+          </button>
         </section>
 
         <section className="content-grid">
           <div className="event-list" aria-label="공연 목록">
             <div className="list-summary">
               <strong>{filteredEvents.length}개 공연</strong>
-              <span>한국 출발 기준</span>
+              <span>{koreaFriendlyOnly ? "예매 쉬운 공연" : "한국 출발 기준"}</span>
             </div>
+            {filteredEvents.length === 0 && (
+              <div className="empty-state">
+                <strong>조건에 맞는 공연이 없어요</strong>
+                <span>기간이나 티켓 조건을 넓혀 다시 찾아보세요.</span>
+              </div>
+            )}
             {filteredEvents.map((event) => (
               <button
-                className={`event-card ${event.id === selectedEvent.id ? "active" : ""}`}
+                className={`event-card ${selectedEvent && event.id === selectedEvent.id ? "active" : ""}`}
                 key={event.id}
                 onClick={() => setSelectedId(event.id)}
               >
@@ -280,7 +349,19 @@ function App() {
             ))}
           </div>
 
-          <EventDetail event={selectedEvent} saved={saved.includes(selectedEvent.id)} onSave={toggleSaved} />
+          {selectedEvent ? (
+            <EventDetail
+              event={selectedEvent}
+              saved={saved.includes(selectedEvent.id)}
+              onSave={toggleSaved}
+            />
+          ) : (
+            <aside className="detail-panel empty-detail" aria-label="공연 상세">
+              <ShieldCheck size={28} />
+              <strong>원정 조건을 조금 넓혀볼까요?</strong>
+              <span>한국 구매 가능 여부, 일본 전화번호 필요 여부, 날짜 조건을 조합해 찾을 수 있어요.</span>
+            </aside>
+          )}
         </section>
       </section>
     </main>
