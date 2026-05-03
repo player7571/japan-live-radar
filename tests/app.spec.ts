@@ -29,7 +29,13 @@ test("filters by city and ticket access without horizontal overflow", async ({ p
   await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toHaveCount(1);
 
   await expect
-    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+    .poll(async () => {
+      try {
+        return await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+      } catch {
+        return false;
+      }
+    })
     .toBe(true);
 });
 

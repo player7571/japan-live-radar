@@ -2,15 +2,6 @@ name: Supabase Migrate
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - "supabase/migrations/**"
-      - "scripts/apply-migrations.ts"
-      - "scripts/check-database.ts"
-      - ".github/workflows/supabase-migrate.yml"
 
 jobs:
   migrate:
