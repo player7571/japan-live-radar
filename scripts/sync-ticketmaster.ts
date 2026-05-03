@@ -1,6 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { recordSyncRun } from "../src/lib/syncRuns";
 
+type TicketmasterVenue = {
+  name?: string;
+  city?: { name?: string };
+  state?: { name?: string; stateCode?: string };
+  address?: { line1?: string; line2?: string };
+};
+
 type TicketmasterEvent = {
   id: string;
   name?: string;
@@ -29,10 +36,7 @@ type TicketmasterEvent = {
     segment?: { name?: string };
   }>;
   _embedded?: {
-    venues?: Array<{
-      name?: string;
-      city?: { name?: string };
-    }>;
+    venues?: TicketmasterVenue[];
     attractions?: Array<{
       name?: string;
     }>;
@@ -130,14 +134,51 @@ function formatPrice(event: TicketmasterEvent) {
   return null;
 }
 
-function mapCity(city?: string) {
-  if (!city) return "도쿄";
-  if (city.includes("Tokyo")) return "도쿄";
-  if (city.includes("Osaka")) return "오사카";
-  if (city.includes("Yokohama")) return "요코하마";
-  if (city.includes("Nagoya")) return "나고야";
-  if (city.includes("Fukuoka")) return "후쿠오카";
+function mapCity(value?: string) {
+  if (!value) return null;
+  const city = value.trim();
+  if (!city || /^\d+$/.test(city)) return null;
+  const normalized = city.toLowerCase();
+
+  if (normalized.includes("tokyo") || city.includes("東京")) return "도쿄";
+  if (normalized.includes("osaka") || city.includes("大阪")) return "오사카";
+  if (normalized.includes("yokohama") || city.includes("横浜")) return "요코하마";
+  if (normalized.includes("nagoya") || city.includes("名古屋")) return "나고야";
+  if (normalized.includes("fukuoka") || city.includes("福岡")) return "후쿠오카";
+  if (normalized.includes("saitama") || city.includes("埼玉")) return "사이타마";
+  if (normalized.includes("chiba") || city.includes("千葉")) return "치바";
+  if (normalized.includes("kyoto") || city.includes("京都")) return "교토";
+  if (normalized.includes("kobe") || city.includes("神戸")) return "고베";
+  if (normalized.includes("hiroshima") || city.includes("広島")) return "히로시마";
+  if (normalized.includes("sendai") || city.includes("仙台")) return "센다이";
+  if (normalized.includes("sapporo") || city.includes("札幌")) return "삿포로";
+  if (normalized.includes("naha") || city.includes("那覇")) return "나하";
+  if (normalized.includes("okinawa") || city.includes("沖縄")) return "오키나와";
+  if (normalized.includes("aichi") || city.includes("愛知")) return "나고야";
+  if (normalized.includes("kanagawa") || city.includes("神奈川")) return "요코하마";
+  if (normalized.includes("hyogo") || city.includes("兵庫")) return "고베";
+  if (normalized.includes("miyagi") || city.includes("宮城")) return "센다이";
+  if (normalized.includes("hokkaido") || city.includes("北海道")) return "삿포로";
+
   return city;
+}
+
+function venueCity(venue?: TicketmasterVenue) {
+  const candidates = [
+    venue?.city?.name,
+    venue?.state?.name,
+    venue?.state?.stateCode,
+    venue?.address?.line1,
+    venue?.address?.line2,
+    venue?.name,
+  ];
+
+  for (const candidate of candidates) {
+    const mapped = mapCity(candidate);
+    if (mapped) return mapped;
+  }
+
+  return "도시 미정";
 }
 
 function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
@@ -154,7 +195,7 @@ function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
     source_event_id: event.id,
     artist: attraction?.name ?? event.name ?? "Unknown Artist",
     title: event.name ?? "Untitled Event",
-    city: mapCity(venue?.city?.name),
+    city: venueCity(venue),
     venue: venue?.name ?? "Venue TBA",
     date,
     time:

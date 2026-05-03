@@ -24,7 +24,6 @@ import "./styles.css";
 
 type DateWindow = "전체" | "60일 이내" | "90일 이내" | "여름 원정";
 
-const cityOptions: Array<Event["city"] | "전체"> = ["전체", "도쿄", "오사카", "요코하마", "나고야", "후쿠오카"];
 const accessOptions: Array<TicketAccess | "전체"> = [
   "전체",
   "한국 구매 가능",
@@ -62,6 +61,11 @@ function App() {
   const [selectedId, setSelectedId] = useState(seedEvents[0].id);
   const [saved, setSaved] = useState<string[]>([seedEvents[3].id]);
 
+  const cityOptions = useMemo(
+    () => ["전체", ...Array.from(new Set(events.map((event) => event.city))).sort((a, b) => a.localeCompare(b, "ko"))],
+    [events],
+  );
+
   useEffect(() => {
     if (useSeedData) return;
 
@@ -96,6 +100,12 @@ function App() {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (city !== "전체" && !events.some((event) => event.city === city)) {
+      setCity("전체");
+    }
+  }, [city, events]);
 
   const filteredEvents = useMemo(() => {
     const normalized = query.trim().toLowerCase();

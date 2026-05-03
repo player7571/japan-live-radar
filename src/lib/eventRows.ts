@@ -20,22 +20,12 @@ export type EventRow = {
   image: string | null;
 };
 
-const cityFallback: City = "도쿄";
 const ticketAccessFallback: TicketAccess = "확인 필요";
 const saleTypeFallback: SaleType = "일반 판매";
 
 function toCity(value: string): City {
   const normalized = value.trim();
-  if (
-    normalized === "도쿄" ||
-    normalized === "오사카" ||
-    normalized === "요코하마" ||
-    normalized === "나고야" ||
-    normalized === "후쿠오카"
-  ) {
-    return normalized;
-  }
-  return cityFallback;
+  return normalized || "도시 미정";
 }
 
 function toTicketAccess(value: string): TicketAccess {
