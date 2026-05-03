@@ -86,6 +86,7 @@ h1 {
 }
 
 .icon-button {
+  position: relative;
   width: 44px;
   height: 44px;
   color: #173026;
@@ -93,6 +94,23 @@ h1 {
   border: 1px solid rgba(23, 32, 25, 0.1);
   border-radius: 8px;
   box-shadow: 0 12px 30px rgba(25, 37, 30, 0.1);
+}
+
+.alert-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 6px;
+  color: #fff;
+  background: #bb2d4a;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .hero-strip {
@@ -576,6 +594,11 @@ h2 {
 .secondary-button {
   color: #1f6c4f;
   background: #e4f2eb;
+}
+
+.secondary-button.active {
+  color: #ffffff;
+  background: #1f6c4f;
 }
 
 @media (max-width: 900px) {

@@ -33,6 +33,21 @@ const accessOptions: Array<TicketAccess | "전체"> = [
 const dateWindowOptions: DateWindow[] = ["전체", "60일 이내", "90일 이내", "여름 원정"];
 const today = new Date("2026-05-04T00:00:00+09:00");
 const useSeedData = import.meta.env.VITE_USE_SEED_DATA === "true";
+const savedEventsStorageKey = "japan-live-radar.saved-events";
+
+function loadSavedEventIds() {
+  try {
+    const savedValue = window.localStorage.getItem(savedEventsStorageKey);
+    const parsedValue = savedValue ? (JSON.parse(savedValue) as unknown) : null;
+    if (Array.isArray(parsedValue) && parsedValue.every((value) => typeof value === "string")) {
+      return parsedValue;
+    }
+  } catch {
+    // Local storage can be blocked in private or embedded browsing contexts.
+  }
+
+  return [seedEvents[3].id];
+}
 
 function isInDateWindow(date: string, dateWindow: DateWindow) {
   if (dateWindow === "전체") return true;
@@ -59,7 +74,7 @@ function App() {
   const [dateWindow, setDateWindow] = useState<DateWindow>("전체");
   const [koreaFriendlyOnly, setKoreaFriendlyOnly] = useState(false);
   const [selectedId, setSelectedId] = useState(seedEvents[0].id);
-  const [saved, setSaved] = useState<string[]>([seedEvents[3].id]);
+  const [saved, setSaved] = useState<string[]>(loadSavedEventIds);
 
   const cityOptions = useMemo(
     () => ["전체", ...Array.from(new Set(events.map((event) => event.city))).sort((a, b) => a.localeCompare(b, "ko"))],
@@ -107,6 +122,10 @@ function App() {
     }
   }, [city, events]);
 
+  useEffect(() => {
+    window.localStorage.setItem(savedEventsStorageKey, JSON.stringify(saved));
+  }, [saved]);
+
   const filteredEvents = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return events.filter((event) => {
@@ -141,8 +160,9 @@ function App() {
             </div>
             <h1>일본 콘서트 원정 캘린더</h1>
           </div>
-          <button className="icon-button" aria-label="알림">
+          <button className="icon-button" aria-label={`알림 ${saved.length}개`}>
             <Bell size={20} />
+            {saved.length > 0 && <span className="alert-count">{saved.length}</span>}
           </button>
         </header>
 
@@ -363,9 +383,13 @@ function EventDetail({
             원본 링크 열기
             <ExternalLink size={17} />
           </a>
-          <button className="secondary-button">
-            <Bell size={17} />
-            일정 알림
+          <button
+            className={`secondary-button ${saved ? "active" : ""}`}
+            onClick={() => onSave(event.id)}
+            type="button"
+          >
+            {saved ? <Check size={17} /> : <Bell size={17} />}
+            {saved ? "알림 설정됨" : "일정 알림"}
           </button>
         </div>
       </div>
