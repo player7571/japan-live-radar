@@ -33,6 +33,7 @@ type TicketmasterEvent = {
   }>;
   classifications?: Array<{
     genre?: { name?: string };
+    subGenre?: { name?: string };
     segment?: { name?: string };
   }>;
   _embedded?: {
@@ -75,6 +76,8 @@ type EventUpsertRow = {
   country_code: string;
   raw: TicketmasterEvent;
 };
+
+type EventsSupabaseClient = ReturnType<typeof createClient<any, "public">>;
 
 const ticketmasterApiKey = process.env.TICKETMASTER_API_KEY;
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -181,6 +184,94 @@ function venueCity(venue?: TicketmasterVenue) {
   return "도시 미정";
 }
 
+const concertSignals = [
+  "music",
+  "concert",
+  "live",
+  "festival",
+  "tour",
+  "dj",
+  "orchestra",
+  "symphony",
+  "band",
+  "idol",
+  "j-pop",
+  "k-pop",
+  "rock",
+  "pop",
+];
+
+const nonConcertSignals = [
+  "basketball",
+  "baseball",
+  "football",
+  "soccer",
+  "rugby",
+  "volleyball",
+  "hockey",
+  "marathon",
+  "triathlon",
+  "gymnastics",
+  "tennis",
+  "golf",
+  "swimming",
+  "athletics",
+  "wrestling",
+  "boxing",
+  "judo",
+  "karate",
+  "cycling",
+  "handball",
+  "badminton",
+  "bkb",
+];
+
+function eventSearchText(event: TicketmasterEvent) {
+  return [
+    event.name,
+    event._embedded?.attractions?.map((attraction) => attraction.name).join(" "),
+    event.classifications
+      ?.map((classification) =>
+        [classification.segment?.name, classification.genre?.name, classification.subGenre?.name].join(" "),
+      )
+      .join(" "),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function isLikelyConcert(event: TicketmasterEvent) {
+  const text = eventSearchText(event);
+  if (!text) return false;
+  if (nonConcertSignals.some((signal) => text.includes(signal))) return false;
+  return concertSignals.some((signal) => text.includes(signal));
+}
+
+function postgrestStringList(values: string[]) {
+  return `(${values.map((value) => `"${value.replaceAll('"', '\\"')}"`).join(",")})`;
+}
+
+async function deleteStaleTicketmasterRows(
+  supabase: EventsSupabaseClient,
+  currentRows: EventUpsertRow[],
+  skippedProfiles: string[],
+) {
+  if (skippedProfiles.length > 0) return 0;
+
+  const query = supabase.from("events").delete({ count: "exact" }).eq("source", "Ticketmaster");
+  const { error, count } =
+    currentRows.length > 0
+      ? await query.not("source_event_id", "in", postgrestStringList(currentRows.map((row) => row.source_event_id)))
+      : await query;
+
+  if (error) {
+    throw new Error(`Supabase stale Ticketmaster cleanup failed: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
 function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
   const date = event.dates?.start?.localDate ?? event.dates?.start?.dateTime?.slice(0, 10);
   if (!date) return null;
@@ -188,7 +279,10 @@ function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
   const venue = event._embedded?.venues?.[0];
   const attraction = event._embedded?.attractions?.[0];
   const genre =
-    event.classifications?.[0]?.genre?.name ?? event.classifications?.[0]?.segment?.name ?? "Music";
+    event.classifications?.[0]?.genre?.name ??
+    event.classifications?.[0]?.subGenre?.name ??
+    event.classifications?.[0]?.segment?.name ??
+    "Music";
 
   return {
     source: "Ticketmaster",
@@ -261,10 +355,11 @@ async function main() {
   }
 
   const mappedRows = [...collected.values()].map(toEventRow);
-  const rows = mappedRows.filter((row): row is EventUpsertRow => row !== null);
+  const rows = mappedRows.filter((row): row is EventUpsertRow => row !== null && isLikelyConcert(row.raw));
   const skippedCount = mappedRows.length - rows.length;
 
   if (rows.length === 0) {
+    const staleDeletedCount = await deleteStaleTicketmasterRows(supabase, rows, skippedProfiles);
     await recordSyncRun(supabase, {
       source: "Ticketmaster",
       status: "success",
@@ -273,10 +368,12 @@ async function main() {
       message:
         skippedProfiles.length > 0
           ? `No usable dated events. Rate-limited profiles: ${skippedProfiles.join(", ")}.`
-          : "No Ticketmaster JP events with usable dates were found.",
+          : `No concert-like Ticketmaster JP events were found. Removed ${staleDeletedCount} stale Ticketmaster rows.`,
       startedAt,
     });
-    console.log(`No Ticketmaster events found after ${searchProfiles.length} JP searches.`);
+    console.log(
+      `No concert-like Ticketmaster events found after ${searchProfiles.length} JP searches. Removed ${staleDeletedCount} stale rows.`,
+    );
     return;
   }
 
@@ -296,6 +393,8 @@ async function main() {
     throw new Error(`Supabase upsert failed: ${error.message}`);
   }
 
+  const staleDeletedCount = await deleteStaleTicketmasterRows(supabase, rows, skippedProfiles);
+
   await recordSyncRun(supabase, {
     source: "Ticketmaster",
     status: "success",
@@ -305,11 +404,13 @@ async function main() {
     message:
       skippedProfiles.length > 0
         ? `Ran ${searchProfiles.length} JP search profiles. Rate-limited profiles: ${skippedProfiles.join(", ")}.`
-        : `Ran ${searchProfiles.length} JP search profiles.`,
+        : `Ran ${searchProfiles.length} JP search profiles. Removed ${staleDeletedCount} stale Ticketmaster rows.`,
     startedAt,
   });
 
-  console.log(`Synced ${rows.length} Ticketmaster events. Skipped ${skippedCount}.`);
+  console.log(
+    `Synced ${rows.length} Ticketmaster concert-like events. Skipped ${skippedCount}. Removed ${staleDeletedCount} stale rows.`,
+  );
 }
 
 main().catch((error: unknown) => {
