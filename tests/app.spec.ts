@@ -4,6 +4,7 @@ test("searches concerts and opens the detail panel", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "일본 콘서트 원정 캘린더" })).toBeVisible();
+  await expect(page.getByText("샘플 데이터").first()).toBeVisible();
   await expect(page.getByRole("button", { name: /YOASOBI/ })).toBeVisible();
 
   await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("NewJeans");

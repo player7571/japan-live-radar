@@ -34,6 +34,7 @@ npx playwright test
 
 - Database schema lives in `supabase/migrations`.
 - Public event reads are served by `api/events.ts`.
+- Stable fallback data is synced with `npm run sync:seed`.
 - Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
 - Supabase migrations run with `npm run db:migrate`.
 
