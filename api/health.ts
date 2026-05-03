@@ -57,6 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ok: true,
     database: "reachable",
     eventCount: eventsResult.count ?? 0,
-    lastSync: syncResult.data ?? null,
+    lastSync: syncResult.error ? null : (syncResult.data ?? null),
+    syncRunsAvailable: !syncResult.error,
   });
 }
