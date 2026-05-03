@@ -86,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.status(200).json({
     events: (eventsResult.data as EventRow[]).map(rowToEvent),
     source: "supabase",
-    meta: syncResult.data
+    meta: !syncResult.error && syncResult.data
       ? {
           lastSync: rowToSyncRun(syncResult.data as SyncRunRow),
         }

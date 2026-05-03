@@ -10,6 +10,7 @@ type TicketmasterEvent = {
     start?: {
       localDate?: string;
       localTime?: string;
+      dateTime?: string;
     };
   };
   sales?: {
@@ -134,7 +135,7 @@ function mapCity(city?: string) {
 }
 
 function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
-  const date = event.dates?.start?.localDate;
+  const date = event.dates?.start?.localDate ?? event.dates?.start?.dateTime?.slice(0, 10);
   if (!date) return null;
 
   const venue = event._embedded?.venues?.[0];
@@ -150,7 +151,10 @@ function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
     city: mapCity(venue?.city?.name),
     venue: venue?.name ?? "Venue TBA",
     date,
-    time: event.dates?.start?.localTime?.slice(0, 5) ?? null,
+    time:
+      event.dates?.start?.localTime?.slice(0, 5) ??
+      event.dates?.start?.dateTime?.slice(11, 16) ??
+      null,
     genre,
     ticket_access: "확인 필요",
     sale_type: "일반 판매",
