@@ -34,4 +34,6 @@ npx playwright test
 - UI: `codex/ui-*`
 - Chore: `codex/chore-*`
 
-Draft PRs are the default for Codex-generated feature work.
+Feature work targets `dev`. Deployable release PRs target `main`.
+
+Draft PRs are the default for Codex-generated feature work. When CI is green and the PR is ready, Codex can mark it ready and enable auto-merge.
