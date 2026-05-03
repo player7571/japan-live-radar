@@ -33,6 +33,7 @@ const accessOptions: Array<TicketAccess | "전체"> = [
 ];
 const dateWindowOptions: DateWindow[] = ["전체", "60일 이내", "90일 이내", "여름 원정"];
 const today = new Date("2026-05-04T00:00:00+09:00");
+const useSeedData = import.meta.env.VITE_USE_SEED_DATA === "true";
 
 function isInDateWindow(date: string, dateWindow: DateWindow) {
   if (dateWindow === "전체") return true;
@@ -62,6 +63,8 @@ function App() {
   const [saved, setSaved] = useState<string[]>([seedEvents[3].id]);
 
   useEffect(() => {
+    if (useSeedData) return;
+
     let ignore = false;
 
     async function loadEvents() {
