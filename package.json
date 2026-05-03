@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "sync:ticketmaster": "tsx scripts/sync-ticketmaster.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.1",
     "@vitejs/plugin-react": "^5.0.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
@@ -17,6 +20,10 @@
     "vite": "^7.0.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1"
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "tsx": "^4.21.0"
   }
 }

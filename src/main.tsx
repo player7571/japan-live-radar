@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Bell,
@@ -13,153 +13,76 @@ import {
   Plane,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Smartphone,
   Ticket,
   X,
 } from "lucide-react";
+import { seedEvents } from "./data/seedEvents";
+import type { Event, EventApiResponse, TicketAccess } from "./types/events";
 import "./styles.css";
 
-type City = "도쿄" | "오사카" | "요코하마" | "나고야" | "후쿠오카";
-type TicketAccess = "한국 구매 가능" | "일본 번호 필요" | "확인 필요";
-type SaleType = "추첨 접수" | "일반 판매" | "선착 판매" | "해외 판매";
+type DateWindow = "전체" | "60일 이내" | "90일 이내" | "여름 원정";
 
-type Event = {
-  id: number;
-  artist: string;
-  title: string;
-  city: City;
-  venue: string;
-  date: string;
-  time: string;
-  genre: string;
-  source: string;
-  ticketAccess: TicketAccess;
-  saleType: SaleType;
-  saleWindow: string;
-  price: string;
-  phoneRequired: boolean;
-  foreignerNote: string;
-  link: string;
-  image: string;
-};
-
-const events: Event[] = [
-  {
-    id: 1,
-    artist: "YOASOBI",
-    title: "Asia Dome Session",
-    city: "도쿄",
-    venue: "Tokyo Dome",
-    date: "2026-06-19",
-    time: "18:30",
-    genre: "J-Pop",
-    source: "Ticket Pia",
-    ticketAccess: "확인 필요",
-    saleType: "추첨 접수",
-    saleWindow: "5.12 12:00 - 5.20 23:59",
-    price: "¥9,800 - ¥14,800",
-    phoneRequired: true,
-    foreignerNote: "일본 번호 인증 가능성이 높아 대행/동행 구매 여부 확인 필요",
-    link: "https://t.pia.jp/",
-    image:
-      "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 2,
-    artist: "ONE OK ROCK",
-    title: "Neon Arena Night",
-    city: "오사카",
-    venue: "Osaka-jō Hall",
-    date: "2026-07-03",
-    time: "19:00",
-    genre: "Rock",
-    source: "e+",
-    ticketAccess: "일본 번호 필요",
-    saleType: "선착 판매",
-    saleWindow: "5.25 10:00 - 매진 시",
-    price: "¥11,000",
-    phoneRequired: true,
-    foreignerNote: "스마치케 사용 시 앱/전화번호 인증 조건 확인 필요",
-    link: "https://eplus.jp/",
-    image:
-      "https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 3,
-    artist: "Ado",
-    title: "Blue Flame Tour",
-    city: "요코하마",
-    venue: "K-Arena Yokohama",
-    date: "2026-07-21",
-    time: "18:00",
-    genre: "J-Pop",
-    source: "Lawson Ticket",
-    ticketAccess: "확인 필요",
-    saleType: "추첨 접수",
-    saleWindow: "5.18 13:00 - 5.27 23:59",
-    price: "¥12,500",
-    phoneRequired: true,
-    foreignerNote: "로치케 전자티켓은 일본 앱스토어/번호 제약을 확인해야 함",
-    link: "https://l-tike.com/",
-    image:
-      "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 4,
-    artist: "NewJeans",
-    title: "Summer Pop-Up Live",
-    city: "후쿠오카",
-    venue: "Marine Messe Fukuoka",
-    date: "2026-08-08",
-    time: "17:30",
-    genre: "K-Pop",
-    source: "Ticketmaster",
-    ticketAccess: "한국 구매 가능",
-    saleType: "해외 판매",
-    saleWindow: "6.02 11:00 - 8.07 18:00",
-    price: "¥13,200",
-    phoneRequired: false,
-    foreignerNote: "해외 카드 결제와 모바일 티켓 수령 조건 확인",
-    link: "https://www.ticketmaster.com/",
-    image:
-      "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 5,
-    artist: "RADWIMPS",
-    title: "Afterglow Hall Set",
-    city: "나고야",
-    venue: "Nippon Gaishi Hall",
-    date: "2026-09-12",
-    time: "18:00",
-    genre: "Rock",
-    source: "Ticket Pia",
-    ticketAccess: "한국 구매 가능",
-    saleType: "일반 판매",
-    saleWindow: "7.04 10:00 - 9.11 23:59",
-    price: "¥9,900",
-    phoneRequired: false,
-    foreignerNote: "해외 판매 페이지가 열릴 경우 여권명 기준으로 예매",
-    link: "https://t.pia.jp/en",
-    image:
-      "https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?auto=format&fit=crop&w=1200&q=80",
-  },
-];
-
-const cityOptions: Array<City | "전체"> = ["전체", "도쿄", "오사카", "요코하마", "나고야", "후쿠오카"];
+const cityOptions: Array<Event["city"] | "전체"> = ["전체", "도쿄", "오사카", "요코하마", "나고야", "후쿠오카"];
 const accessOptions: Array<TicketAccess | "전체"> = [
   "전체",
   "한국 구매 가능",
   "일본 번호 필요",
   "확인 필요",
 ];
+const dateWindowOptions: DateWindow[] = ["전체", "60일 이내", "90일 이내", "여름 원정"];
+const today = new Date("2026-05-04T00:00:00+09:00");
+
+function isInDateWindow(date: string, dateWindow: DateWindow) {
+  if (dateWindow === "전체") return true;
+
+  const eventDate = new Date(`${date}T00:00:00+09:00`);
+  if (dateWindow === "여름 원정") {
+    return eventDate >= new Date("2026-06-01T00:00:00+09:00") &&
+      eventDate <= new Date("2026-08-31T23:59:59+09:00");
+  }
+
+  const limitDays = dateWindow === "60일 이내" ? 60 : 90;
+  const limit = new Date(today);
+  limit.setDate(today.getDate() + limitDays);
+  return eventDate >= today && eventDate <= limit;
+}
 
 function App() {
+  const [events, setEvents] = useState<Event[]>(seedEvents);
   const [query, setQuery] = useState("");
-  const [city, setCity] = useState<City | "전체">("전체");
+  const [city, setCity] = useState<Event["city"] | "전체">("전체");
   const [access, setAccess] = useState<TicketAccess | "전체">("전체");
-  const [selectedId, setSelectedId] = useState(events[0].id);
-  const [saved, setSaved] = useState<number[]>([4]);
+  const [dateWindow, setDateWindow] = useState<DateWindow>("전체");
+  const [koreaFriendlyOnly, setKoreaFriendlyOnly] = useState(false);
+  const [selectedId, setSelectedId] = useState(seedEvents[0].id);
+  const [saved, setSaved] = useState<string[]>([seedEvents[3].id]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadEvents() {
+      try {
+        const response = await fetch("/api/events");
+        if (!response.ok) return;
+        const data = (await response.json()) as EventApiResponse;
+        if (!ignore && data.events.length > 0) {
+          setEvents(data.events);
+          setSelectedId((current) =>
+            data.events.some((event) => event.id === current) ? current : data.events[0].id,
+          );
+        }
+      } catch {
+        // Vite's local dev server does not serve Vercel API routes, so the seed data remains active.
+      }
+    }
+
+    void loadEvents();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const filteredEvents = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -168,14 +91,17 @@ function App() {
       const queryMatch = !normalized || text.includes(normalized);
       const cityMatch = city === "전체" || event.city === city;
       const accessMatch = access === "전체" || event.ticketAccess === access;
-      return queryMatch && cityMatch && accessMatch;
+      const dateMatch = isInDateWindow(event.date, dateWindow);
+      const koreaFriendlyMatch =
+        !koreaFriendlyOnly || (event.ticketAccess === "한국 구매 가능" && !event.phoneRequired);
+      return queryMatch && cityMatch && accessMatch && dateMatch && koreaFriendlyMatch;
     });
-  }, [access, city, query]);
+  }, [access, city, dateWindow, koreaFriendlyOnly, query]);
 
-  const selectedEvent =
-    filteredEvents.find((event) => event.id === selectedId) ?? filteredEvents[0] ?? events[0];
+  const selectedEvent = filteredEvents.find((event) => event.id === selectedId) ?? filteredEvents[0];
+  const heroEvent = selectedEvent ?? events[0];
 
-  const toggleSaved = (id: number) => {
+  const toggleSaved = (id: string) => {
     setSaved((current) =>
       current.includes(id) ? current.filter((savedId) => savedId !== id) : [...current, id],
     );
@@ -198,11 +124,11 @@ function App() {
         </header>
 
         <section className="hero-strip" aria-label="추천 공연">
-          <img src={selectedEvent.image} alt="" />
+          <img src={heroEvent.image} alt="" />
           <div className="hero-copy">
-            <span>{selectedEvent.city} · {selectedEvent.genre}</span>
-            <strong>{selectedEvent.artist}</strong>
-            <p>{selectedEvent.date.replaceAll("-", ".")} · {selectedEvent.venue}</p>
+            <span>{heroEvent.city} · {heroEvent.genre}</span>
+            <strong>{heroEvent.artist}</strong>
+            <p>{heroEvent.date.replaceAll("-", ".")} · {heroEvent.venue}</p>
           </div>
         </section>
 
@@ -224,7 +150,10 @@ function App() {
           <div className="filter-grid">
             <label>
               <Filter size={15} />
-              <select value={city} onChange={(event) => setCity(event.target.value as City | "전체")}>
+              <select
+                value={city}
+                onChange={(event) => setCity(event.target.value as Event["city"] | "전체")}
+              >
                 {cityOptions.map((option) => (
                   <option key={option}>{option}</option>
                 ))}
@@ -241,18 +170,63 @@ function App() {
                 ))}
               </select>
             </label>
+            <label>
+              <CalendarDays size={15} />
+              <select
+                value={dateWindow}
+                onChange={(event) => setDateWindow(event.target.value as DateWindow)}
+              >
+                {dateWindowOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
           </div>
+        </section>
+
+        <section className="quick-filters" aria-label="원정 조건">
+          <button
+            className={koreaFriendlyOnly ? "active" : ""}
+            type="button"
+            onClick={() => setKoreaFriendlyOnly((current) => !current)}
+          >
+            <ShieldCheck size={16} />
+            한국에서 예매 쉬운 공연
+          </button>
+          <button type="button" onClick={() => setDateWindow("여름 원정")}>
+            <Plane size={16} />
+            여름 원정
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setCity("전체");
+              setAccess("전체");
+              setDateWindow("전체");
+              setKoreaFriendlyOnly(false);
+            }}
+          >
+            <SlidersHorizontal size={16} />
+            초기화
+          </button>
         </section>
 
         <section className="content-grid">
           <div className="event-list" aria-label="공연 목록">
             <div className="list-summary">
               <strong>{filteredEvents.length}개 공연</strong>
-              <span>한국 출발 기준</span>
+              <span>{koreaFriendlyOnly ? "예매 쉬운 공연" : "한국 출발 기준"}</span>
             </div>
+            {filteredEvents.length === 0 && (
+              <div className="empty-state">
+                <strong>조건에 맞는 공연이 없어요</strong>
+                <span>기간이나 티켓 조건을 넓혀 다시 찾아보세요.</span>
+              </div>
+            )}
             {filteredEvents.map((event) => (
               <button
-                className={`event-card ${event.id === selectedEvent.id ? "active" : ""}`}
+                className={`event-card ${selectedEvent && event.id === selectedEvent.id ? "active" : ""}`}
                 key={event.id}
                 onClick={() => setSelectedId(event.id)}
               >
@@ -280,7 +254,19 @@ function App() {
             ))}
           </div>
 
-          <EventDetail event={selectedEvent} saved={saved.includes(selectedEvent.id)} onSave={toggleSaved} />
+          {selectedEvent ? (
+            <EventDetail
+              event={selectedEvent}
+              saved={saved.includes(selectedEvent.id)}
+              onSave={toggleSaved}
+            />
+          ) : (
+            <aside className="detail-panel empty-detail" aria-label="공연 상세">
+              <ShieldCheck size={28} />
+              <strong>원정 조건을 조금 넓혀볼까요?</strong>
+              <span>한국 구매 가능 여부, 일본 전화번호 필요 여부, 날짜 조건을 조합해 찾을 수 있어요.</span>
+            </aside>
+          )}
         </section>
       </section>
     </main>
@@ -300,7 +286,7 @@ function EventDetail({
 }: {
   event: Event;
   saved: boolean;
-  onSave: (id: number) => void;
+  onSave: (id: string) => void;
 }) {
   return (
     <aside className="detail-panel" aria-label="공연 상세">

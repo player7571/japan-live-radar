@@ -20,12 +20,32 @@ npm run dev
 
 Local app: <http://localhost:5173>
 
+The Vite dev server uses local seed data. In Vercel, `/api/events` reads from Supabase and falls back to seed data if the database is not configured yet.
+
 ## Checks
 
 ```bash
+npm run typecheck
 npm run build
 npx playwright test
 ```
+
+## Backend
+
+- Database schema lives in `supabase/migrations`.
+- Public event reads are served by `api/events.ts`.
+- Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
+
+Required runtime secrets:
+
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+TICKETMASTER_API_KEY
+```
+
+`SUPABASE_DB_URL` is needed later if CI should apply migrations automatically.
 
 ## Branch Rules
 
