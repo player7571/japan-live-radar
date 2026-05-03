@@ -8,7 +8,7 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: "npm run dev -- --port 5173",
+    command: "VITE_USE_SEED_DATA=true npm run dev -- --port 5173",
     url: "http://localhost:5173",
     reuseExistingServer: true,
   },
