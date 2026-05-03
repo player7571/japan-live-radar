@@ -50,6 +50,22 @@ test("combines travel date and Korea-friendly filters", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "NewJeans" })).toBeVisible();
 });
 
+test("persists local alert selections", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await page.getByRole("button", { name: "일정 알림" }).click();
+
+  await expect(page.getByRole("button", { name: "알림 2개" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "알림 설정됨" })).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+
+  await expect(page.getByRole("button", { name: "알림 2개" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "알림 설정됨" })).toBeVisible();
+});
+
 test("shows an empty state when no concerts match", async ({ page }) => {
   await page.goto("/");
 
