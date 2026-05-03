@@ -75,3 +75,27 @@ export function rowToEvent(row: EventRow): Event {
       "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1200&q=80",
   };
 }
+
+export function eventToSeedRow(event: Event) {
+  return {
+    source: "Seed",
+    source_event_id: event.id,
+    artist: event.artist,
+    title: event.title,
+    city: event.city,
+    venue: event.venue,
+    date: event.date,
+    time: event.time,
+    genre: event.genre,
+    ticket_access: event.ticketAccess,
+    sale_type: event.saleType,
+    sale_window: event.saleWindow,
+    price: event.price,
+    phone_required: event.phoneRequired,
+    foreigner_note: event.foreignerNote,
+    link: event.link,
+    image: event.image,
+    country_code: "JP",
+    raw: event,
+  };
+}

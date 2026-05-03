@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { seedEvents } from "../src/data/seedEvents";
 import { rowToEvent, type EventRow } from "../src/lib/eventRows";
-import type { EventApiResponse } from "../src/types/events";
+import type { EventApiResponse, SyncRun } from "../src/types/events";
 
 type VercelRequest = {
   method?: string;
@@ -23,6 +23,28 @@ function seedResponse(): EventApiResponse {
   };
 }
 
+type SyncRunRow = {
+  source: string;
+  status: "success" | "error";
+  fetched_count: number;
+  upserted_count: number;
+  skipped_count: number;
+  message: string | null;
+  finished_at: string;
+};
+
+function rowToSyncRun(row: SyncRunRow): SyncRun {
+  return {
+    source: row.source,
+    status: row.status,
+    fetchedCount: row.fetched_count,
+    upsertedCount: row.upserted_count,
+    skippedCount: row.skipped_count,
+    message: row.message,
+    finishedAt: row.finished_at,
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=3600");
 
@@ -37,7 +59,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  const { data, error } = await supabase
+  const [eventsResult, syncResult] = await Promise.all([
+    supabase
     .from("events")
     .select(
       "id,artist,title,city,venue,date,time,genre,source,ticket_access,sale_type,sale_window,price,phone_required,foreigner_note,link,image",
@@ -45,15 +68,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .eq("country_code", "JP")
     .gte("date", new Date().toISOString().slice(0, 10))
     .order("date", { ascending: true })
-    .limit(100);
+      .limit(100),
+    supabase
+      .from("sync_runs")
+      .select("source,status,fetched_count,upserted_count,skipped_count,message,finished_at")
+      .eq("status", "success")
+      .order("finished_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  if (error || !data || data.length === 0) {
+  if (eventsResult.error || !eventsResult.data || eventsResult.data.length === 0) {
     res.status(200).json(seedResponse());
     return;
   }
 
   res.status(200).json({
-    events: (data as EventRow[]).map(rowToEvent),
+    events: (eventsResult.data as EventRow[]).map(rowToEvent),
     source: "supabase",
+    meta: !syncResult.error && syncResult.data
+      ? {
+          lastSync: rowToSyncRun(syncResult.data as SyncRunRow),
+        }
+      : undefined,
   } satisfies EventApiResponse);
 }

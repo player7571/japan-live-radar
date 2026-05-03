@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { recordSyncRun } from "../src/lib/syncRuns";
 
 type TicketmasterEvent = {
   id: string;
@@ -9,6 +10,7 @@ type TicketmasterEvent = {
     start?: {
       localDate?: string;
       localTime?: string;
+      dateTime?: string;
     };
   };
   sales?: {
@@ -41,6 +43,11 @@ type TicketmasterResponse = {
   _embedded?: {
     events?: TicketmasterEvent[];
   };
+  page?: {
+    totalElements?: number;
+    totalPages?: number;
+    number?: number;
+  };
 };
 
 type EventUpsertRow = {
@@ -68,12 +75,25 @@ type EventUpsertRow = {
 const ticketmasterApiKey = process.env.TICKETMASTER_API_KEY;
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const searchProfiles = [
+  { label: "all-jp-events", params: {} },
+  { label: "music-keyword", params: { keyword: "music" } },
+  { label: "concert-keyword", params: { keyword: "concert" } },
+  { label: "live-keyword", params: { keyword: "live" } },
+  { label: "festival-keyword", params: { keyword: "festival" } },
+] as const;
 
 function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
     throw new Error(`${name} is required`);
   }
   return value;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function bestImage(images: TicketmasterEvent["images"]) {
@@ -121,7 +141,7 @@ function mapCity(city?: string) {
 }
 
 function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
-  const date = event.dates?.start?.localDate;
+  const date = event.dates?.start?.localDate ?? event.dates?.start?.dateTime?.slice(0, 10);
   if (!date) return null;
 
   const venue = event._embedded?.venues?.[0];
@@ -137,7 +157,10 @@ function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
     city: mapCity(venue?.city?.name),
     venue: venue?.name ?? "Venue TBA",
     date,
-    time: event.dates?.start?.localTime?.slice(0, 5) ?? null,
+    time:
+      event.dates?.start?.localTime?.slice(0, 5) ??
+      event.dates?.start?.dateTime?.slice(11, 16) ??
+      null,
     genre,
     ticket_access: "확인 필요",
     sale_type: "일반 판매",
@@ -153,40 +176,99 @@ function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
 }
 
 async function main() {
+  const startedAt = new Date();
   const apiKey = requireEnv("TICKETMASTER_API_KEY", ticketmasterApiKey);
   const url = requireEnv("VITE_SUPABASE_URL or SUPABASE_URL", supabaseUrl);
   const key = requireEnv("SUPABASE_SERVICE_ROLE_KEY", serviceRoleKey);
+  const supabase = createClient(url, key);
 
-  const endpoint = new URL("https://app.ticketmaster.com/discovery/v2/events.json");
-  endpoint.searchParams.set("apikey", apiKey);
-  endpoint.searchParams.set("countryCode", "JP");
-  endpoint.searchParams.set("classificationName", "music");
-  endpoint.searchParams.set("size", "100");
-  endpoint.searchParams.set("sort", "date,asc");
+  const collected = new Map<string, TicketmasterEvent>();
+  const skippedProfiles: string[] = [];
 
-  const response = await fetch(endpoint);
-  if (!response.ok) {
-    throw new Error(`Ticketmaster request failed: ${response.status} ${await response.text()}`);
+  for (const [index, profile] of searchProfiles.entries()) {
+    if (index > 0) {
+      await sleep(1_250);
+    }
+
+    const endpoint = new URL("https://app.ticketmaster.com/discovery/v2/events.json");
+    endpoint.searchParams.set("apikey", apiKey);
+    endpoint.searchParams.set("countryCode", "JP");
+    endpoint.searchParams.set("size", "200");
+    endpoint.searchParams.set("sort", "date,asc");
+    endpoint.searchParams.set("locale", "*");
+    for (const [key, value] of Object.entries(profile.params)) {
+      endpoint.searchParams.set(key, value);
+    }
+
+    const response = await fetch(endpoint);
+    if (response.status === 429) {
+      skippedProfiles.push(profile.label);
+      console.warn(`Skipping ${profile.label}: Ticketmaster rate limit`);
+      continue;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Ticketmaster ${profile.label} request failed: ${response.status} ${await response.text()}`);
+    }
+
+    const payload = (await response.json()) as TicketmasterResponse;
+    const events = payload._embedded?.events ?? [];
+    console.log(`${profile.label}: fetched ${events.length} events`);
+    for (const event of events) {
+      collected.set(event.id, event);
+    }
   }
 
-  const payload = (await response.json()) as TicketmasterResponse;
-  const rows = (payload._embedded?.events ?? []).map(toEventRow).filter((row): row is EventUpsertRow => row !== null);
+  const mappedRows = [...collected.values()].map(toEventRow);
+  const rows = mappedRows.filter((row): row is EventUpsertRow => row !== null);
+  const skippedCount = mappedRows.length - rows.length;
 
   if (rows.length === 0) {
-    console.log("No Ticketmaster events found for JP music search.");
+    await recordSyncRun(supabase, {
+      source: "Ticketmaster",
+      status: "success",
+      fetchedCount: collected.size,
+      skippedCount,
+      message:
+        skippedProfiles.length > 0
+          ? `No usable dated events. Rate-limited profiles: ${skippedProfiles.join(", ")}.`
+          : "No Ticketmaster JP events with usable dates were found.",
+      startedAt,
+    });
+    console.log(`No Ticketmaster events found after ${searchProfiles.length} JP searches.`);
     return;
   }
 
-  const supabase = createClient(url, key);
   const { error } = await supabase.from("events").upsert(rows, {
     onConflict: "source,source_event_id",
   });
 
   if (error) {
+    await recordSyncRun(supabase, {
+      source: "Ticketmaster",
+      status: "error",
+      fetchedCount: collected.size,
+      skippedCount,
+      message: error.message,
+      startedAt,
+    });
     throw new Error(`Supabase upsert failed: ${error.message}`);
   }
 
-  console.log(`Synced ${rows.length} Ticketmaster events.`);
+  await recordSyncRun(supabase, {
+    source: "Ticketmaster",
+    status: "success",
+    fetchedCount: collected.size,
+    upsertedCount: rows.length,
+    skippedCount,
+    message:
+      skippedProfiles.length > 0
+        ? `Ran ${searchProfiles.length} JP search profiles. Rate-limited profiles: ${skippedProfiles.join(", ")}.`
+        : `Ran ${searchProfiles.length} JP search profiles.`,
+    startedAt,
+  });
+
+  console.log(`Synced ${rows.length} Ticketmaster events. Skipped ${skippedCount}.`);
 }
 
 main().catch((error: unknown) => {

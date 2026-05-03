@@ -4,6 +4,7 @@ test("searches concerts and opens the detail panel", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "일본 콘서트 원정 캘린더" })).toBeVisible();
+  await expect(page.getByText("샘플 데이터").first()).toBeVisible();
   await expect(page.getByRole("button", { name: /YOASOBI/ })).toBeVisible();
 
   await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("NewJeans");
@@ -27,8 +28,15 @@ test("filters by city and ticket access without horizontal overflow", async ({ p
   await expect(page.getByText("1개 공연")).toHaveCount(1);
   await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toHaveCount(1);
 
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-  expect(overflow).toBe(false);
+  await expect
+    .poll(async () => {
+      try {
+        return await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+      } catch {
+        return false;
+      }
+    })
+    .toBe(true);
 });
 
 test("combines travel date and Korea-friendly filters", async ({ page }) => {

@@ -253,6 +253,40 @@ h1 {
   font-weight: 650;
 }
 
+.data-source {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 12px;
+  color: #4f5e55;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.data-source span {
+  font-weight: 800;
+}
+
+.data-source strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.data-source.supabase span {
+  color: #0f5c3e;
+}
+
+.data-source.seed span {
+  color: #795211;
+}
+
 .event-card {
   position: relative;
   width: 100%;

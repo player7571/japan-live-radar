@@ -25,4 +25,17 @@ export type Event = {
 export type EventApiResponse = {
   events: Event[];
   source: "supabase" | "seed";
+  meta?: {
+    lastSync?: SyncRun;
+  };
+};
+
+export type SyncRun = {
+  source: string;
+  status: "success" | "error";
+  fetchedCount: number;
+  upsertedCount: number;
+  skippedCount: number;
+  message: string | null;
+  finishedAt: string;
 };

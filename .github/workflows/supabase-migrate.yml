@@ -1,12 +1,10 @@
-name: Sync Ticketmaster Events
+name: Supabase Migrate
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "17 18 * * *"
 
 jobs:
-  sync:
+  migrate:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,15 +20,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Sync seed events
-        run: npm run sync:seed
+      - name: Apply migrations
+        run: npm run db:migrate
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
-      - name: Sync Ticketmaster events
-        run: npm run sync:ticketmaster
+      - name: Check database
+        run: npm run db:check
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
