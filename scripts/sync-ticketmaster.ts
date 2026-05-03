@@ -90,6 +90,12 @@ function requireEnv(name: string, value: string | undefined): string {
   return value;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 function bestImage(images: TicketmasterEvent["images"]) {
   if (!images || images.length === 0) return null;
   return [...images].sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0].url;
@@ -177,8 +183,13 @@ async function main() {
   const supabase = createClient(url, key);
 
   const collected = new Map<string, TicketmasterEvent>();
+  const skippedProfiles: string[] = [];
 
-  for (const profile of searchProfiles) {
+  for (const [index, profile] of searchProfiles.entries()) {
+    if (index > 0) {
+      await sleep(1_250);
+    }
+
     const endpoint = new URL("https://app.ticketmaster.com/discovery/v2/events.json");
     endpoint.searchParams.set("apikey", apiKey);
     endpoint.searchParams.set("countryCode", "JP");
@@ -190,6 +201,12 @@ async function main() {
     }
 
     const response = await fetch(endpoint);
+    if (response.status === 429) {
+      skippedProfiles.push(profile.label);
+      console.warn(`Skipping ${profile.label}: Ticketmaster rate limit`);
+      continue;
+    }
+
     if (!response.ok) {
       throw new Error(`Ticketmaster ${profile.label} request failed: ${response.status} ${await response.text()}`);
     }
@@ -212,7 +229,10 @@ async function main() {
       status: "success",
       fetchedCount: collected.size,
       skippedCount,
-      message: "No Ticketmaster JP events with usable dates were found.",
+      message:
+        skippedProfiles.length > 0
+          ? `No usable dated events. Rate-limited profiles: ${skippedProfiles.join(", ")}.`
+          : "No Ticketmaster JP events with usable dates were found.",
       startedAt,
     });
     console.log(`No Ticketmaster events found after ${searchProfiles.length} JP searches.`);
@@ -241,7 +261,10 @@ async function main() {
     fetchedCount: collected.size,
     upsertedCount: rows.length,
     skippedCount,
-    message: `Ran ${searchProfiles.length} JP search profiles.`,
+    message:
+      skippedProfiles.length > 0
+        ? `Ran ${searchProfiles.length} JP search profiles. Rate-limited profiles: ${skippedProfiles.join(", ")}.`
+        : `Ran ${searchProfiles.length} JP search profiles.`,
     startedAt,
   });
 
