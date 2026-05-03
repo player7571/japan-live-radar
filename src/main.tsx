@@ -51,6 +51,8 @@ function isInDateWindow(date: string, dateWindow: DateWindow) {
 
 function App() {
   const [events, setEvents] = useState<Event[]>(seedEvents);
+  const [dataSource, setDataSource] = useState<EventApiResponse["source"]>("seed");
+  const [lastSyncLabel, setLastSyncLabel] = useState("샘플 데이터");
   const [query, setQuery] = useState("");
   const [city, setCity] = useState<Event["city"] | "전체">("전체");
   const [access, setAccess] = useState<TicketAccess | "전체">("전체");
@@ -69,6 +71,14 @@ function App() {
         const data = (await response.json()) as EventApiResponse;
         if (!ignore && data.events.length > 0) {
           setEvents(data.events);
+          setDataSource(data.source);
+          setLastSyncLabel(
+            data.meta?.lastSync
+              ? `${data.meta.lastSync.source} ${data.meta.lastSync.upsertedCount}건 동기화`
+              : data.source === "supabase"
+                ? "DB 데이터"
+                : "샘플 데이터",
+          );
           setSelectedId((current) =>
             data.events.some((event) => event.id === current) ? current : data.events[0].id,
           );
@@ -217,6 +227,10 @@ function App() {
             <div className="list-summary">
               <strong>{filteredEvents.length}개 공연</strong>
               <span>{koreaFriendlyOnly ? "예매 쉬운 공연" : "한국 출발 기준"}</span>
+            </div>
+            <div className={`data-source ${dataSource}`}>
+              <span>{dataSource === "supabase" ? "실시간 DB" : "샘플 데이터"}</span>
+              <strong>{lastSyncLabel}</strong>
             </div>
             {filteredEvents.length === 0 && (
               <div className="empty-state">

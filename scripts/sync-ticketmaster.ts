@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { recordSyncRun } from "../src/lib/syncRuns";
 
 type TicketmasterEvent = {
   id: string;
@@ -41,6 +42,11 @@ type TicketmasterResponse = {
   _embedded?: {
     events?: TicketmasterEvent[];
   };
+  page?: {
+    totalElements?: number;
+    totalPages?: number;
+    number?: number;
+  };
 };
 
 type EventUpsertRow = {
@@ -68,6 +74,13 @@ type EventUpsertRow = {
 const ticketmasterApiKey = process.env.TICKETMASTER_API_KEY;
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const searchProfiles = [
+  { label: "all-jp-events", params: {} },
+  { label: "music-keyword", params: { keyword: "music" } },
+  { label: "concert-keyword", params: { keyword: "concert" } },
+  { label: "live-keyword", params: { keyword: "live" } },
+  { label: "festival-keyword", params: { keyword: "festival" } },
+] as const;
 
 function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
@@ -153,40 +166,82 @@ function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
 }
 
 async function main() {
+  const startedAt = new Date();
   const apiKey = requireEnv("TICKETMASTER_API_KEY", ticketmasterApiKey);
   const url = requireEnv("VITE_SUPABASE_URL or SUPABASE_URL", supabaseUrl);
   const key = requireEnv("SUPABASE_SERVICE_ROLE_KEY", serviceRoleKey);
+  const supabase = createClient(url, key);
 
-  const endpoint = new URL("https://app.ticketmaster.com/discovery/v2/events.json");
-  endpoint.searchParams.set("apikey", apiKey);
-  endpoint.searchParams.set("countryCode", "JP");
-  endpoint.searchParams.set("classificationName", "music");
-  endpoint.searchParams.set("size", "100");
-  endpoint.searchParams.set("sort", "date,asc");
+  const collected = new Map<string, TicketmasterEvent>();
 
-  const response = await fetch(endpoint);
-  if (!response.ok) {
-    throw new Error(`Ticketmaster request failed: ${response.status} ${await response.text()}`);
+  for (const profile of searchProfiles) {
+    const endpoint = new URL("https://app.ticketmaster.com/discovery/v2/events.json");
+    endpoint.searchParams.set("apikey", apiKey);
+    endpoint.searchParams.set("countryCode", "JP");
+    endpoint.searchParams.set("size", "200");
+    endpoint.searchParams.set("sort", "date,asc");
+    endpoint.searchParams.set("locale", "*");
+    for (const [key, value] of Object.entries(profile.params)) {
+      endpoint.searchParams.set(key, value);
+    }
+
+    const response = await fetch(endpoint);
+    if (!response.ok) {
+      throw new Error(`Ticketmaster ${profile.label} request failed: ${response.status} ${await response.text()}`);
+    }
+
+    const payload = (await response.json()) as TicketmasterResponse;
+    const events = payload._embedded?.events ?? [];
+    console.log(`${profile.label}: fetched ${events.length} events`);
+    for (const event of events) {
+      collected.set(event.id, event);
+    }
   }
 
-  const payload = (await response.json()) as TicketmasterResponse;
-  const rows = (payload._embedded?.events ?? []).map(toEventRow).filter((row): row is EventUpsertRow => row !== null);
+  const mappedRows = [...collected.values()].map(toEventRow);
+  const rows = mappedRows.filter((row): row is EventUpsertRow => row !== null);
+  const skippedCount = mappedRows.length - rows.length;
 
   if (rows.length === 0) {
-    console.log("No Ticketmaster events found for JP music search.");
+    await recordSyncRun(supabase, {
+      source: "Ticketmaster",
+      status: "success",
+      fetchedCount: collected.size,
+      skippedCount,
+      message: "No Ticketmaster JP events with usable dates were found.",
+      startedAt,
+    });
+    console.log(`No Ticketmaster events found after ${searchProfiles.length} JP searches.`);
     return;
   }
 
-  const supabase = createClient(url, key);
   const { error } = await supabase.from("events").upsert(rows, {
     onConflict: "source,source_event_id",
   });
 
   if (error) {
+    await recordSyncRun(supabase, {
+      source: "Ticketmaster",
+      status: "error",
+      fetchedCount: collected.size,
+      skippedCount,
+      message: error.message,
+      startedAt,
+    });
     throw new Error(`Supabase upsert failed: ${error.message}`);
   }
 
-  console.log(`Synced ${rows.length} Ticketmaster events.`);
+  await recordSyncRun(supabase, {
+    source: "Ticketmaster",
+    status: "success",
+    fetchedCount: collected.size,
+    upsertedCount: rows.length,
+    skippedCount,
+    message: `Ran ${searchProfiles.length} JP search profiles.`,
+    startedAt,
+  });
+
+  console.log(`Synced ${rows.length} Ticketmaster events. Skipped ${skippedCount}.`);
 }
 
 main().catch((error: unknown) => {
