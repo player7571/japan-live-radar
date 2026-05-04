@@ -99,6 +99,20 @@ type AdminStats = {
   byCity: Array<{ label: string; count: number }>;
   generatedAt: string;
 };
+type AlertQueueStatus = "error" | "active" | "sent";
+type AdminAlertItem = {
+  id: string;
+  event_key: string;
+  event_snapshot: Partial<Event>;
+  channel: "browser" | "email";
+  contact_email: string | null;
+  status: AlertQueueStatus;
+  remind_at: string | null;
+  last_sent_at: string | null;
+  last_error: string | null;
+  send_count: number;
+  updated_at: string;
+};
 
 const accessOptions: Array<TicketAccess | "전체"> = [
   "전체",
@@ -769,6 +783,10 @@ function AdminPage() {
   const [candidateStatus, setCandidateStatus] = useState<"idle" | "loading" | "ready" | "local" | "error">("idle");
   const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
   const [statsStatus, setStatsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [alertQueueStatus, setAlertQueueStatus] = useState<AlertQueueStatus>("error");
+  const [alertQueue, setAlertQueue] = useState<AdminAlertItem[]>([]);
+  const [alertQueueState, setAlertQueueState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [alertQueueMessage, setAlertQueueMessage] = useState("");
 
   const updateDraft = <Key extends keyof AdminEventDraft>(key: Key, value: AdminEventDraft[Key]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -845,6 +863,40 @@ function AdminPage() {
     }
   };
 
+  const fetchAlertQueue = async (activeToken = token, queueStatus = alertQueueStatus) => {
+    if (!activeToken) return;
+    setAlertQueueState("loading");
+    setAlertQueueMessage("");
+    try {
+      const params = new URLSearchParams({ status: queueStatus });
+      if (queueStatus !== "active") params.set("due", "all");
+      const response = await fetch(`/api/admin-alerts?${params.toString()}`, {
+        headers: {
+          "x-admin-token": activeToken,
+        },
+      });
+      const payload = (await response.json()) as {
+        configured?: boolean;
+        alerts?: AdminAlertItem[];
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "알림 큐 조회 실패");
+      }
+      if (payload.configured === false) {
+        setAlertQueue([]);
+        setAlertQueueState("ready");
+        setAlertQueueMessage("알림 테이블 준비 전");
+        return;
+      }
+      setAlertQueue(payload.alerts ?? []);
+      setAlertQueueState("ready");
+    } catch (error) {
+      setAlertQueueState("error");
+      setAlertQueueMessage(error instanceof Error ? error.message : "알림 큐 조회 실패");
+    }
+  };
+
   const submitEvent = async (event: React.FormEvent) => {
     event.preventDefault();
     setStatus("saving");
@@ -867,7 +919,7 @@ function AdminPage() {
       setStatus("saved");
       setMessage("공연 정보가 저장됐어요.");
       setDraft(blankAdminEvent);
-      await Promise.all([fetchRecentEvents(token), fetchStats(token)]);
+      await Promise.all([fetchRecentEvents(token), fetchStats(token), fetchAlertQueue(token)]);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "저장 실패");
@@ -1007,7 +1059,7 @@ function AdminPage() {
       removeCandidate(candidate.id);
       setStatus("saved");
       setMessage("후보를 승인하고 공연으로 저장했어요.");
-      await Promise.all([fetchRecentEvents(token), fetchCandidates(token), fetchStats(token)]);
+      await Promise.all([fetchRecentEvents(token), fetchCandidates(token), fetchStats(token), fetchAlertQueue(token)]);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "후보 승인 실패");
@@ -1081,11 +1133,36 @@ function AdminPage() {
     }
   };
 
+  const retryAlert = async (alert: AdminAlertItem) => {
+    setAlertQueueState("loading");
+    setAlertQueueMessage("");
+    try {
+      const response = await fetch("/api/admin-alerts", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": token,
+        },
+        body: JSON.stringify({ id: alert.id, status: "active" }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "알림 재시도 실패");
+      }
+      await Promise.all([fetchAlertQueue(token), fetchStats(token)]);
+      setAlertQueueMessage("알림을 재시도 큐로 되돌렸어요.");
+    } catch (error) {
+      setAlertQueueState("error");
+      setAlertQueueMessage(error instanceof Error ? error.message : "알림 재시도 실패");
+    }
+  };
+
   useEffect(() => {
     if (token) {
       void fetchRecentEvents(token);
       void fetchCandidates(token);
       void fetchStats(token);
+      void fetchAlertQueue(token);
     }
   }, []);
 
@@ -1158,6 +1235,56 @@ function AdminPage() {
             </>
           ) : (
             <div className="empty-state">관리자 토큰을 입력하고 품질 지표를 새로고침하세요.</div>
+          )}
+        </section>
+
+        <section className="admin-alert-queue" aria-label="알림 큐">
+          <div className="list-summary">
+            <strong><Bell size={18} /> 알림 큐</strong>
+            <div className="admin-inline-actions">
+              <select
+                aria-label="알림 상태"
+                value={alertQueueStatus}
+                onChange={(event) => {
+                  const nextStatus = event.target.value as AlertQueueStatus;
+                  setAlertQueueStatus(nextStatus);
+                  void fetchAlertQueue(token, nextStatus);
+                }}
+              >
+                <option value="error">오류</option>
+                <option value="active">대기</option>
+                <option value="sent">발송 완료</option>
+              </select>
+              <button className="secondary-button" type="button" onClick={() => fetchAlertQueue()}>
+                {alertQueueState === "loading" ? "확인 중" : "알림 새로고침"}
+              </button>
+            </div>
+          </div>
+          {alertQueueMessage && (
+            <span className={alertQueueState === "error" ? "admin-error" : "admin-success"}>{alertQueueMessage}</span>
+          )}
+          {alertQueueState !== "error" && alertQueue.length === 0 ? (
+            <div className="empty-state">표시할 알림이 없어요.</div>
+          ) : (
+            <div className="admin-alert-list">
+              {alertQueue.map((alert) => (
+                <article className="admin-alert-item" key={alert.id}>
+                  <div>
+                    <span>
+                      {alert.remind_at ? new Date(alert.remind_at).toLocaleString("ko-KR") : "알림 시간 미정"}
+                      {alert.contact_email ? ` · ${alert.contact_email}` : ""}
+                    </span>
+                    <strong>{[alert.event_snapshot.artist, alert.event_snapshot.title].filter(Boolean).join(" · ") || alert.event_key}</strong>
+                    <small>{alert.last_error || `발송 ${alert.send_count}회`}</small>
+                  </div>
+                  {alert.status === "error" && (
+                    <button className="secondary-button" type="button" onClick={() => retryAlert(alert)}>
+                      재시도
+                    </button>
+                  )}
+                </article>
+              ))}
+            </div>
           )}
         </section>
 

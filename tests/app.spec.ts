@@ -675,6 +675,90 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
   await expect(page.getByText("후보를 입력폼에 적용했어요.")).toBeVisible();
 });
 
+test("shows admin alert queue and retries errored alerts", async ({ page }) => {
+  let retryBody: Record<string, unknown> | null = null;
+  let queueReads = 0;
+
+  await page.route("**/api/admin-alerts**", async (route) => {
+    if (route.request().method() === "PATCH") {
+      retryBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, alert: { id: "alert-1", status: "active" } }),
+      });
+      return;
+    }
+
+    queueReads += 1;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        configured: true,
+        alerts: queueReads === 1
+          ? [
+              {
+                id: "alert-1",
+                event_key: "ado-2026",
+                event_snapshot: {
+                  artist: "Ado",
+                  title: "Blue Flame Tour",
+                },
+                channel: "email",
+                contact_email: "fan@example.com",
+                status: "error",
+                remind_at: "2026-05-10T00:00:00.000Z",
+                last_sent_at: null,
+                last_error: "Webhook failed with 500",
+                send_count: 0,
+                updated_at: "2026-05-04T00:00:00Z",
+              },
+            ]
+          : [],
+      }),
+    });
+  });
+  await page.route("**/api/admin-stats", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        totalEvents: 0,
+        pendingCandidates: 0,
+        candidateTableReady: true,
+        alertQueue: {
+          activeDue: 0,
+          activeScheduled: 1,
+          error: 0,
+          sent: 0,
+          lastErrorAt: null,
+        },
+        quality: {
+          missingLink: 0,
+          missingSaleWindow: 0,
+          missingPrice: 0,
+          needsAccessReview: 0,
+          phoneRequired: 0,
+          koreaFriendly: 0,
+        },
+        bySource: [],
+        byCity: [],
+        generatedAt: "2026-05-04T00:00:00Z",
+      }),
+    });
+  });
+
+  await page.goto("/#admin");
+  await page.getByLabel("관리자 토큰").fill("test-token");
+  await page.getByRole("button", { name: "알림 새로고침" }).click();
+
+  await expect(page.getByLabel("알림 큐").getByText("Ado · Blue Flame Tour")).toBeVisible();
+  await expect(page.getByLabel("알림 큐").getByText("fan@example.com")).toBeVisible();
+  await expect(page.getByLabel("알림 큐").getByText("Webhook failed with 500")).toBeVisible();
+
+  await page.getByRole("button", { name: "재시도" }).click();
+  expect(retryBody).toMatchObject({ id: "alert-1", status: "active" });
+  await expect(page.getByText("알림을 재시도 큐로 되돌렸어요.")).toBeVisible();
+});
+
 test("shows an empty state when no concerts match", async ({ page }) => {
   await page.goto("/");
 

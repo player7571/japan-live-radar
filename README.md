@@ -47,6 +47,7 @@ Open `/#admin` and enter `ADMIN_API_TOKEN`.
 - Use `검색어 후보 만들기` to create source search links for an artist keyword across Ticket Pia, e+, and Lawson Ticket. These are review candidates, not confirmed events.
 - Review `URL 후보`, then choose `초안 적용` to inspect the fields or `승인 저장` to write a complete candidate into the `events` table.
 - Use `데이터 품질` before releases to find missing links, missing sale windows, missing prices, ticket-access items that still need review, and alert queue errors.
+- Use `알림 큐` to inspect failed, due, or sent alerts. Failed alerts can be returned to the active queue with `재시도`.
 
 ## Alert Operations
 
