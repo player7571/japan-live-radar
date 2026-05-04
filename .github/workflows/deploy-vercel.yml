@@ -35,11 +35,19 @@ jobs:
               exit 1
             fi
 
-            npx vercel env add "$name" "$target" \
-              --force \
-              --yes \
-              --value "$value" \
-              --token="$VERCEL_TOKEN"
+            if [ "$target" = "preview" ]; then
+              npx vercel env add "$name" "$target" "" \
+                --force \
+                --yes \
+                --value "$value" \
+                --token="$VERCEL_TOKEN"
+            else
+              npx vercel env add "$name" "$target" \
+                --force \
+                --yes \
+                --value "$value" \
+                --token="$VERCEL_TOKEN"
+            fi
           }
 
           for target in production preview; do
