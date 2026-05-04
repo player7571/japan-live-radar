@@ -2,10 +2,12 @@ import { expect, test } from "@playwright/test";
 import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
 import { summarizeAlertQueue } from "../api/admin-stats";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
+import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
 import { buildAlertMessage, buildAlertWebhookPayload } from "../scripts/dispatch-alerts";
 import { formatSaleWindow } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
+import { seedEvents } from "../src/data/seedEvents";
 
 test("extracts Japanese ticket page sales cues", () => {
   const draft = extractDraft(
@@ -233,6 +235,13 @@ test("formats Ticketmaster sale windows for alert parsing", () => {
       new Date("2026-05-04T00:00:00+09:00"),
     ),
   ).toBe(new Date("2026-06-02T08:00:00+09:00").toISOString());
+});
+
+test("serves the shared seed event catalog from the events API fallback", () => {
+  expect(seedResponse()).toEqual({
+    events: seedEvents,
+    source: "seed",
+  });
 });
 
 test("normalizes alert contact emails", () => {
