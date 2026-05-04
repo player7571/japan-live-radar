@@ -107,23 +107,25 @@ function parseSaleWindowStart(value: unknown, fallbackYear?: string) {
   }
 
   const dateMatch = normalized.match(
-    /(\d{4}[./年-]\s*\d{1,2}[./月-]\s*\d{1,2})(?:日)?(?:\([^)]*\))?\s*([01]?\d|2[0-3]):([0-5]\d)/,
+    /(\d{4}[./年-]\s*\d{1,2}[./月-]\s*\d{1,2})(?:日)?(?:\([^)]*\))?\s*([01]?\d|2[0-3])(?::([0-5]\d)|時\s*([0-5]\d)?\s*分?)/,
   );
   if (dateMatch) {
     const dateParts = parseDateParts(dateMatch[1]);
     if (!dateParts) return null;
     const [year, month, day] = dateParts;
+    const minute = dateMatch[3] ?? dateMatch[4] ?? "00";
     return new Date(
-      `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${dateMatch[2].padStart(2, "0")}:${dateMatch[3]}:00+09:00`,
+      `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${dateMatch[2].padStart(2, "0")}:${minute}:00+09:00`,
     );
   }
 
   const shortDateMatch = normalized.match(
-    /(^|[^\d])(\d{1,2})[./月]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*([01]?\d|2[0-3]):([0-5]\d)/,
+    /(^|[^\d])(\d{1,2})[./月]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*([01]?\d|2[0-3])(?::([0-5]\d)|時\s*([0-5]\d)?\s*分?)/,
   );
   if (shortDateMatch && fallbackYear) {
+    const minute = shortDateMatch[5] ?? shortDateMatch[6] ?? "00";
     return new Date(
-      `${fallbackYear}-${shortDateMatch[2].padStart(2, "0")}-${shortDateMatch[3].padStart(2, "0")}T${shortDateMatch[4].padStart(2, "0")}:${shortDateMatch[5]}:00+09:00`,
+      `${fallbackYear}-${shortDateMatch[2].padStart(2, "0")}-${shortDateMatch[3].padStart(2, "0")}T${shortDateMatch[4].padStart(2, "0")}:${minute}:00+09:00`,
     );
   }
 
