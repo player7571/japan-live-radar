@@ -78,6 +78,32 @@ test("extracts eplus-style labeled event fields", () => {
   expect(draft.phoneRequired).toBe(false);
 });
 
+test("uses explicit no-phone overseas cues for Korea-friendly imports", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>YOASOBI ASIA TOUR｜e+</title>
+        </head>
+        <body>
+          <h1>YOASOBI ASIA TOUR</h1>
+          <p>会場：札幌文化芸術劇場 hitaru</p>
+          <p>公演日：2026年10月04日 18:00</p>
+          <p>海外受付 international ticket credit card available</p>
+          <p>日本の携帯電話番号は不要です。SMS認証なしで購入できます。</p>
+          <p>受付期間：2026年7月1日 12:00～2026年7月8日 23:59</p>
+        </body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/yoasobi-overseas"),
+  );
+
+  expect(draft.city).toBe("삿포로");
+  expect(draft.ticketAccess).toBe("한국 구매 가능");
+  expect(draft.phoneRequired).toBe(false);
+  expect(draft.foreignerNote).toContain("일본 전화번호/SMS 인증 불필요");
+});
+
 test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
   const draft = extractDraft(
     `
@@ -109,6 +135,40 @@ test("extracts Lawson table fields and prefers showtime over doors-open time", (
   expect(draft.saleWindow).toBe("2026/06/01(月) 10:00");
   expect(draft.price).toBe("¥11,000");
   expect(draft.ticketAccess).toBe("일본 번호 필요");
+});
+
+test("detects additional Japanese concert cities from imported pages", () => {
+  expect(
+    extractDraft(
+      `
+        <html>
+          <head><title>BUMP OF CHICKEN TOUR｜チケットぴあ</title></head>
+          <body>
+            <h1>BUMP OF CHICKEN TOUR</h1>
+            <p>会場：仙台サンプラザホール</p>
+            <p>公演日：2026年9月14日 18:30</p>
+          </body>
+        </html>
+      `,
+      new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600002"),
+    ).city,
+  ).toBe("센다이");
+
+  expect(
+    extractDraft(
+      `
+        <html>
+          <head><title>Perfume LIVE｜ローチケ</title></head>
+          <body>
+            <h1>Perfume LIVE</h1>
+            <p>会場：広島グリーンアリーナ</p>
+            <p>公演日：2026年9月15日 18:30</p>
+          </body>
+        </html>
+      `,
+      new URL("https://l-tike.com/concert/mevent/?mid=654321"),
+    ).city,
+  ).toBe("히로시마");
 });
 
 test("extracts array-based JSON-LD event data", () => {
