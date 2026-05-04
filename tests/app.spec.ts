@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
-import { summarizeAlertQueue } from "../api/admin-stats";
+import { summarizeAlertQueue, summarizeSyncRuns } from "../api/admin-stats";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
@@ -576,6 +576,59 @@ test("limits Ticketmaster pagination while following available pages", () => {
   expect(nextTicketmasterPages({ number: 0, totalPages: 4 }, 3)).toEqual([1, 2]);
   expect(nextTicketmasterPages({ number: 1, totalPages: 4 }, 3)).toEqual([2]);
   expect(nextTicketmasterPages({ number: 0, totalPages: 1 }, 3)).toEqual([]);
+});
+
+test("summarizes latest sync run per source for admin quality checks", () => {
+  expect(
+    summarizeSyncRuns([
+      {
+        source: "ticketmaster",
+        status: "success",
+        fetched_count: 420,
+        upserted_count: 390,
+        skipped_count: 30,
+        message: null,
+        finished_at: "2026-05-04T10:00:00Z",
+      },
+      {
+        source: "ticketmaster",
+        status: "error",
+        fetched_count: 0,
+        upserted_count: 0,
+        skipped_count: 0,
+        message: "older failure",
+        finished_at: "2026-05-03T10:00:00Z",
+      },
+      {
+        source: "seed",
+        status: "success",
+        fetched_count: null,
+        upserted_count: 8,
+        skipped_count: null,
+        message: null,
+        finished_at: "2026-05-04T09:00:00Z",
+      },
+    ]),
+  ).toEqual([
+    {
+      source: "ticketmaster",
+      status: "success",
+      fetchedCount: 420,
+      upsertedCount: 390,
+      skippedCount: 30,
+      message: null,
+      finishedAt: "2026-05-04T10:00:00Z",
+    },
+    {
+      source: "seed",
+      status: "success",
+      fetchedCount: 0,
+      upsertedCount: 8,
+      skippedCount: 0,
+      message: null,
+      finishedAt: "2026-05-04T09:00:00Z",
+    },
+  ]);
 });
 
 test("maps Ticketmaster events as Korea-friendly rows", () => {
@@ -1218,6 +1271,17 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
           sent: 3,
           lastErrorAt: "2026-05-04T00:00:00Z",
         },
+        syncRuns: [
+          {
+            source: "ticketmaster",
+            status: "success",
+            fetchedCount: 420,
+            upsertedCount: 390,
+            skippedCount: 30,
+            message: null,
+            finishedAt: "2026-05-04T10:00:00Z",
+          },
+        ],
         bySource: [{ label: "Ticket Pia", count: 3 }],
         byCity: [{ label: "도쿄", count: 2 }],
         generatedAt: "2026-05-04T00:00:00Z",
@@ -1236,6 +1300,8 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
   await expect(page.getByLabel("데이터 품질").getByText("가격 누락")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("알림 대기")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("알림 오류")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("동기화")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText(/ticketmaster · 성공 · 390\/420/)).toBeVisible();
 
   await page.getByLabel("검색어 후보 수집").fill("Ado");
   await page.getByRole("button", { name: "후보 만들기" }).click();
