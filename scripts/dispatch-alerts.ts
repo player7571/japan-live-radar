@@ -66,6 +66,13 @@ export function buildAlertWebhookPayload(alert: DueAlert) {
   };
 }
 
+export function summarizeDispatchFailures(failures: string[]) {
+  if (failures.length === 0) return null;
+  const sample = failures.slice(0, 3).join("; ");
+  const suffix = failures.length > 3 ? `; +${failures.length - 3} more` : "";
+  return `Failed to dispatch ${failures.length} alert(s): ${sample}${suffix}`;
+}
+
 async function requestJson<T>(url: string, init: RequestInit) {
   const response = await fetch(url, init);
   const text = await response.text();
@@ -125,6 +132,7 @@ async function main() {
   }
 
   console.log(`Dispatching ${alerts.length} due alert(s).`);
+  const failures: string[] = [];
   for (const alert of alerts) {
     try {
       await sendWebhook(alert);
@@ -133,8 +141,14 @@ async function main() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown delivery error";
       await patchAlert(alert.id, "error", message);
+      failures.push(`${alert.id}: ${message}`);
       console.error(`Marked alert ${alert.id} as error: ${message}`);
     }
+  }
+
+  const failureSummary = summarizeDispatchFailures(failures);
+  if (failureSummary) {
+    throw new Error(failureSummary);
   }
 }
 
