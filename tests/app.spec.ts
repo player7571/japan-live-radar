@@ -70,6 +70,87 @@ test("extracts eplus-style labeled event fields", () => {
   expect(draft.phoneRequired).toBe(false);
 });
 
+test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>米津玄師 2026 TOUR | ローチケ</title>
+        </head>
+        <body>
+          <h1>米津玄師 2026 TOUR</h1>
+          <table>
+            <tr><th>公演日時</th><td>2026/12/24(木) 開場17:30 / 開演18:30</td></tr>
+            <tr><th>会場</th><td>さいたまスーパーアリーナ</td></tr>
+            <tr><th>発売日時</th><td>2026/06/01(月) 10:00</td></tr>
+            <tr><th>席種・料金</th><td>指定席 11,000円</td></tr>
+          </table>
+          <p>ローチケ電子チケットはSMS認証が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://l-tike.com/concert/mevent/?mid=123456"),
+  );
+
+  expect(draft.artist).toBe("米津玄師 2026 TOUR");
+  expect(draft.city).toBe("사이타마");
+  expect(draft.venue).toBe("さいたまスーパーアリーナ");
+  expect(draft.date).toBe("2026-12-24");
+  expect(draft.time).toBe("18:30");
+  expect(draft.source).toBe("Lawson Ticket");
+  expect(draft.saleWindow).toBe("2026/06/01(月) 10:00");
+  expect(draft.price).toBe("¥11,000");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+});
+
+test("extracts array-based JSON-LD event data", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Event",
+              "name": "King Gnu Stadium Live",
+              "startDate": "2026-09-05T19:00:00+09:00",
+              "performer": [{ "@type": "MusicGroup", "name": "King Gnu" }],
+              "location": {
+                "@type": "Place",
+                "name": "日産スタジアム",
+                "address": "神奈川県横浜市港北区小机町3300"
+              },
+              "offers": [
+                {
+                  "@type": "Offer",
+                  "price": "15000",
+                  "validFrom": "2026-06-10T12:00:00+09:00"
+                }
+              ],
+              "image": ["https://example.com/king-gnu.jpg"]
+            }
+          </script>
+        </head>
+        <body>
+          <p>海外受付 international ticket credit card available</p>
+        </body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/123456"),
+  );
+
+  expect(draft.artist).toBe("King Gnu");
+  expect(draft.title).toBe("King Gnu Stadium Live");
+  expect(draft.city).toBe("요코하마");
+  expect(draft.venue).toBe("日産スタジアム");
+  expect(draft.date).toBe("2026-09-05");
+  expect(draft.time).toBe("19:00");
+  expect(draft.saleWindow).toBe("2026-06-10T12:00:00+09:00");
+  expect(draft.price).toBe("¥15,000");
+  expect(draft.ticketAccess).toBe("한국 구매 가능");
+  expect(draft.image).toBe("https://example.com/king-gnu.jpg");
+});
+
 test("calculates alert reminders from sale windows and event dates", () => {
   const now = new Date("2026-05-04T00:00:00+09:00");
 
