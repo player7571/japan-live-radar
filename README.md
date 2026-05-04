@@ -116,6 +116,7 @@ APP_BASE_URL
 VITE_USE_SEED_DATA
 TICKETMASTER_PAGE_LIMIT
 ALERT_WEBHOOK_ATTEMPTS
+SYNC_STALE_AFTER_HOURS
 ```
 
 - `SUPABASE_URL` and `SUPABASE_ANON_KEY` are server-side fallbacks for the Vite-prefixed Supabase values.
@@ -123,6 +124,7 @@ ALERT_WEBHOOK_ATTEMPTS
 - `VITE_USE_SEED_DATA=true` forces the frontend to use local seed data during development.
 - `TICKETMASTER_PAGE_LIMIT` caps Ticketmaster sync pagination per search profile. It defaults to `2` pages, is clamped from `1` to `5`, and can be set as a GitHub repository variable for the scheduled sync workflow.
 - `ALERT_WEBHOOK_ATTEMPTS` controls retry attempts for transient alert webhook failures. It defaults to `3`, is clamped from `1` to `5`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
+- `SYNC_STALE_AFTER_HOURS` controls when the admin stats API marks the latest sync run as delayed. It defaults to `30` hours to cover the daily Ticketmaster schedule with slack.
 
 ## Release Operations
 
