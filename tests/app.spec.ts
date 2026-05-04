@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
+import { summarizeAlertQueue } from "../api/admin-stats";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { extractDraft } from "../api/import-url";
 import { buildAlertMessage, buildAlertWebhookPayload } from "../scripts/dispatch-alerts";
@@ -269,6 +270,26 @@ test("normalizes admin alert queue filters and retry updates", () => {
     status: "active",
     remind_at: "2026-05-05T00:00:00.000Z",
     last_error: null,
+  });
+});
+
+test("summarizes alert queue health for admin stats", () => {
+  expect(
+    summarizeAlertQueue(
+      [
+        { status: "active", remind_at: "2026-05-04T11:59:00.000Z", updated_at: "2026-05-04T11:00:00.000Z" },
+        { status: "active", remind_at: "2026-05-05T11:59:00.000Z", updated_at: "2026-05-04T11:00:00.000Z" },
+        { status: "error", remind_at: "2026-05-04T10:00:00.000Z", updated_at: "2026-05-04T12:00:00.000Z" },
+        { status: "sent", remind_at: "2026-05-04T09:00:00.000Z", updated_at: "2026-05-04T09:30:00.000Z" },
+      ],
+      new Date("2026-05-04T12:00:00.000Z"),
+    ),
+  ).toEqual({
+    activeDue: 1,
+    activeScheduled: 1,
+    error: 1,
+    sent: 1,
+    lastErrorAt: "2026-05-04T12:00:00.000Z",
   });
 });
 
@@ -622,6 +643,13 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
           phoneRequired: 3,
           koreaFriendly: 1,
         },
+        alertQueue: {
+          activeDue: 2,
+          activeScheduled: 5,
+          error: 1,
+          sent: 3,
+          lastErrorAt: "2026-05-04T00:00:00Z",
+        },
         bySource: [{ label: "Ticket Pia", count: 3 }],
         byCity: [{ label: "도쿄", count: 2 }],
         generatedAt: "2026-05-04T00:00:00Z",
@@ -635,6 +663,8 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
 
   await expect(page.getByLabel("데이터 품질").getByText("공연")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("5개")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("알림 대기")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("알림 오류")).toBeVisible();
 
   await page.getByLabel("검색어 후보 수집").fill("Ado");
   await page.getByRole("button", { name: "후보 만들기" }).click();
