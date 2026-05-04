@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-import { seedEvents } from "../src/data/seedEvents";
-import { rowToEvent, type EventRow } from "../src/lib/eventRows";
-import { serverReadKey } from "../src/lib/supabaseServer";
-import type { EventApiResponse, SyncRun } from "../src/types/events";
+import { seedEvents } from "../src/data/seedEvents.js";
+import { rowToEvent, type EventRow } from "../src/lib/eventRows.js";
+import { serverReadKey } from "../src/lib/supabaseServer.js";
+import type { EventApiResponse, SyncRun } from "../src/types/events.js";
 
 type VercelRequest = {
   method?: string;

@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { serverReadKey } from "../src/lib/supabaseServer";
+import { serverReadKey } from "../src/lib/supabaseServer.js";
 
 type VercelRequest = {
   method?: string;

@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import type { AdminEventInput } from "../src/lib/adminEventRows";
-import { toEventRow } from "../src/lib/adminEventRows";
+import type { AdminEventInput } from "../src/lib/adminEventRows.js";
+import { toEventRow } from "../src/lib/adminEventRows.js";
 
 type VercelRequest = {
   method?: string;
