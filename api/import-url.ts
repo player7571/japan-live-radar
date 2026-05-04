@@ -127,10 +127,11 @@ function cleanTitle(value: string, hostname: string) {
 }
 
 function normalizeDate(value: string) {
-  const isoDate = value.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  const normalized = normalizeFullWidth(value);
+  const isoDate = normalized.match(/\d{4}-\d{2}-\d{2}/)?.[0];
   if (isoDate) return isoDate;
 
-  const jpDate = value.match(/(\d{4})[./年-]\s*(\d{1,2})[./月-]\s*(\d{1,2})/)?.slice(1);
+  const jpDate = normalized.match(/(\d{4})[./年-]\s*(\d{1,2})[./月-]\s*(\d{1,2})/)?.slice(1);
   if (jpDate?.length === 3) {
     const [year, month, day] = jpDate;
     return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
@@ -139,12 +140,20 @@ function normalizeDate(value: string) {
   return "";
 }
 
+function formatClockTime(hour: string, minute?: string) {
+  return `${hour}:${minute ?? "00"}`;
+}
+
 function normalizeTime(value: string) {
   const normalized = normalizeFullWidth(value);
   const isoTime = normalized.match(/T([01]\d|2[0-3]):([0-5]\d)/);
   if (isoTime) return `${isoTime[1]}:${isoTime[2]}`;
-  const showtime = normalized.match(/(?:開演|START|Start|start)\s*[:：]?\s*([01]?\d|2[0-3]):([0-5]\d)/);
-  if (showtime) return `${showtime[1]}:${showtime[2]}`;
+  const showtime = normalized.match(
+    /(?:開演|START)\s*[:：]?\s*([01]?\d|2[0-3])(?::([0-5]\d)|時\s*([0-5]\d)?\s*分?)/i,
+  );
+  if (showtime) return formatClockTime(showtime[1], showtime[2] ?? showtime[3]);
+  const japaneseTime = normalized.match(/\b([01]?\d|2[0-3])時\s*([0-5]\d)?\s*分?/);
+  if (japaneseTime) return formatClockTime(japaneseTime[1], japaneseTime[2]);
   return normalized.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/)?.[0] ?? "";
 }
 
