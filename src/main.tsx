@@ -101,6 +101,10 @@ type AdminStats = {
   generatedAt: string;
 };
 type AlertQueueStatus = "error" | "active" | "sent";
+type AlertEmailFeedback = {
+  status: "idle" | "saving" | "saved" | "error";
+  message: string;
+};
 type AdminAlertItem = {
   id: string;
   event_key: string;
@@ -204,6 +208,10 @@ function loadAlertEmail() {
   } catch {
     return "";
   }
+}
+
+function validAlertEmail(value: string) {
+  return !value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 function loadImportCandidates() {
@@ -352,6 +360,10 @@ function App() {
   const [saved, setSaved] = useState<string[]>(loadSavedEventIds);
   const [alertClientId] = useState(loadAlertClientId);
   const [alertEmail, setAlertEmail] = useState(loadAlertEmail);
+  const [alertEmailFeedback, setAlertEmailFeedback] = useState<AlertEmailFeedback>({
+    status: "idle",
+    message: "",
+  });
   const [alertsOpen, setAlertsOpen] = useState(false);
 
   const cityOptions = useMemo(
@@ -448,9 +460,9 @@ function App() {
   const heroEvent = selectedEvent ?? events[0];
 
   const syncAlertSubscription = async (event: Event, active: boolean) => {
-    if (useSeedData) return;
+    if (useSeedData) return true;
     try {
-      await fetch("/api/alerts", {
+      const response = await fetch("/api/alerts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -469,8 +481,12 @@ function App() {
           },
         }),
       });
+      if (!response.ok) return false;
+      const payload = (await response.json()) as { configured?: boolean };
+      return payload.configured !== false;
     } catch {
       // The local reminder state remains useful if the backend is unavailable.
+      return false;
     }
   };
 
@@ -485,9 +501,27 @@ function App() {
     }
   };
 
-  const saveAlertEmail = () => {
-    for (const event of savedEventItems) {
-      void syncAlertSubscription(event, true);
+  const updateAlertEmail = (email: string) => {
+    setAlertEmail(email);
+    setAlertEmailFeedback({ status: "idle", message: "" });
+  };
+
+  const saveAlertEmail = async () => {
+    if (!validAlertEmail(alertEmail)) {
+      setAlertEmailFeedback({ status: "error", message: "이메일 형식을 확인해 주세요." });
+      return;
+    }
+    if (savedEventItems.length === 0) return;
+
+    setAlertEmailFeedback({ status: "saving", message: "알림 정보를 저장하는 중" });
+    const results = await Promise.all(savedEventItems.map((event) => syncAlertSubscription(event, true)));
+    if (results.every(Boolean)) {
+      setAlertEmailFeedback({ status: "saved", message: "알림 이메일을 저장했어요." });
+    } else {
+      setAlertEmailFeedback({
+        status: "error",
+        message: "브라우저에는 저장했고 서버 동기화는 다시 시도할 수 있어요.",
+      });
     }
   };
 
@@ -523,8 +557,9 @@ function App() {
           <SavedAlertsPanel
             events={savedEventItems}
             email={alertEmail}
+            feedback={alertEmailFeedback}
             onClose={() => setAlertsOpen(false)}
-            onEmailChange={setAlertEmail}
+            onEmailChange={updateAlertEmail}
             onSaveEmail={saveAlertEmail}
             onRemove={toggleSaved}
             onSelect={(id) => {
@@ -719,6 +754,7 @@ function App() {
 function SavedAlertsPanel({
   events,
   email,
+  feedback,
   onClose,
   onEmailChange,
   onSaveEmail,
@@ -727,12 +763,15 @@ function SavedAlertsPanel({
 }: {
   events: Event[];
   email: string;
+  feedback: AlertEmailFeedback;
   onClose: () => void;
   onEmailChange: (email: string) => void;
-  onSaveEmail: () => void;
+  onSaveEmail: () => void | Promise<void>;
   onRemove: (id: string) => void;
   onSelect: (id: string) => void;
 }) {
+  const savingEmail = feedback.status === "saving";
+
   return (
     <section className="saved-alerts-panel" id="saved-alerts-panel" aria-label="저장한 알림">
       <div className="list-summary">
@@ -753,14 +792,24 @@ function SavedAlertsPanel({
             <input
               value={email}
               onChange={(event) => onEmailChange(event.target.value)}
-              onBlur={onSaveEmail}
+              onBlur={() => void onSaveEmail()}
               placeholder="알림 받을 이메일"
               type="email"
             />
-            <button className="secondary-button" onClick={onSaveEmail} type="button">
-              저장
+            <button
+              className="secondary-button"
+              disabled={savingEmail}
+              onClick={() => void onSaveEmail()}
+              type="button"
+            >
+              {savingEmail ? "저장 중" : "저장"}
             </button>
           </label>
+          {feedback.message ? (
+            <span className={`alert-email-feedback ${feedback.status}`} role="status">
+              {feedback.message}
+            </span>
+          ) : null}
           <div className="saved-alert-list">
             {events.map((event) => (
               <article className="saved-alert-item" key={event.id}>
