@@ -145,6 +145,20 @@ test("combines travel date and Korea-friendly filters", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "NewJeans" })).toBeVisible();
 });
 
+test("filters concerts by sale schedule status", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByLabel("판매 상태").selectOption("오픈 예정");
+  await expect(page.getByText("5개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /YOASOBI/ })).toBeVisible();
+  await expect(page.getByLabel("공연 상세").getByText("예매 상태")).toBeVisible();
+  await expect(page.getByLabel("공연 상세").getByText("오픈 예정")).toBeVisible();
+
+  await page.getByLabel("판매 상태").selectOption("판매 중");
+  await expect(page.getByText("0개 공연")).toBeVisible();
+  await expect(page.getByText("조건에 맞는 공연이 없어요")).toBeVisible();
+});
+
 test("persists local alert selections", async ({ page }) => {
   await page.goto("/");
 
