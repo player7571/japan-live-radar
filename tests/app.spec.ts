@@ -36,6 +36,40 @@ test("extracts Japanese ticket page sales cues", () => {
   expect(draft.phoneRequired).toBe(true);
 });
 
+test("extracts eplus-style labeled event fields", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>宇多田ヒカル SCIENCE FICTION TOUR｜e+</title>
+        </head>
+        <body>
+          <h1>宇多田ヒカル SCIENCE FICTION TOUR</h1>
+          <p>会場：大阪城ホール</p>
+          <p>公演日：2026/08/03(土) 18:30</p>
+          <p>受付期間：2026/05/10(土) 12:00～05/20(水) 23:59</p>
+          <p>料金：12,000円</p>
+          <p>海外受付 international ticket credit card available</p>
+        </body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/0000000001"),
+  );
+
+  expect(draft.artist).toBe("宇多田ヒカル SCIENCE FICTION TOUR");
+  expect(draft.title).toBe("宇多田ヒカル SCIENCE FICTION TOUR");
+  expect(draft.city).toBe("오사카");
+  expect(draft.venue).toBe("大阪城ホール");
+  expect(draft.date).toBe("2026-08-03");
+  expect(draft.time).toBe("18:30");
+  expect(draft.source).toBe("e+");
+  expect(draft.saleWindow).toContain("2026/05/10(土) 12:00");
+  expect(draft.saleWindow).toContain("2026/05/20(水) 23:59");
+  expect(draft.price).toBe("¥12,000");
+  expect(draft.ticketAccess).toBe("한국 구매 가능");
+  expect(draft.phoneRequired).toBe(false);
+});
+
 test("calculates alert reminders from sale windows and event dates", () => {
   const now = new Date("2026-05-04T00:00:00+09:00");
 
