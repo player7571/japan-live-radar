@@ -6,9 +6,11 @@ on:
     - cron: "*/10 * * * *"
 
 permissions:
+  checks: read
   contents: write
   issues: write
   pull-requests: write
+  statuses: read
 
 jobs:
   merge-release-pr:

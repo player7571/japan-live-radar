@@ -5,7 +5,7 @@ import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
 import { buildAlertMessage, buildAlertWebhookPayload, summarizeDispatchFailures } from "../scripts/dispatch-alerts";
-import { formatSaleWindow, searchProfiles } from "../scripts/sync-ticketmaster";
+import { formatSaleWindow, searchProfiles, toTicketmasterEventRow } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
 import { serverReadKey } from "../src/lib/supabaseServer";
 import { seedEvents } from "../src/data/seedEvents";
@@ -428,6 +428,36 @@ test("queries Ticketmaster by music classification as well as keywords", () => {
       }),
     ]),
   );
+});
+
+test("maps Ticketmaster events as Korea-friendly rows", () => {
+  const row = toTicketmasterEventRow({
+    id: "tm-korea-friendly",
+    name: "NewJeans Live in Fukuoka",
+    url: "https://www.ticketmaster.com/event/tm-korea-friendly",
+    dates: { start: { localDate: "2026-08-08", localTime: "17:30:00" } },
+    sales: {
+      public: {
+        startDateTime: "2026-06-02T02:00:00Z",
+        endDateTime: "2026-08-07T09:00:00Z",
+      },
+    },
+    priceRanges: [{ min: 9800, max: 14800, currency: "JPY" }],
+    classifications: [{ segment: { name: "Music" }, genre: { name: "K-Pop" } }],
+    _embedded: {
+      attractions: [{ name: "NewJeans" }],
+      venues: [{ name: "Marine Messe Fukuoka", city: { name: "Fukuoka" } }],
+    },
+  });
+
+  expect(row).toMatchObject({
+    artist: "NewJeans",
+    city: "후쿠오카",
+    ticket_access: "한국 구매 가능",
+    phone_required: false,
+    price: "¥9,800 - ¥14,800",
+  });
+  expect(row?.foreigner_note).toContain("해외 계정/카드");
 });
 
 test("serves the shared seed event catalog from the events API fallback", () => {
