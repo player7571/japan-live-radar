@@ -619,6 +619,94 @@ h2 {
   box-shadow: 0 20px 48px rgba(25, 37, 30, 0.12);
 }
 
+.admin-stats {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 14px 30px rgba(25, 37, 30, 0.08);
+}
+
+.admin-stats .list-summary strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-stats .secondary-button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 0;
+  cursor: pointer;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-stat {
+  display: grid;
+  gap: 5px;
+  min-height: 76px;
+  align-content: center;
+  padding: 12px;
+  background: #f8faf7;
+  border: 1px solid rgba(23, 32, 25, 0.09);
+  border-radius: 8px;
+}
+
+.admin-stat span {
+  color: #5d6b62;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-stat strong {
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.quality-breakdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.quality-breakdown > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: #f3f6f1;
+  border-radius: 8px;
+}
+
+.quality-breakdown strong,
+.quality-breakdown span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+}
+
+.quality-breakdown strong {
+  margin-right: 2px;
+}
+
+.quality-breakdown span {
+  padding: 0 9px;
+  color: #33413a;
+  background: #ffffff;
+  border: 1px solid rgba(23, 32, 25, 0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 760;
+}
+
 .admin-import {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -828,8 +916,13 @@ h2 {
   .content-grid,
   .recent-event,
   .admin-import,
-  .import-candidate {
+  .import-candidate,
+  .quality-breakdown {
     grid-template-columns: 1fr;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .content-grid {
@@ -857,7 +950,8 @@ h2 {
   .filter-grid,
   .fact-grid,
   .action-row,
-  .admin-panel {
+  .admin-panel,
+  .stat-grid {
     grid-template-columns: 1fr;
   }
 

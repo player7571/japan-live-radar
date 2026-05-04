@@ -14,6 +14,7 @@ type VercelResponse = {
 
 type ImportPayload = {
   url?: unknown;
+  urls?: unknown;
 };
 
 type ImportedDraft = {
@@ -83,6 +84,13 @@ function safeUrl(value: unknown) {
   }
 
   return url;
+}
+
+function requestedUrls(payload: ImportPayload) {
+  if (Array.isArray(payload.urls)) {
+    return payload.urls.slice(0, 10).map(safeUrl);
+  }
+  return [safeUrl(payload.url)];
 }
 
 function firstString(...values: Array<unknown>) {
@@ -235,24 +243,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const url = safeUrl(parseBody(req.body).url);
-    const response = await fetch(url, {
-      headers: {
-        "user-agent": "JapanLiveRadarBot/0.1 (+https://japan-live-radar.vercel.app)",
-        accept: "text/html,application/xhtml+xml",
-      },
-      signal: AbortSignal.timeout(12_000),
-    });
-    if (!response.ok) {
-      throw new Error(`source returned ${response.status}`);
-    }
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.includes("text/html")) {
-      throw new Error("source did not return HTML");
+    const payload = parseBody(req.body);
+    const urls = requestedUrls(payload);
+    const results = [];
+
+    for (const url of urls) {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            "user-agent": "JapanLiveRadarBot/0.1 (+https://japan-live-radar.vercel.app)",
+            accept: "text/html,application/xhtml+xml",
+          },
+          signal: AbortSignal.timeout(12_000),
+        });
+        if (!response.ok) {
+          throw new Error(`source returned ${response.status}`);
+        }
+        const contentType = response.headers.get("content-type") ?? "";
+        if (!contentType.includes("text/html")) {
+          throw new Error("source did not return HTML");
+        }
+
+        const html = await response.text();
+        results.push({
+          url: url.toString(),
+          draft: extractDraft(html.slice(0, 2_000_000), url),
+        });
+      } catch (error) {
+        results.push({
+          url: url.toString(),
+          error: error instanceof Error ? error.message : "Import failed",
+        });
+      }
     }
 
-    const html = await response.text();
-    res.status(200).json({ draft: extractDraft(html.slice(0, 2_000_000), url) });
+    if (!Array.isArray(payload.urls)) {
+      const [result] = results;
+      if (!result || "error" in result || !("draft" in result)) {
+        throw new Error(result && "error" in result ? result.error : "Import failed");
+      }
+      res.status(200).json({ draft: result.draft });
+      return;
+    }
+
+    res.status(200).json({ results });
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : "Import failed" });
   }

@@ -2,7 +2,12 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Client } from "pg";
 
-const migrations = ["20260504163000_create_events.sql", "20260504172000_create_sync_runs.sql"];
+const migrations = [
+  "20260504163000_create_events.sql",
+  "20260504172000_create_sync_runs.sql",
+  "20260504194000_create_event_candidates.sql",
+  "20260504195500_create_event_alerts.sql",
+];
 
 function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
