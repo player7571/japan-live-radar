@@ -266,8 +266,15 @@ function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ti
 
 function saleWindowFromText(text: string) {
   const normalized = normalizeFullWidth(text);
+  const clockPattern = String.raw`(?:[01]?\d|2[0-3])(?::[0-5]\d|時\s*(?:[0-5]\d)?\s*分?)`;
+  const fullDateTimePattern = String.raw`(\d{4})[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*${clockPattern}`;
+  const shortDateTimePattern = String.raw`(?:\d{4}[./年-]\s*)?\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*${clockPattern}`;
   const range = normalized.match(
-    /(受付期間|販売期間|申込期間|発売期間|抽選受付|先行受付|一般発売|発売日)?[:：]?\s*((\d{4})[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*(?:[01]?\d|2[0-3]):[0-5]\d)\s*(?:[~〜～\-]|から|より)\s*((?:\d{4}[./年-]\s*)?\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*(?:[01]?\d|2[0-3]):[0-5]\d|予定枚数終了|売切|売り切れ)/,
+    new RegExp(
+      `(受付期間|販売期間|申込期間|発売期間|抽選受付|先行受付|一般発売|発売日)?[:：]?\\s*` +
+        `(${fullDateTimePattern})\\s*(?:[~〜～\\-]|から|より)\\s*` +
+        `(${shortDateTimePattern}|予定枚数終了|売切|売り切れ)`,
+    ),
   );
   if (range) {
     const end = /^\d{4}/.test(compactWhitespace(range[4])) ? range[4] : `${range[3]}/${range[4]}`;
@@ -275,7 +282,7 @@ function saleWindowFromText(text: string) {
   }
 
   const singleStart = normalized.match(
-    /(受付開始|販売開始|発売開始|発売日時|発売日|一般発売|抽選受付|先行受付)[:：]?\s*((\d{4})[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*(?:[01]?\d|2[0-3]):[0-5]\d)/,
+    new RegExp(`(受付開始|販売開始|発売開始|発売日時|発売日|一般発売|抽選受付|先行受付)[:：]?\\s*(${fullDateTimePattern})`),
   );
   if (singleStart) return compactWhitespace(singleStart[2]);
 

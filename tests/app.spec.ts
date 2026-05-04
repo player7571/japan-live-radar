@@ -289,6 +289,26 @@ test("captures text-only ticket availability cues from imported pages", () => {
   ).toBe("チケット発売中");
 });
 
+test("extracts Japanese hour-minute sale windows from imported pages", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head><title>LiSA Arena Tour｜チケットぴあ</title></head>
+        <body>
+          <h1>LiSA Arena Tour</h1>
+          <p>会場：日本武道館</p>
+          <p>公演日：2026年11月12日 18:30</p>
+          <p>販売期間：2026年5月10日 12時00分～2026年5月20日 23時59分</p>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600009"),
+  );
+
+  expect(draft.city).toBe("도쿄");
+  expect(draft.saleWindow).toBe("2026年5月10日 12時00分 - 2026年5月20日 23時59分");
+});
+
 test("classifies sale status from text-only availability cues", () => {
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "販売中" })).toBe("판매 중");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "受付終了" })).toBe("판매 종료");
@@ -443,6 +463,32 @@ test("calculates alert reminders from sale windows and event dates", () => {
       now,
     ),
   ).toBe(new Date("2026-05-25T09:00:00+09:00").toISOString());
+});
+
+test("calculates alert reminders from Japanese hour-minute sale windows", () => {
+  const now = new Date("2026-05-04T00:00:00+09:00");
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "lisa-2026",
+        date: "2026-11-12",
+        saleWindow: "2026年5月10日 12時00分～2026年5月20日 23時59分",
+      },
+      now,
+    ),
+  ).toBe(new Date("2026-05-10T09:00:00+09:00").toISOString());
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "short-window-2026",
+        date: "2026-11-12",
+        saleWindow: "5月10日 12時00分 - 5月20日 23時59分",
+      },
+      now,
+    ),
+  ).toBe(new Date("2026-05-10T09:00:00+09:00").toISOString());
 });
 
 test("calculates alert reminders from ISO sale start timestamps", () => {
