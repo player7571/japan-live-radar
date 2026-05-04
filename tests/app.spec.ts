@@ -139,6 +139,52 @@ test("extracts Lawson table fields and prefers showtime over doors-open time", (
   expect(draft.ticketAccess).toBe("일본 번호 필요");
 });
 
+test("normalizes full-width unlabeled OPEN/START showtimes", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>藤井風 Stadium Live｜チケットぴあ</title>
+        </head>
+        <body>
+          <h1>藤井風 Stadium Live</h1>
+          <p>会場：横浜アリーナ</p>
+          <p>２０２６年１１月１２日（木） OPEN １８：００ / START １９：００</p>
+          <p>料金：９,８００円</p>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600005"),
+  );
+
+  expect(draft.city).toBe("요코하마");
+  expect(draft.date).toBe("2026-11-12");
+  expect(draft.time).toBe("19:00");
+  expect(draft.price).toBe("¥9,800");
+});
+
+test("prefers Japanese showtime words with hour-minute notation", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>Vaundy one man live｜ローチケ</title>
+        </head>
+        <body>
+          <h1>Vaundy one man live</h1>
+          <p>会場：大阪城ホール</p>
+          <p>公演日時：2026年12月25日(金) 開場18時00分／開演19時00分</p>
+        </body>
+      </html>
+    `,
+    new URL("https://l-tike.com/concert/mevent/?mid=2600006"),
+  );
+
+  expect(draft.city).toBe("오사카");
+  expect(draft.date).toBe("2026-12-25");
+  expect(draft.time).toBe("19:00");
+});
+
 test("detects additional Japanese concert cities from imported pages", () => {
   expect(
     extractDraft(
