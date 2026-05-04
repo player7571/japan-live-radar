@@ -23,6 +23,40 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Sync Vercel runtime environment
+        run: |
+          upsert_env() {
+            local name="$1"
+            local value="$2"
+            local target="$3"
+
+            if [ -z "$value" ]; then
+              echo "::error::$name is required for $target deployments"
+              exit 1
+            fi
+
+            npx vercel env add "$name" "$target" \
+              --force \
+              --yes \
+              --value "$value" \
+              --token="$VERCEL_TOKEN"
+          }
+
+          for target in production preview; do
+            upsert_env VITE_SUPABASE_URL "$VITE_SUPABASE_URL" "$target"
+            upsert_env VITE_SUPABASE_ANON_KEY "$VITE_SUPABASE_ANON_KEY" "$target"
+            upsert_env ADMIN_API_TOKEN "$ADMIN_API_TOKEN" "$target"
+            upsert_env SUPABASE_SERVICE_ROLE_KEY "$SUPABASE_SERVICE_ROLE_KEY" "$target"
+          done
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
       - name: Pull Vercel environment
         run: npx vercel pull --yes --environment=${{ github.ref_name == 'main' && 'production' || 'preview' }} --token=${{ secrets.VERCEL_TOKEN }}
         env:
@@ -63,7 +97,9 @@ jobs:
 
       - name: Verify production
         if: github.ref_name == 'main'
-        run: npm run health:production
+        run: |
+          sleep 45
+          npm run health:production
         env:
           APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://japan-live-radar.vercel.app' }}
           ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
