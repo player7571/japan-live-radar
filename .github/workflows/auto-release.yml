@@ -28,7 +28,6 @@ jobs:
           if [ -n "$existing_pr" ]; then
             echo "Release PR #$existing_pr already exists."
             gh pr edit "$existing_pr" --body "Automated release from dev to main. CI, Vercel, migrations, and production health checks run through GitHub Actions."
-            gh pr merge "$existing_pr" --auto --merge || echo "Auto-merge could not be enabled; PR remains ready for Codex to merge."
             exit 0
           fi
 
@@ -38,4 +37,3 @@ jobs:
             --title "Release dev to production" \
             --body "Automated release from dev to main. CI, Vercel, migrations, and production health checks run through GitHub Actions.")"
           echo "$pr_url"
-          gh pr merge "$pr_url" --auto --merge || echo "Auto-merge could not be enabled; PR remains ready for Codex to merge."
