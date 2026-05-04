@@ -71,7 +71,11 @@ function parseDateParts(value: string) {
   return value.match(/(\d{4})[./年-]\s*(\d{1,2})[./月-]\s*(\d{1,2})/)?.slice(1) ?? null;
 }
 
-function parseSaleWindowStart(value: unknown) {
+function eventYearFromSnapshot(snapshot: EventSnapshot) {
+  return typeof snapshot.date === "string" ? snapshot.date.match(/^(\d{4})-/)?.[1] : undefined;
+}
+
+function parseSaleWindowStart(value: unknown, fallbackYear?: string) {
   if (typeof value !== "string") return null;
   const normalized = value.replace(/[！-～]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0));
   const isoDateTime = normalized.match(
@@ -94,11 +98,30 @@ function parseSaleWindowStart(value: unknown) {
     );
   }
 
-  return parseDate(normalized);
+  const shortDateMatch = normalized.match(
+    /(^|[^\d])(\d{1,2})[./月]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*([01]?\d|2[0-3]):([0-5]\d)/,
+  );
+  if (shortDateMatch && fallbackYear) {
+    return new Date(
+      `${fallbackYear}-${shortDateMatch[2].padStart(2, "0")}-${shortDateMatch[3].padStart(2, "0")}T${shortDateMatch[4].padStart(2, "0")}:${shortDateMatch[5]}:00+09:00`,
+    );
+  }
+
+  const parsedDate = parseDate(normalized);
+  if (parsedDate) return parsedDate;
+
+  const shortDateOnlyMatch = normalized.match(/(^|[^\d])(\d{1,2})[./月]\s*(\d{1,2})(?:日)?/);
+  if (shortDateOnlyMatch && fallbackYear) {
+    return new Date(
+      `${fallbackYear}-${shortDateOnlyMatch[2].padStart(2, "0")}-${shortDateOnlyMatch[3].padStart(2, "0")}T09:00:00+09:00`,
+    );
+  }
+
+  return null;
 }
 
 export function calculateReminderAt(snapshot: EventSnapshot, now = new Date()) {
-  const saleStart = parseSaleWindowStart(snapshot.saleWindow);
+  const saleStart = parseSaleWindowStart(snapshot.saleWindow, eventYearFromSnapshot(snapshot));
   if (saleStart && saleStart > now) {
     const reminder = new Date(saleStart);
     reminder.setHours(reminder.getHours() - 3);
