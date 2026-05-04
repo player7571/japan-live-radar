@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { extractDraft } from "../api/import-url";
+import { toEventRow } from "../src/lib/adminEventRows";
 
 test("extracts Japanese ticket page sales cues", () => {
   const draft = extractDraft(
@@ -210,6 +211,27 @@ test("normalizes alert contact emails", () => {
   expect(normalizeAlertContactEmail(" Fan@Example.COM ")).toBe("fan@example.com");
   expect(normalizeAlertContactEmail("")).toBeNull();
   expect(() => normalizeAlertContactEmail("not-an-email")).toThrow("contactEmail must be a valid email address");
+});
+
+test("uses source URLs for imported admin event ids", () => {
+  const row = toEventRow(
+    {
+      artist: "Ado",
+      title: "Blue Flame Tour",
+      city: "요코하마",
+      venue: "K-Arena Yokohama",
+      date: "2026-11-12",
+      source: "Ticket Pia",
+      link: "https://t.pia.jp/pia/event/event.do?eventCd=2600001",
+    },
+    {
+      candidateSourceUrl: "https://t.pia.jp/pia/event/event.do?eventCd=2600001",
+    },
+  );
+
+  expect(row.source).toBe("Ticket Pia");
+  expect(row.source_event_id).toMatch(/^url-/);
+  expect(row.source_event_id).toContain("t-pia-jp");
 });
 
 test("searches concerts and opens the detail panel", async ({ page }) => {

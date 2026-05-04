@@ -64,6 +64,26 @@ function slugify(value: string) {
     .slice(0, 80);
 }
 
+function hashString(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = Math.imul(31, hash) + value.charCodeAt(index);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function sourceUrlId(value: string) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    const normalized = url.toString();
+    const readable = slugify(`${url.hostname}-${url.pathname}-${url.search}`);
+    return `url-${hashString(normalized)}-${readable}`.slice(0, 120);
+  } catch {
+    return `url-${hashString(value)}-${slugify(value)}`.slice(0, 120);
+  }
+}
+
 export function toEventRow(input: AdminEventInput, rawMeta: Record<string, unknown> = {}) {
   const artist = requiredString(input.artist, "artist");
   const title = requiredString(input.title, "title");
@@ -75,7 +95,11 @@ export function toEventRow(input: AdminEventInput, rawMeta: Record<string, unkno
   }
 
   const source = optionalString(input.source) ?? "Manual";
-  const sourceEventId = `manual-${slugify([artist, title, city, venue, date].join("-"))}`;
+  const sourceUrl = optionalString(rawMeta.candidateSourceUrl) ?? optionalString(input.link);
+  const sourceEventId =
+    source !== "Manual" && sourceUrl
+      ? sourceUrlId(sourceUrl)
+      : `manual-${slugify([artist, title, city, venue, date].join("-"))}`;
 
   return {
     source,
