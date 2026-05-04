@@ -48,15 +48,18 @@ jobs:
           for attempt in $(seq 1 30); do
             pr_json="$(gh pr view "$pr_number" \
               --repo "$GITHUB_REPOSITORY" \
-              --json mergeStateStatus,mergeable,statusCheckRollup)"
+              --json headRefOid,mergeStateStatus,mergeable)"
+            head_sha="$(jq -r '.headRefOid' <<<"$pr_json")"
             merge_state="$(jq -r '.mergeStateStatus' <<<"$pr_json")"
             mergeable="$(jq -r '.mergeable' <<<"$pr_json")"
-            pending_check_runs="$(jq '[.statusCheckRollup[] | select(.__typename == "CheckRun" and .status != "COMPLETED")] | length' <<<"$pr_json")"
-            failing_check_runs="$(jq '[.statusCheckRollup[] | select(.__typename == "CheckRun" and (.conclusion != "SUCCESS" and .conclusion != "SKIPPED"))] | length' <<<"$pr_json")"
-            failing_statuses="$(jq '[.statusCheckRollup[] | select(.__typename == "StatusContext" and .state != "SUCCESS")] | length' <<<"$pr_json")"
-            quota_statuses="$(jq '[.statusCheckRollup[] | select(.__typename == "StatusContext" and .state != "SUCCESS" and ((.targetUrl // "") | test("build-rate-limit|api-deployments-free-per-day|upgradeToPro")))] | length' <<<"$pr_json")"
+            check_runs_json="$(gh api "repos/$GITHUB_REPOSITORY/commits/$head_sha/check-runs?per_page=100")"
+            status_json="$(gh api "repos/$GITHUB_REPOSITORY/commits/$head_sha/status")"
+            pending_check_runs="$(jq '[.check_runs[]? | select(.status != "completed")] | length' <<<"$check_runs_json")"
+            failing_check_runs="$(jq '[.check_runs[]? | select(.status == "completed" and (.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral"))] | length' <<<"$check_runs_json")"
+            failing_statuses="$(jq '[.statuses[]? | select(.state != "success")] | length' <<<"$status_json")"
+            quota_statuses="$(jq '[.statuses[]? | select(.state != "success" and (((.target_url // "") + " " + (.description // "") + " " + (.context // "")) | test("build-rate-limit|api-deployments-free-per-day|upgradeToPro|Deployment rate limited")))] | length' <<<"$status_json")"
 
-            echo "Merge state attempt $attempt: $merge_state"
+            echo "Merge state attempt $attempt: $merge_state; pending checks=$pending_check_runs failing checks=$failing_check_runs failing statuses=$failing_statuses quota statuses=$quota_statuses"
             if [ "$merge_state" = "CLEAN" ] || [ "$merge_state" = "HAS_HOOKS" ]; then
               with_retry gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
               exit 0
