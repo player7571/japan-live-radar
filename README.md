@@ -76,7 +76,7 @@ GitHub Actions is the long-running automation layer so Codex heartbeat runs do n
 
 Scheduled workflows create one open `automation` issue when they fail, so Codex can pick up the issue/logs and continue without waiting for a local heartbeat to have elevated permissions.
 
-Required runtime secrets:
+Required GitHub repository secrets:
 
 ```text
 VITE_SUPABASE_URL
@@ -86,11 +86,39 @@ TICKETMASTER_API_KEY
 SUPABASE_DB_URL
 ADMIN_API_TOKEN
 ALERT_WEBHOOK_URL
+VERCEL_ORG_ID
+VERCEL_PROJECT_ID
+VERCEL_TOKEN
 ```
 
-`SUPABASE_DB_URL` is used only by migration automation.
-`ADMIN_API_TOKEN` protects the admin import, candidate, and quality APIs.
-`ALERT_WEBHOOK_URL` is optional until real alert delivery is connected; without it, due alerts are marked `error` instead of pretending they were sent.
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` power event reads, admin writes, imports, candidates, stats, health checks, and alert queue APIs.
+- `TICKETMASTER_API_KEY` powers the scheduled Ticketmaster sync.
+- `SUPABASE_DB_URL` is used only by migration automation.
+- `ADMIN_API_TOKEN` protects the admin import, candidate, quality, and alert queue APIs.
+- `ALERT_WEBHOOK_URL` is optional until real alert delivery is connected; without it, due alerts are marked `error` instead of pretending they were sent.
+- `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, and `VERCEL_TOKEN` allow GitHub Actions to sync Vercel environments, build, deploy, and retry production after quota resets.
+
+Vercel runtime environments are synced by GitHub Actions from the repository secrets above. The app expects these runtime variables in both preview and production:
+
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+ADMIN_API_TOKEN
+SUPABASE_SERVICE_ROLE_KEY
+```
+
+Optional local or workflow env:
+
+```text
+SUPABASE_URL
+SUPABASE_ANON_KEY
+APP_BASE_URL
+VITE_USE_SEED_DATA
+```
+
+- `SUPABASE_URL` and `SUPABASE_ANON_KEY` are server-side fallbacks for the Vite-prefixed Supabase values.
+- `APP_BASE_URL` overrides the production URL used by health checks and alert dispatch scripts.
+- `VITE_USE_SEED_DATA=true` forces the frontend to use local seed data during development.
 
 ## Release Operations
 
@@ -101,10 +129,10 @@ Normal development flow:
 3. Open a PR into `dev` and wait for GitHub CI.
 4. Merge to `dev`.
 5. Let `Auto Release PR` update the open `dev` to `main` release PR.
-6. Merge the release PR only when production deploy capacity is available.
+6. Merge the release PR after its checks pass. If production deploy capacity is exhausted after merge, leave the matching automation issues open and let `Retry Production Deploy` finish the release later.
 7. Verify production with `npm run health:production` or `https://japan-live-radar.vercel.app/api/health`.
 
-If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, keep the release PR open and continue feature work on `dev`. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
+If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, continue feature work on `dev` and avoid manual deploy retries until quota resets. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
 
 Vercel Git preview builds are skipped by `scripts/vercel-ignore-build.sh` so duplicate Vercel builds do not consume quota. GitHub Actions remains the source of truth for preview checks and uses `vercel build` with `vercel deploy --prebuilt` when a preview deployment is needed.
 
