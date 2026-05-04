@@ -12,7 +12,9 @@ import {
   Filter,
   Heart,
   Lock,
+  Mail,
   MapPin,
+  Mic2,
   Plane,
   Plus,
   Search,
@@ -79,6 +81,13 @@ type AdminStats = {
   totalEvents: number;
   pendingCandidates: number | null;
   candidateTableReady: boolean;
+  alertQueue: {
+    activeDue: number;
+    activeScheduled: number;
+    error: number;
+    sent: number;
+    lastErrorAt: string | null;
+  } | null;
   quality: {
     missingLink: number;
     missingSaleWindow: number;
@@ -90,6 +99,24 @@ type AdminStats = {
   bySource: Array<{ label: string; count: number }>;
   byCity: Array<{ label: string; count: number }>;
   generatedAt: string;
+};
+type AlertQueueStatus = "error" | "active" | "sent";
+type AlertEmailFeedback = {
+  status: "idle" | "saving" | "saved" | "error";
+  message: string;
+};
+type AdminAlertItem = {
+  id: string;
+  event_key: string;
+  event_snapshot: Partial<Event>;
+  channel: "browser" | "email";
+  contact_email: string | null;
+  status: AlertQueueStatus;
+  remind_at: string | null;
+  last_sent_at: string | null;
+  last_error: string | null;
+  send_count: number;
+  updated_at: string;
 };
 
 const accessOptions: Array<TicketAccess | "전체"> = [
@@ -104,6 +131,7 @@ const today = new Date("2026-05-04T00:00:00+09:00");
 const useSeedData = import.meta.env.VITE_USE_SEED_DATA === "true";
 const savedEventsStorageKey = "japan-live-radar.saved-events";
 const alertClientStorageKey = "japan-live-radar.alert-client";
+const alertEmailStorageKey = "japan-live-radar.alert-email";
 const adminTokenStorageKey = "japan-live-radar.admin-token";
 const importCandidatesStorageKey = "japan-live-radar.import-candidates";
 const blankAdminEvent: AdminEventDraft = {
@@ -124,6 +152,25 @@ const blankAdminEvent: AdminEventDraft = {
   link: "",
   image: "",
 };
+const koreanSearchAliases: Array<[string, string[]]> = [
+  ["yoasobi", ["요아소비", "요아소비라이브", "요아소비콘서트"]],
+  ["one ok rock", ["원오크락", "원오크록", "원오크", "원오케이락", "원오케이록"]],
+  ["ado", ["아도", "아도콘서트"]],
+  ["newjeans", ["뉴진스", "뉴진스콘서트"]],
+  ["radwimps", ["래드윔프스", "라드윔프스"]],
+  ["king gnu", ["킹누", "킹그누"]],
+  ["米津玄師", ["요네즈켄시", "요네즈 켄시"]],
+  ["宇多田ヒカル", ["우타다히카루", "우타다 히카루"]],
+  ["tokyo dome", ["도쿄돔", "도쿄 돔"]],
+  ["osaka-jō hall", ["오사카성홀", "오사카 성 홀", "오사카조홀"]],
+  ["k-arena yokohama", ["케이아레나요코하마", "케이 아레나 요코하마"]],
+  ["marine messe fukuoka", ["마린멧세후쿠오카", "마린 멧세 후쿠오카"]],
+  ["nippon gaishi hall", ["니폰가이시홀", "일본가이시홀"]],
+  ["ticket pia", ["티켓피아", "피아"]],
+  ["e+", ["이플러스", "이 플러스", "eplus"]],
+  ["lawson ticket", ["로치케", "로손티켓", "로손 티켓"]],
+  ["ticketmaster", ["티켓마스터"]],
+];
 
 function currentRoute(): Route {
   return window.location.hash === "#admin" ? "admin" : "app";
@@ -153,6 +200,18 @@ function loadAlertClientId() {
   } catch {
     return "local-alert-client";
   }
+}
+
+function loadAlertEmail() {
+  try {
+    return window.localStorage.getItem(alertEmailStorageKey) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function validAlertEmail(value: string) {
+  return !value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 function loadImportCandidates() {
@@ -194,6 +253,47 @@ function urlsFromText(value: string) {
     .map((url) => url.trim())
     .filter(Boolean)
     .slice(0, 10);
+}
+
+function normalizeSearchValue(value: string) {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{Letter}\p{Number}+]+/gu, "");
+}
+
+function searchVariants(value: string) {
+  const normalized = normalizeSearchValue(value);
+  const variants = new Set([normalized]);
+  for (const [canonical, aliases] of koreanSearchAliases) {
+    const canonicalNormalized = normalizeSearchValue(canonical);
+    const aliasValues = aliases.map(normalizeSearchValue);
+    if (normalized === canonicalNormalized || aliasValues.includes(normalized)) {
+      variants.add(canonicalNormalized);
+      for (const alias of aliasValues) variants.add(alias);
+    }
+  }
+  return Array.from(variants).filter(Boolean);
+}
+
+function eventSearchText(event: Event) {
+  const baseValues = [
+    event.artist,
+    event.title,
+    event.city,
+    event.venue,
+    event.genre,
+    event.source,
+    event.ticketAccess,
+    event.saleType,
+  ];
+  const aliases = koreanSearchAliases.flatMap(([canonical, values]) => {
+    const eventValues = baseValues.map(normalizeSearchValue);
+    return eventValues.some((value) => value.includes(normalizeSearchValue(canonical)))
+      ? values
+      : [];
+  });
+  return [...baseValues, ...aliases].map(normalizeSearchValue).join(" ");
 }
 
 function isInDateWindow(date: string, dateWindow: DateWindow) {
@@ -250,6 +350,7 @@ function App() {
   const [dataSource, setDataSource] = useState<EventApiResponse["source"]>("seed");
   const [lastSyncLabel, setLastSyncLabel] = useState("샘플 데이터");
   const [query, setQuery] = useState("");
+  const [artist, setArtist] = useState<Event["artist"] | "전체">("전체");
   const [city, setCity] = useState<Event["city"] | "전체">("전체");
   const [access, setAccess] = useState<TicketAccess | "전체">("전체");
   const [dateWindow, setDateWindow] = useState<DateWindow>("전체");
@@ -258,10 +359,19 @@ function App() {
   const [selectedId, setSelectedId] = useState(seedEvents[0].id);
   const [saved, setSaved] = useState<string[]>(loadSavedEventIds);
   const [alertClientId] = useState(loadAlertClientId);
+  const [alertEmail, setAlertEmail] = useState(loadAlertEmail);
+  const [alertEmailFeedback, setAlertEmailFeedback] = useState<AlertEmailFeedback>({
+    status: "idle",
+    message: "",
+  });
   const [alertsOpen, setAlertsOpen] = useState(false);
 
   const cityOptions = useMemo(
     () => ["전체", ...Array.from(new Set(events.map((event) => event.city))).sort((a, b) => a.localeCompare(b, "ko"))],
+    [events],
+  );
+  const artistOptions = useMemo(
+    () => ["전체", ...Array.from(new Set(events.map((event) => event.artist))).sort((a, b) => a.localeCompare(b, "ko"))],
     [events],
   );
 
@@ -307,29 +417,37 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (artist !== "전체" && !events.some((event) => event.artist === artist)) {
+      setArtist("전체");
+    }
     if (city !== "전체" && !events.some((event) => event.city === city)) {
       setCity("전체");
     }
-  }, [city, events]);
+  }, [artist, city, events]);
 
   useEffect(() => {
     window.localStorage.setItem(savedEventsStorageKey, JSON.stringify(saved));
   }, [saved]);
 
+  useEffect(() => {
+    window.localStorage.setItem(alertEmailStorageKey, alertEmail.trim());
+  }, [alertEmail]);
+
   const filteredEvents = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+    const queryVariants = searchVariants(query);
     return events.filter((event) => {
-      const text = `${event.artist} ${event.title} ${event.venue} ${event.genre}`.toLowerCase();
-      const queryMatch = !normalized || text.includes(normalized);
+      const text = eventSearchText(event);
+      const queryMatch = queryVariants.length === 0 || queryVariants.some((variant) => text.includes(variant));
+      const artistMatch = artist === "전체" || event.artist === artist;
       const cityMatch = city === "전체" || event.city === city;
       const accessMatch = access === "전체" || event.ticketAccess === access;
       const dateMatch = isInDateWindow(event.date, dateWindow);
       const saleStatusMatch = saleStatus === "전체" || getSaleStatus(event) === saleStatus;
       const koreaFriendlyMatch =
         !koreaFriendlyOnly || (event.ticketAccess === "한국 구매 가능" && !event.phoneRequired);
-      return queryMatch && cityMatch && accessMatch && dateMatch && saleStatusMatch && koreaFriendlyMatch;
+      return queryMatch && artistMatch && cityMatch && accessMatch && dateMatch && saleStatusMatch && koreaFriendlyMatch;
     });
-  }, [access, city, dateWindow, events, koreaFriendlyOnly, query, saleStatus]);
+  }, [access, artist, city, dateWindow, events, koreaFriendlyOnly, query, saleStatus]);
 
   const savedEventItems = useMemo(
     () => saved
@@ -342,9 +460,9 @@ function App() {
   const heroEvent = selectedEvent ?? events[0];
 
   const syncAlertSubscription = async (event: Event, active: boolean) => {
-    if (useSeedData) return;
+    if (useSeedData) return true;
     try {
-      await fetch("/api/alerts", {
+      const response = await fetch("/api/alerts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -352,6 +470,7 @@ function App() {
         body: JSON.stringify({
           clientId: alertClientId,
           active,
+          contactEmail: alertEmail.trim(),
           event: {
             id: event.id,
             artist: event.artist,
@@ -362,8 +481,12 @@ function App() {
           },
         }),
       });
+      if (!response.ok) return false;
+      const payload = (await response.json()) as { configured?: boolean };
+      return payload.configured !== false;
     } catch {
       // The local reminder state remains useful if the backend is unavailable.
+      return false;
     }
   };
 
@@ -375,6 +498,30 @@ function App() {
     );
     if (event) {
       void syncAlertSubscription(event, nextActive);
+    }
+  };
+
+  const updateAlertEmail = (email: string) => {
+    setAlertEmail(email);
+    setAlertEmailFeedback({ status: "idle", message: "" });
+  };
+
+  const saveAlertEmail = async () => {
+    if (!validAlertEmail(alertEmail)) {
+      setAlertEmailFeedback({ status: "error", message: "이메일 형식을 확인해 주세요." });
+      return;
+    }
+    if (savedEventItems.length === 0) return;
+
+    setAlertEmailFeedback({ status: "saving", message: "알림 정보를 저장하는 중" });
+    const results = await Promise.all(savedEventItems.map((event) => syncAlertSubscription(event, true)));
+    if (results.every(Boolean)) {
+      setAlertEmailFeedback({ status: "saved", message: "알림 이메일을 저장했어요." });
+    } else {
+      setAlertEmailFeedback({
+        status: "error",
+        message: "브라우저에는 저장했고 서버 동기화는 다시 시도할 수 있어요.",
+      });
     }
   };
 
@@ -409,7 +556,11 @@ function App() {
         {alertsOpen && (
           <SavedAlertsPanel
             events={savedEventItems}
+            email={alertEmail}
+            feedback={alertEmailFeedback}
             onClose={() => setAlertsOpen(false)}
+            onEmailChange={updateAlertEmail}
+            onSaveEmail={saveAlertEmail}
             onRemove={toggleSaved}
             onSelect={(id) => {
               setSelectedId(id);
@@ -444,10 +595,23 @@ function App() {
 
           <div className="filter-grid">
             <label>
+              <Mic2 size={15} />
+              <select
+                value={artist}
+                onChange={(event) => setArtist(event.target.value as Event["artist"] | "전체")}
+                aria-label="아티스트"
+              >
+                {artistOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+            <label>
               <Filter size={15} />
               <select
                 value={city}
                 onChange={(event) => setCity(event.target.value as Event["city"] | "전체")}
+                aria-label="도시"
               >
                 {cityOptions.map((option) => (
                   <option key={option}>{option}</option>
@@ -508,6 +672,7 @@ function App() {
             type="button"
             onClick={() => {
               setQuery("");
+              setArtist("전체");
               setCity("전체");
               setAccess("전체");
               setDateWindow("전체");
@@ -588,15 +753,25 @@ function App() {
 
 function SavedAlertsPanel({
   events,
+  email,
+  feedback,
   onClose,
+  onEmailChange,
+  onSaveEmail,
   onRemove,
   onSelect,
 }: {
   events: Event[];
+  email: string;
+  feedback: AlertEmailFeedback;
   onClose: () => void;
+  onEmailChange: (email: string) => void;
+  onSaveEmail: () => void | Promise<void>;
   onRemove: (id: string) => void;
   onSelect: (id: string) => void;
 }) {
+  const savingEmail = feedback.status === "saving";
+
   return (
     <section className="saved-alerts-panel" id="saved-alerts-panel" aria-label="저장한 알림">
       <div className="list-summary">
@@ -611,29 +786,54 @@ function SavedAlertsPanel({
           <span>관심 공연에서 일정 알림을 누르면 여기에서 다시 확인할 수 있어요.</span>
         </div>
       ) : (
-        <div className="saved-alert-list">
-          {events.map((event) => (
-            <article className="saved-alert-item" key={event.id}>
-              <button
-                type="button"
-                aria-label={`${event.artist} 알림 공연 열기`}
-                onClick={() => onSelect(event.id)}
-              >
-                <span>{event.date.replaceAll("-", ".")} · {event.city}</span>
-                <strong>{event.artist}</strong>
-                <small>{event.saleWindow}</small>
-              </button>
-              <button
-                className="icon-button"
-                aria-label={`${event.artist} 알림 해제`}
-                onClick={() => onRemove(event.id)}
-                type="button"
-              >
-                <X size={17} />
-              </button>
-            </article>
-          ))}
-        </div>
+        <>
+          <label className="alert-email-field">
+            <Mail size={16} />
+            <input
+              value={email}
+              onChange={(event) => onEmailChange(event.target.value)}
+              onBlur={() => void onSaveEmail()}
+              placeholder="알림 받을 이메일"
+              type="email"
+            />
+            <button
+              className="secondary-button"
+              disabled={savingEmail}
+              onClick={() => void onSaveEmail()}
+              type="button"
+            >
+              {savingEmail ? "저장 중" : "저장"}
+            </button>
+          </label>
+          {feedback.message ? (
+            <span className={`alert-email-feedback ${feedback.status}`} role="status">
+              {feedback.message}
+            </span>
+          ) : null}
+          <div className="saved-alert-list">
+            {events.map((event) => (
+              <article className="saved-alert-item" key={event.id}>
+                <button
+                  type="button"
+                  aria-label={`${event.artist} 알림 공연 열기`}
+                  onClick={() => onSelect(event.id)}
+                >
+                  <span>{event.date.replaceAll("-", ".")} · {event.city}</span>
+                  <strong>{event.artist}</strong>
+                  <small>{event.saleWindow}</small>
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label={`${event.artist} 알림 해제`}
+                  onClick={() => onRemove(event.id)}
+                  type="button"
+                >
+                  <X size={17} />
+                </button>
+              </article>
+            ))}
+          </div>
+        </>
       )}
     </section>
   );
@@ -656,6 +856,10 @@ function AdminPage() {
   const [candidateStatus, setCandidateStatus] = useState<"idle" | "loading" | "ready" | "local" | "error">("idle");
   const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
   const [statsStatus, setStatsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [alertQueueStatus, setAlertQueueStatus] = useState<AlertQueueStatus>("error");
+  const [alertQueue, setAlertQueue] = useState<AdminAlertItem[]>([]);
+  const [alertQueueState, setAlertQueueState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [alertQueueMessage, setAlertQueueMessage] = useState("");
 
   const updateDraft = <Key extends keyof AdminEventDraft>(key: Key, value: AdminEventDraft[Key]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -732,6 +936,40 @@ function AdminPage() {
     }
   };
 
+  const fetchAlertQueue = async (activeToken = token, queueStatus = alertQueueStatus) => {
+    if (!activeToken) return;
+    setAlertQueueState("loading");
+    setAlertQueueMessage("");
+    try {
+      const params = new URLSearchParams({ status: queueStatus });
+      if (queueStatus !== "active") params.set("due", "all");
+      const response = await fetch(`/api/admin-alerts?${params.toString()}`, {
+        headers: {
+          "x-admin-token": activeToken,
+        },
+      });
+      const payload = (await response.json()) as {
+        configured?: boolean;
+        alerts?: AdminAlertItem[];
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "알림 큐 조회 실패");
+      }
+      if (payload.configured === false) {
+        setAlertQueue([]);
+        setAlertQueueState("ready");
+        setAlertQueueMessage("알림 테이블 준비 전");
+        return;
+      }
+      setAlertQueue(payload.alerts ?? []);
+      setAlertQueueState("ready");
+    } catch (error) {
+      setAlertQueueState("error");
+      setAlertQueueMessage(error instanceof Error ? error.message : "알림 큐 조회 실패");
+    }
+  };
+
   const submitEvent = async (event: React.FormEvent) => {
     event.preventDefault();
     setStatus("saving");
@@ -754,7 +992,7 @@ function AdminPage() {
       setStatus("saved");
       setMessage("공연 정보가 저장됐어요.");
       setDraft(blankAdminEvent);
-      await Promise.all([fetchRecentEvents(token), fetchStats(token)]);
+      await Promise.all([fetchRecentEvents(token), fetchStats(token), fetchAlertQueue(token)]);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "저장 실패");
@@ -894,7 +1132,7 @@ function AdminPage() {
       removeCandidate(candidate.id);
       setStatus("saved");
       setMessage("후보를 승인하고 공연으로 저장했어요.");
-      await Promise.all([fetchRecentEvents(token), fetchCandidates(token), fetchStats(token)]);
+      await Promise.all([fetchRecentEvents(token), fetchCandidates(token), fetchStats(token), fetchAlertQueue(token)]);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "후보 승인 실패");
@@ -968,11 +1206,36 @@ function AdminPage() {
     }
   };
 
+  const retryAlert = async (alert: AdminAlertItem) => {
+    setAlertQueueState("loading");
+    setAlertQueueMessage("");
+    try {
+      const response = await fetch("/api/admin-alerts", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": token,
+        },
+        body: JSON.stringify({ id: alert.id, status: "active" }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "알림 재시도 실패");
+      }
+      await Promise.all([fetchAlertQueue(token), fetchStats(token)]);
+      setAlertQueueMessage("알림을 재시도 큐로 되돌렸어요.");
+    } catch (error) {
+      setAlertQueueState("error");
+      setAlertQueueMessage(error instanceof Error ? error.message : "알림 재시도 실패");
+    }
+  };
+
   useEffect(() => {
     if (token) {
       void fetchRecentEvents(token);
       void fetchCandidates(token);
       void fetchStats(token);
+      void fetchAlertQueue(token);
     }
   }, []);
 
@@ -1019,6 +1282,14 @@ function AdminPage() {
                 <AdminStat label="예매 확인 필요" value={`${adminStats.quality.needsAccessReview}개`} />
                 <AdminStat label="일본 번호 필요" value={`${adminStats.quality.phoneRequired}개`} />
                 <AdminStat label="한국 구매 가능" value={`${adminStats.quality.koreaFriendly}개`} />
+                <AdminStat
+                  label="알림 대기"
+                  value={adminStats.alertQueue === null ? "테이블 준비 전" : `${adminStats.alertQueue.activeDue}개`}
+                />
+                <AdminStat
+                  label="알림 오류"
+                  value={adminStats.alertQueue === null ? "테이블 준비 전" : `${adminStats.alertQueue.error}개`}
+                />
               </div>
               <div className="quality-breakdown">
                 <div>
@@ -1037,6 +1308,56 @@ function AdminPage() {
             </>
           ) : (
             <div className="empty-state">관리자 토큰을 입력하고 품질 지표를 새로고침하세요.</div>
+          )}
+        </section>
+
+        <section className="admin-alert-queue" aria-label="알림 큐">
+          <div className="list-summary">
+            <strong><Bell size={18} /> 알림 큐</strong>
+            <div className="admin-inline-actions">
+              <select
+                aria-label="알림 상태"
+                value={alertQueueStatus}
+                onChange={(event) => {
+                  const nextStatus = event.target.value as AlertQueueStatus;
+                  setAlertQueueStatus(nextStatus);
+                  void fetchAlertQueue(token, nextStatus);
+                }}
+              >
+                <option value="error">오류</option>
+                <option value="active">대기</option>
+                <option value="sent">발송 완료</option>
+              </select>
+              <button className="secondary-button" type="button" onClick={() => fetchAlertQueue()}>
+                {alertQueueState === "loading" ? "확인 중" : "알림 새로고침"}
+              </button>
+            </div>
+          </div>
+          {alertQueueMessage && (
+            <span className={alertQueueState === "error" ? "admin-error" : "admin-success"}>{alertQueueMessage}</span>
+          )}
+          {alertQueueState !== "error" && alertQueue.length === 0 ? (
+            <div className="empty-state">표시할 알림이 없어요.</div>
+          ) : (
+            <div className="admin-alert-list">
+              {alertQueue.map((alert) => (
+                <article className="admin-alert-item" key={alert.id}>
+                  <div>
+                    <span>
+                      {alert.remind_at ? new Date(alert.remind_at).toLocaleString("ko-KR") : "알림 시간 미정"}
+                      {alert.contact_email ? ` · ${alert.contact_email}` : ""}
+                    </span>
+                    <strong>{[alert.event_snapshot.artist, alert.event_snapshot.title].filter(Boolean).join(" · ") || alert.event_key}</strong>
+                    <small>{alert.last_error || `발송 ${alert.send_count}회`}</small>
+                  </div>
+                  {alert.status === "error" && (
+                    <button className="secondary-button" type="button" onClick={() => retryAlert(alert)}>
+                      재시도
+                    </button>
+                  )}
+                </article>
+              ))}
+            </div>
           )}
         </section>
 

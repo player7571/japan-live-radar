@@ -1,6 +1,14 @@
 import { expect, test } from "@playwright/test";
-import { calculateReminderAt } from "../api/alerts";
+import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
+import { summarizeAlertQueue } from "../api/admin-stats";
+import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
+import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
+import { buildAlertMessage, buildAlertWebhookPayload } from "../scripts/dispatch-alerts";
+import { formatSaleWindow } from "../scripts/sync-ticketmaster";
+import { toEventRow } from "../src/lib/adminEventRows";
+import { serverReadKey } from "../src/lib/supabaseServer";
+import { seedEvents } from "../src/data/seedEvents";
 
 test("extracts Japanese ticket page sales cues", () => {
   const draft = extractDraft(
@@ -70,6 +78,87 @@ test("extracts eplus-style labeled event fields", () => {
   expect(draft.phoneRequired).toBe(false);
 });
 
+test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>米津玄師 2026 TOUR | ローチケ</title>
+        </head>
+        <body>
+          <h1>米津玄師 2026 TOUR</h1>
+          <table>
+            <tr><th>公演日時</th><td>2026/12/24(木) 開場17:30 / 開演18:30</td></tr>
+            <tr><th>会場</th><td>さいたまスーパーアリーナ</td></tr>
+            <tr><th>発売日時</th><td>2026/06/01(月) 10:00</td></tr>
+            <tr><th>席種・料金</th><td>指定席 11,000円</td></tr>
+          </table>
+          <p>ローチケ電子チケットはSMS認証が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://l-tike.com/concert/mevent/?mid=123456"),
+  );
+
+  expect(draft.artist).toBe("米津玄師 2026 TOUR");
+  expect(draft.city).toBe("사이타마");
+  expect(draft.venue).toBe("さいたまスーパーアリーナ");
+  expect(draft.date).toBe("2026-12-24");
+  expect(draft.time).toBe("18:30");
+  expect(draft.source).toBe("Lawson Ticket");
+  expect(draft.saleWindow).toBe("2026/06/01(月) 10:00");
+  expect(draft.price).toBe("¥11,000");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+});
+
+test("extracts array-based JSON-LD event data", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Event",
+              "name": "King Gnu Stadium Live",
+              "startDate": "2026-09-05T19:00:00+09:00",
+              "performer": [{ "@type": "MusicGroup", "name": "King Gnu" }],
+              "location": {
+                "@type": "Place",
+                "name": "日産スタジアム",
+                "address": "神奈川県横浜市港北区小机町3300"
+              },
+              "offers": [
+                {
+                  "@type": "Offer",
+                  "price": "15000",
+                  "validFrom": "2026-06-10T12:00:00+09:00"
+                }
+              ],
+              "image": ["https://example.com/king-gnu.jpg"]
+            }
+          </script>
+        </head>
+        <body>
+          <p>海外受付 international ticket credit card available</p>
+        </body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/123456"),
+  );
+
+  expect(draft.artist).toBe("King Gnu");
+  expect(draft.title).toBe("King Gnu Stadium Live");
+  expect(draft.city).toBe("요코하마");
+  expect(draft.venue).toBe("日産スタジアム");
+  expect(draft.date).toBe("2026-09-05");
+  expect(draft.time).toBe("19:00");
+  expect(draft.saleWindow).toBe("2026-06-10T12:00:00+09:00");
+  expect(draft.price).toBe("¥15,000");
+  expect(draft.ticketAccess).toBe("한국 구매 가능");
+  expect(draft.image).toBe("https://example.com/king-gnu.jpg");
+});
+
 test("calculates alert reminders from sale windows and event dates", () => {
   const now = new Date("2026-05-04T00:00:00+09:00");
 
@@ -95,6 +184,176 @@ test("calculates alert reminders from sale windows and event dates", () => {
   ).toBe(new Date("2026-05-25T09:00:00+09:00").toISOString());
 });
 
+test("calculates alert reminders from ISO sale start timestamps", () => {
+  const now = new Date("2026-05-04T00:00:00+09:00");
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "king-gnu-2026",
+        date: "2026-09-05",
+        saleWindow: "2026-06-10T12:00:00+09:00",
+      },
+      now,
+    ),
+  ).toBe(new Date("2026-06-10T09:00:00+09:00").toISOString());
+});
+
+test("calculates alert reminders from short sale windows using the event year", () => {
+  const now = new Date("2026-05-04T00:00:00+09:00");
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "ticketmaster-2026",
+        date: "2026-08-08",
+        saleWindow: "6.02 11:00 - 8.07 18:00",
+      },
+      now,
+    ),
+  ).toBe(new Date("2026-06-02T08:00:00+09:00").toISOString());
+});
+
+test("formats Ticketmaster sale windows for alert parsing", () => {
+  const saleWindow = formatSaleWindow({
+    id: "tm-1",
+    sales: {
+      public: {
+        startDateTime: "2026-06-02T02:00:00Z",
+        endDateTime: "2026-08-07T09:00:00Z",
+      },
+    },
+  });
+
+  expect(saleWindow).toBe("2026.06.02 11:00 - 2026.08.07 18:00");
+  expect(
+    calculateReminderAt(
+      {
+        id: "ticketmaster-2026",
+        date: "2026-08-08",
+        saleWindow: saleWindow ?? "",
+      },
+      new Date("2026-05-04T00:00:00+09:00"),
+    ),
+  ).toBe(new Date("2026-06-02T08:00:00+09:00").toISOString());
+});
+
+test("serves the shared seed event catalog from the events API fallback", () => {
+  expect(seedResponse()).toEqual({
+    events: seedEvents,
+    source: "seed",
+  });
+});
+
+test("prefers the server key for protected server-side reads", () => {
+  expect(serverReadKey("anon-key", "service-role-key")).toBe("service-role-key");
+  expect(serverReadKey("anon-key")).toBe("anon-key");
+});
+
+test("normalizes alert contact emails", () => {
+  expect(normalizeAlertContactEmail(" Fan@Example.COM ")).toBe("fan@example.com");
+  expect(normalizeAlertContactEmail("")).toBeNull();
+  expect(() => normalizeAlertContactEmail("not-an-email")).toThrow("contactEmail must be a valid email address");
+});
+
+test("builds alert webhook payloads with Korean context and contact email", () => {
+  const alert = {
+    id: "alert-1",
+    event_key: "ado-2026",
+    contact_email: "fan@example.com",
+    remind_at: "2026-05-10T00:00:00.000Z",
+    event_snapshot: {
+      artist: "Ado",
+      title: "Blue Flame Tour",
+      city: "요코하마",
+      venue: "K-Arena Yokohama",
+      date: "2026-11-12",
+      time: "18:30",
+      saleWindow: "2026年5月10日 12:00～2026年5月20日 23:59",
+      link: "https://t.pia.jp/example",
+    },
+  };
+
+  expect(buildAlertMessage(alert)).toContain("수신처: fan@example.com");
+  expect(buildAlertMessage(alert)).toContain("공연: Ado - Blue Flame Tour");
+  expect(buildAlertWebhookPayload(alert)).toMatchObject({
+    text: expect.stringContaining("판매 일정: 2026年5月10日 12:00"),
+    alertId: "alert-1",
+    eventKey: "ado-2026",
+    contactEmail: "fan@example.com",
+    remindAt: "2026-05-10T00:00:00.000Z",
+  });
+});
+
+test("normalizes admin alert queue filters and retry updates", () => {
+  const now = new Date("2026-05-04T12:00:00Z");
+
+  expect(normalizeAdminAlertListOptions()).toEqual({ status: "active", dueOnly: true });
+  expect(normalizeAdminAlertListOptions({ status: "error" })).toEqual({ status: "error", dueOnly: false });
+  expect(normalizeAdminAlertListOptions({ status: "sent", due: "all" })).toEqual({
+    status: "sent",
+    dueOnly: false,
+  });
+  expect(normalizeAdminAlertListOptions({ status: "unknown" })).toEqual({ status: "active", dueOnly: true });
+
+  expect(buildAlertStatusUpdate("sent", 2, now)).toMatchObject({
+    status: "sent",
+    last_sent_at: "2026-05-04T12:00:00.000Z",
+    last_error: null,
+    send_count: 3,
+  });
+  expect(buildAlertStatusUpdate("error", 0, now, "Webhook failed")).toEqual({
+    status: "error",
+    last_error: "Webhook failed",
+  });
+  expect(buildAlertStatusUpdate("active", 0, now, null, "2026-05-05T00:00:00.000Z")).toEqual({
+    status: "active",
+    remind_at: "2026-05-05T00:00:00.000Z",
+    last_error: null,
+  });
+});
+
+test("summarizes alert queue health for admin stats", () => {
+  expect(
+    summarizeAlertQueue(
+      [
+        { status: "active", remind_at: "2026-05-04T11:59:00.000Z", updated_at: "2026-05-04T11:00:00.000Z" },
+        { status: "active", remind_at: "2026-05-05T11:59:00.000Z", updated_at: "2026-05-04T11:00:00.000Z" },
+        { status: "error", remind_at: "2026-05-04T10:00:00.000Z", updated_at: "2026-05-04T12:00:00.000Z" },
+        { status: "sent", remind_at: "2026-05-04T09:00:00.000Z", updated_at: "2026-05-04T09:30:00.000Z" },
+      ],
+      new Date("2026-05-04T12:00:00.000Z"),
+    ),
+  ).toEqual({
+    activeDue: 1,
+    activeScheduled: 1,
+    error: 1,
+    sent: 1,
+    lastErrorAt: "2026-05-04T12:00:00.000Z",
+  });
+});
+
+test("uses source URLs for imported admin event ids", () => {
+  const row = toEventRow(
+    {
+      artist: "Ado",
+      title: "Blue Flame Tour",
+      city: "요코하마",
+      venue: "K-Arena Yokohama",
+      date: "2026-11-12",
+      source: "Ticket Pia",
+      link: "https://t.pia.jp/pia/event/event.do?eventCd=2600001",
+    },
+    {
+      candidateSourceUrl: "https://t.pia.jp/pia/event/event.do?eventCd=2600001",
+    },
+  );
+
+  expect(row.source).toBe("Ticket Pia");
+  expect(row.source_event_id).toMatch(/^url-/);
+  expect(row.source_event_id).toContain("t-pia-jp");
+});
+
 test("searches concerts and opens the detail panel", async ({ page }) => {
   await page.goto("/");
 
@@ -114,11 +373,27 @@ test("searches concerts and opens the detail panel", async ({ page }) => {
   );
 });
 
+test("searches concerts with Korean artist and venue aliases", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("뉴진스");
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /NewJeans/ })).toBeVisible();
+
+  await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("도쿄돔");
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /YOASOBI/ })).toBeVisible();
+
+  await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("원오크락");
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toBeVisible();
+});
+
 test("filters by city and ticket access without horizontal overflow", async ({ page }) => {
   await page.goto("/");
 
-  await page.locator("select").first().selectOption("오사카");
-  await page.locator("select").nth(1).selectOption("일본 번호 필요");
+  await page.getByLabel("도시").selectOption("오사카");
+  await page.locator("select").nth(2).selectOption("일본 번호 필요");
 
   await expect(page.getByText("1개 공연")).toHaveCount(1);
   await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toHaveCount(1);
@@ -134,10 +409,24 @@ test("filters by city and ticket access without horizontal overflow", async ({ p
     .toBe(true);
 });
 
+test("filters concerts by artist", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByLabel("아티스트").selectOption("Ado");
+
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Ado/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /YOASOBI/ })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "초기화" }).click();
+  await expect(page.getByLabel("아티스트")).toHaveValue("전체");
+  await expect(page.getByText("5개 공연")).toBeVisible();
+});
+
 test("combines travel date and Korea-friendly filters", async ({ page }) => {
   await page.goto("/");
 
-  await page.locator("select").nth(2).selectOption("여름 원정");
+  await page.locator("select").nth(3).selectOption("여름 원정");
   await page.getByRole("button", { name: /한국에서 예매 쉬운 공연/ }).click();
 
   await expect(page.getByText("1개 공연")).toBeVisible();
@@ -194,6 +483,58 @@ test("opens saved alerts and jumps back to a saved concert", async ({ page }) =>
   await page.getByRole("button", { name: "NewJeans 알림 해제" }).click();
   await expect(page.getByRole("button", { name: "알림 1개" })).toBeVisible();
   await expect(page.getByLabel("저장한 알림").getByText("NewJeans")).toHaveCount(0);
+});
+
+test("persists an alert contact email in the saved alerts panel", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await page.getByRole("button", { name: "일정 알림" }).click();
+  await page.getByRole("button", { name: "알림 2개" }).click();
+
+  const emailInput = page.getByPlaceholder("알림 받을 이메일");
+  await emailInput.fill("fan@example.com");
+  await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
+
+  await page.reload();
+  await page.getByRole("button", { name: "알림 2개" }).click();
+  await expect(page.getByPlaceholder("알림 받을 이메일")).toHaveValue("fan@example.com");
+});
+
+test("shows alert contact email save feedback", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await page.getByRole("button", { name: "일정 알림" }).click();
+  await page.getByRole("button", { name: "알림 2개" }).click();
+
+  await page.getByPlaceholder("알림 받을 이메일").fill("fan@example.com");
+  await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
+
+  await expect(page.getByRole("status")).toHaveText("알림 이메일을 저장했어요.");
+});
+
+test("validates alert contact email before saving", async ({ page }) => {
+  let alertRequests = 0;
+  await page.route("**/api/alerts", async (route) => {
+    alertRequests += 1;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ configured: true, ok: true }),
+    });
+  });
+
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await page.getByRole("button", { name: "일정 알림" }).click();
+  await page.getByRole("button", { name: "알림 2개" }).click();
+
+  await page.getByPlaceholder("알림 받을 이메일").fill("not-an-email");
+  await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
+
+  await expect(page.getByRole("status")).toHaveText("이메일 형식을 확인해 주세요.");
+  expect(alertRequests).toBe(0);
 });
 
 test("submits an admin event draft", async ({ page }) => {
@@ -392,6 +733,13 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
           phoneRequired: 3,
           koreaFriendly: 1,
         },
+        alertQueue: {
+          activeDue: 2,
+          activeScheduled: 5,
+          error: 1,
+          sent: 3,
+          lastErrorAt: "2026-05-04T00:00:00Z",
+        },
         bySource: [{ label: "Ticket Pia", count: 3 }],
         byCity: [{ label: "도쿄", count: 2 }],
         generatedAt: "2026-05-04T00:00:00Z",
@@ -405,6 +753,8 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
 
   await expect(page.getByLabel("데이터 품질").getByText("공연")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("5개")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("알림 대기")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("알림 오류")).toBeVisible();
 
   await page.getByLabel("검색어 후보 수집").fill("Ado");
   await page.getByRole("button", { name: "후보 만들기" }).click();
@@ -413,6 +763,90 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
   await expect(page.getByLabel("URL 후보").getByText("Ado", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "초안 적용" }).click();
   await expect(page.getByText("후보를 입력폼에 적용했어요.")).toBeVisible();
+});
+
+test("shows admin alert queue and retries errored alerts", async ({ page }) => {
+  let retryBody: Record<string, unknown> | null = null;
+  let queueReads = 0;
+
+  await page.route("**/api/admin-alerts**", async (route) => {
+    if (route.request().method() === "PATCH") {
+      retryBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, alert: { id: "alert-1", status: "active" } }),
+      });
+      return;
+    }
+
+    queueReads += 1;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        configured: true,
+        alerts: queueReads === 1
+          ? [
+              {
+                id: "alert-1",
+                event_key: "ado-2026",
+                event_snapshot: {
+                  artist: "Ado",
+                  title: "Blue Flame Tour",
+                },
+                channel: "email",
+                contact_email: "fan@example.com",
+                status: "error",
+                remind_at: "2026-05-10T00:00:00.000Z",
+                last_sent_at: null,
+                last_error: "Webhook failed with 500",
+                send_count: 0,
+                updated_at: "2026-05-04T00:00:00Z",
+              },
+            ]
+          : [],
+      }),
+    });
+  });
+  await page.route("**/api/admin-stats", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        totalEvents: 0,
+        pendingCandidates: 0,
+        candidateTableReady: true,
+        alertQueue: {
+          activeDue: 0,
+          activeScheduled: 1,
+          error: 0,
+          sent: 0,
+          lastErrorAt: null,
+        },
+        quality: {
+          missingLink: 0,
+          missingSaleWindow: 0,
+          missingPrice: 0,
+          needsAccessReview: 0,
+          phoneRequired: 0,
+          koreaFriendly: 0,
+        },
+        bySource: [],
+        byCity: [],
+        generatedAt: "2026-05-04T00:00:00Z",
+      }),
+    });
+  });
+
+  await page.goto("/#admin");
+  await page.getByLabel("관리자 토큰").fill("test-token");
+  await page.getByRole("button", { name: "알림 새로고침" }).click();
+
+  await expect(page.getByLabel("알림 큐").getByText("Ado · Blue Flame Tour")).toBeVisible();
+  await expect(page.getByLabel("알림 큐").getByText("fan@example.com")).toBeVisible();
+  await expect(page.getByLabel("알림 큐").getByText("Webhook failed with 500")).toBeVisible();
+
+  await page.getByRole("button", { name: "재시도" }).click();
+  expect(retryBody).toMatchObject({ id: "alert-1", status: "active" });
+  await expect(page.getByText("알림을 재시도 큐로 되돌렸어요.")).toBeVisible();
 });
 
 test("shows an empty state when no concerts match", async ({ page }) => {

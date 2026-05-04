@@ -140,7 +140,12 @@ function normalizeDate(value: string) {
 }
 
 function normalizeTime(value: string) {
-  return value.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/)?.[0] ?? "";
+  const normalized = normalizeFullWidth(value);
+  const isoTime = normalized.match(/T([01]\d|2[0-3]):([0-5]\d)/);
+  if (isoTime) return `${isoTime[1]}:${isoTime[2]}`;
+  const showtime = normalized.match(/(?:開演|START|Start|start)\s*[:：]?\s*([01]?\d|2[0-3]):([0-5]\d)/);
+  if (showtime) return `${showtime[1]}:${showtime[2]}`;
+  return normalized.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/)?.[0] ?? "";
 }
 
 function labeledTextValue(text: string, labels: string[]) {
@@ -160,8 +165,43 @@ function labeledTextValue(text: string, labels: string[]) {
   return inlineMatch ? compactWhitespace(inlineMatch[1]) : "";
 }
 
+function matchesLabel(text: string, labels: string[]) {
+  const normalized = normalizeFullWidth(compactWhitespace(text)).replace(/[：:]+$/, "");
+  return labels.some((label) => normalized === normalizeFullWidth(label));
+}
+
+function labeledElementValue($: cheerio.CheerioAPI, labels: string[]) {
+  for (const row of $("tr").toArray()) {
+    const cells = $(row).children("th,td");
+    const label = cells.first().text();
+    if (matchesLabel(label, labels)) {
+      const value = compactWhitespace(cells.slice(1).text());
+      if (value) return value;
+    }
+  }
+
+  for (const term of $("dt").toArray()) {
+    if (matchesLabel($(term).text(), labels)) {
+      const value = compactWhitespace($(term).next("dd").text());
+      if (value) return value;
+    }
+  }
+
+  return "";
+}
+
+function labeledValue($: cheerio.CheerioAPI, text: string, labels: string[]) {
+  return firstString(labeledElementValue($, labels), labeledTextValue(text, labels));
+}
+
 function normalizePriceText(value: string) {
   const normalized = normalizeFullWidth(value);
+  const bareStructuredPrice = normalized.match(/^\s*([0-9,]{3,})\s*$/);
+  if (bareStructuredPrice) {
+    const amount = Number(bareStructuredPrice[1].replaceAll(",", ""));
+    return Number.isFinite(amount) ? `¥${amount.toLocaleString("ja-JP")}` : "";
+  }
+
   const price = normalized.match(/[¥￥]\s?([0-9,]{3,})(?:\s?[~〜-]\s?[¥￥]?\s?([0-9,]{3,}))?/) ??
     normalized.match(/([0-9,]{3,})\s?円(?:\s?[~〜-]\s?([0-9,]{3,})\s?円)?/);
 
@@ -215,9 +255,15 @@ function saleWindowFromText(text: string) {
   const range = normalized.match(
     /(受付期間|販売期間|申込期間|発売期間|抽選受付|先行受付|一般発売|発売日)?[:：]?\s*((\d{4})[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*(?:[01]?\d|2[0-3]):[0-5]\d)\s*(?:[~〜～\-]|から|より)\s*((?:\d{4}[./年-]\s*)?\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*(?:[01]?\d|2[0-3]):[0-5]\d|予定枚数終了|売切|売り切れ)/,
   );
-  if (!range) return "";
-  const end = /^\d{4}/.test(compactWhitespace(range[4])) ? range[4] : `${range[3]}/${range[4]}`;
-  return `${compactWhitespace(range[2])} - ${compactWhitespace(end)}`;
+  if (range) {
+    const end = /^\d{4}/.test(compactWhitespace(range[4])) ? range[4] : `${range[3]}/${range[4]}`;
+    return `${compactWhitespace(range[2])} - ${compactWhitespace(end)}`;
+  }
+
+  const singleStart = normalized.match(
+    /(受付開始|販売開始|発売開始|発売日時|発売日|一般発売|抽選受付|先行受付)[:：]?\s*((\d{4})[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*(?:[01]?\d|2[0-3]):[0-5]\d)/,
+  );
+  return singleStart ? compactWhitespace(singleStart[2]) : "";
 }
 
 function artistFromTitle(title: string) {
@@ -241,6 +287,16 @@ function flattenJsonLd(value: unknown): Array<Record<string, unknown>> {
   return [];
 }
 
+function firstObject(value: unknown): Record<string, unknown> {
+  if (Array.isArray(value)) return firstObject(value[0]);
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function firstJsonString(value: unknown) {
+  if (Array.isArray(value)) return firstString(...value);
+  return firstString(value);
+}
+
 function sourceFromHostname(hostname: string) {
   if (hostname.includes("pia.jp")) return "Ticket Pia";
   if (hostname.includes("eplus.jp")) return "e+";
@@ -262,6 +318,7 @@ function cityFromText(text: string) {
     ["福岡", "후쿠오카"],
     ["Fukuoka", "후쿠오카"],
     ["埼玉", "사이타마"],
+    ["さいたま", "사이타마"],
     ["Saitama", "사이타마"],
     ["千葉", "치바"],
     ["Chiba", "치바"],
@@ -299,11 +356,8 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
       : {};
   const address =
     location.address && typeof location.address === "object" ? (location.address as Record<string, unknown>) : {};
-  const offers = eventJson?.offers && typeof eventJson.offers === "object" ? (eventJson.offers as Record<string, unknown>) : {};
-  const performer =
-    eventJson?.performer && typeof eventJson.performer === "object"
-      ? (eventJson.performer as Record<string, unknown>)
-      : {};
+  const offers = firstObject(eventJson?.offers);
+  const performer = firstObject(eventJson?.performer);
   const rawTitle = firstString(
     eventJson?.name,
     propertyContent($, "meta[property='og:title']"),
@@ -321,23 +375,31 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   const dateSource = firstString(
     eventJson?.startDate,
     $("time[datetime]").first().attr("datetime"),
-    labeledTextValue(rawBodyText, ["公演日", "開催日", "日程", "日時", "公演日時"]),
+    labeledValue($, rawBodyText, ["公演日", "開催日", "開催日時", "日程", "日時", "公演日時", "公演期間"]),
     pageText,
   );
-  const price = normalizePriceText(firstString(offers.price, offers.lowPrice, offers.highPrice, pageText));
+  const price = normalizePriceText(
+    firstString(
+      offers.price,
+      offers.lowPrice,
+      offers.highPrice,
+      labeledValue($, rawBodyText, ["料金", "価格", "チケット料金", "席種・料金"]),
+      pageText,
+    ),
+  );
   const imageValue = eventJson?.image;
-  const image = Array.isArray(imageValue) ? firstString(imageValue[0]) : firstString(imageValue);
+  const image = firstJsonString(imageValue);
   const venue = firstString(
     location.name,
-    labeledTextValue(rawBodyText, ["会場", "会場名", "場所", "Venue", "公演会場"]),
+    labeledValue($, rawBodyText, ["会場", "会場名", "場所", "Venue", "公演会場"]),
   );
-  const textForCity = [venue, address.addressLocality, address.addressRegion, pageText].join(" ");
+  const textForCity = [venue, address.addressLocality, address.addressRegion, firstString(location.address), pageText].join(" ");
   const access = accessFromText(`${description} ${pageText}`);
   const saleWindow = firstString(
     offers.availabilityStarts,
     offers.validFrom,
     saleWindowFromText(pageText),
-    labeledTextValue(rawBodyText, ["受付期間", "販売期間", "申込期間", "発売期間"]),
+    labeledValue($, rawBodyText, ["受付期間", "販売期間", "申込期間", "発売期間", "発売日時", "発売日", "一般発売"]),
   );
 
   return {

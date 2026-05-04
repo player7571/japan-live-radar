@@ -39,6 +39,27 @@ npx playwright test
 - Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
 - Supabase migrations run with `npm run db:migrate` or the manual `Supabase Migrate` workflow.
 
+## Admin Operations
+
+Open `/#admin` and enter `ADMIN_API_TOKEN`.
+
+- Use `URL로 초안 가져오기` for Ticket Pia, e+, Lawson Ticket, LiveFans, or other ticket pages. Imported drafts are stored as pending candidates when Supabase is configured, and fall back to local browser storage when the candidate table is not ready.
+- Use `검색어 후보 만들기` to create source search links for an artist keyword across Ticket Pia, e+, and Lawson Ticket. These are review candidates, not confirmed events.
+- Review `URL 후보`, then choose `초안 적용` to inspect the fields or `승인 저장` to write a complete candidate into the `events` table.
+- Use `데이터 품질` before releases to find missing links, missing sale windows, missing prices, ticket-access items that still need review, and alert queue errors.
+- Use `알림 큐` to inspect failed, due, or sent alerts. Failed alerts can be returned to the active queue with `재시도`.
+
+## Alert Operations
+
+Users can save interest alerts from the public detail panel. The browser stores the local selection immediately, and `/api/alerts` upserts the server-side reminder when Supabase is configured.
+
+- Reminder timing prefers the sale-window start and schedules three hours before sales open. If the sale window is missing, it falls back to seven days before the event date.
+- Users can add an alert email in the saved-alerts panel. The email is stored with each active server-side alert and sent to the delivery webhook as `contactEmail`.
+- `Dispatch Due Alerts` runs every 15 minutes and reads due rows from `/api/admin-alerts`.
+- `ALERT_WEBHOOK_URL` receives a JSON payload with the Korean message text, alert id, event key, event snapshot, and reminder time.
+- Successful deliveries are marked `sent`; delivery failures are marked `error` with `last_error` so they do not silently disappear.
+- Operators can inspect non-due queues with `/api/admin-alerts?status=error` or `/api/admin-alerts?status=sent&due=all`. Retrying an errored alert is a `PATCH /api/admin-alerts` with `status: "active"` and an optional `remindAt`.
+
 ## Automation
 
 GitHub Actions is the long-running automation layer so Codex heartbeat runs do not need to rely on local full-disk or network permissions.
@@ -69,6 +90,22 @@ ALERT_WEBHOOK_URL
 `SUPABASE_DB_URL` is used only by migration automation.
 `ADMIN_API_TOKEN` protects the admin import, candidate, and quality APIs.
 `ALERT_WEBHOOK_URL` is optional until real alert delivery is connected; without it, due alerts are marked `error` instead of pretending they were sent.
+
+## Release Operations
+
+Normal development flow:
+
+1. Branch from `dev` with a `codex/` prefix.
+2. Run `npm run typecheck`, `npm run build`, and `npx playwright test`.
+3. Open a PR into `dev` and wait for GitHub CI.
+4. Merge to `dev`.
+5. Let `Auto Release PR` update the open `dev` to `main` release PR.
+6. Merge the release PR only when production deploy capacity is available.
+7. Verify production with `npm run health:production` or `https://japan-live-radar.vercel.app/api/health`.
+
+If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, keep the release PR open and continue feature work on `dev`. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
+
+Vercel Git preview builds are skipped by `scripts/vercel-ignore-build.sh` so duplicate Vercel builds do not consume quota. GitHub Actions remains the source of truth for preview checks and uses `vercel build` with `vercel deploy --prebuilt` when a preview deployment is needed.
 
 ## Branch Rules
 

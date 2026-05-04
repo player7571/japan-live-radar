@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { pathToFileURL } from "node:url";
 import { recordSyncRun } from "../src/lib/syncRuns";
 
 type TicketmasterVenue = {
@@ -108,19 +109,33 @@ function bestImage(images: TicketmasterEvent["images"]) {
   return [...images].sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0].url;
 }
 
-function formatSaleWindow(event: TicketmasterEvent) {
+function formatTicketmasterDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  })
+    .formatToParts(date)
+    .reduce<Record<string, string>>((acc, part) => {
+      if (part.type !== "literal") acc[part.type] = part.value;
+      return acc;
+    }, {});
+
+  return `${parts.year}.${parts.month}.${parts.day} ${parts.hour}:${parts.minute}`;
+}
+
+export function formatSaleWindow(event: TicketmasterEvent) {
   const start = event.sales?.public?.startDateTime;
   const end = event.sales?.public?.endDateTime;
   if (!start && !end) return null;
-  const formatter = new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const startText = start ? formatter.format(new Date(start)) : "시작일 확인 필요";
-  const endText = end ? formatter.format(new Date(end)) : "종료일 확인 필요";
+  const startText = start ? formatTicketmasterDateTime(start) ?? "시작일 확인 필요" : "시작일 확인 필요";
+  const endText = end ? formatTicketmasterDateTime(end) ?? "종료일 확인 필요" : "종료일 확인 필요";
   return `${startText} - ${endText}`;
 }
 
@@ -413,7 +428,13 @@ async function main() {
   );
 }
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+function isDirectRun() {
+  return Boolean(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href);
+}
+
+if (isDirectRun()) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

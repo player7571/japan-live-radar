@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { serverReadKey } from "../src/lib/supabaseServer";
 
 type VercelRequest = {
   method?: string;
@@ -12,6 +13,7 @@ type VercelResponse = {
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
@@ -32,9 +34,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  const syncSupabase = createClient(supabaseUrl, serverReadKey(supabaseAnonKey, serviceRoleKey));
   const [eventsResult, syncResult] = await Promise.all([
     supabase.from("events").select("id", { count: "exact", head: true }),
-    supabase
+    syncSupabase
       .from("sync_runs")
       .select("source,status,fetched_count,upserted_count,skipped_count,message,finished_at")
       .order("finished_at", { ascending: false })

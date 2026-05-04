@@ -8,6 +8,7 @@ const migrations = [
   "20260504194000_create_event_candidates.sql",
   "20260504195500_create_event_alerts.sql",
   "20260504204500_extend_event_alerts_delivery.sql",
+  "20260505024500_add_alert_contact_email.sql",
 ];
 
 function requireEnv(name: string, value: string | undefined): string {
