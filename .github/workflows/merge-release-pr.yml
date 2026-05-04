@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
   pull-requests: write
 
 jobs:
@@ -54,3 +55,44 @@ jobs:
 
           echo "Release PR #$pr_number did not become clean in time."
           exit 1
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "Release PR merge workflow failed";
+            const body = [
+              "The automated release PR merge workflow failed.",
+              "",
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              "",
+              "Codex should inspect the run logs and fix the release merge automation or the blocked release PR."
+            ].join("\n");
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: "automation",
+                color: "1d76db",
+                description: "Created by automation workflows",
+              });
+            } catch (error) {
+              if (error.status !== 422) throw error;
+            }
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100,
+            });
+            const alreadyOpen = existing.data.some((issue) => issue.title === title);
+            if (!alreadyOpen) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ["automation"],
+              });
+            }
