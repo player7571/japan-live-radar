@@ -1,16 +1,17 @@
-name: Sync Ticketmaster Events
+name: Production Health Check
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 18 * * *"
+    - cron: "7,37 * * * *"
+
+permissions:
+  contents: read
+  issues: write
 
 jobs:
-  sync:
+  health:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
 
     steps:
       - name: Check out repository
@@ -25,31 +26,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Sync seed events
-        run: npm run sync:seed
+      - name: Check production
+        run: npm run health:production
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
-      - name: Sync Ticketmaster events
-        run: npm run sync:ticketmaster
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://japan-live-radar.vercel.app' }}
+          ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
 
       - name: Create issue on failure
         if: failure()
         uses: actions/github-script@v7
         with:
           script: |
-            const title = "Ticketmaster sync workflow failed";
+            const title = "Production health check failed";
             const body = [
-              "The scheduled Ticketmaster sync failed.",
+              "The scheduled production health check failed.",
               "",
               `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               "",
-              "Codex should inspect API errors, data mapping changes, or missing secrets."
+              "Codex should inspect the run logs, check Vercel/Supabase status, and patch the app or automation."
             ].join("\n");
             try {
               await github.rest.issues.createLabel({
