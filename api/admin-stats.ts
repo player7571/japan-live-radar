@@ -112,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const today = new Date().toISOString().slice(0, 10);
-  const [eventsResult, candidatesResult, alertsResult] = await Promise.all([
+  const [eventsResult, pastEventsResult, candidatesResult, alertsResult] = await Promise.all([
     supabase
       .from("events")
       .select("id,source,city,date,ticket_access,phone_required,link,sale_window,price")
@@ -120,6 +120,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .gte("date", today)
       .order("date", { ascending: true })
       .limit(500),
+    supabase
+      .from("events")
+      .select("id", { count: "exact", head: true })
+      .eq("country_code", "JP")
+      .lt("date", today),
     supabase
       .from("event_candidates")
       .select("id", { count: "exact", head: true })
@@ -135,6 +140,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(500).json({ error: eventsResult.error.message });
     return;
   }
+  if (pastEventsResult.error) {
+    res.status(500).json({ error: pastEventsResult.error.message });
+    return;
+  }
 
   const rows = (eventsResult.data ?? []) as EventQualityRow[];
   const missingLink = rows.filter((row) => !row.link || row.link === "#").length;
@@ -146,6 +155,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   res.status(200).json({
     totalEvents: rows.length,
+    pastEvents: pastEventsResult.count ?? 0,
     pendingCandidates: missingCandidateTable(candidatesResult.error) ? null : candidatesResult.count ?? 0,
     candidateTableReady: !missingCandidateTable(candidatesResult.error),
     alertQueue: missingAlertTable(alertsResult.error)

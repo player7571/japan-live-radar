@@ -80,6 +80,7 @@ type CandidateApiItem = {
 };
 type AdminStats = {
   totalEvents: number;
+  pastEvents?: number;
   pendingCandidates: number | null;
   candidateTableReady: boolean;
   alertQueue: {
@@ -1235,6 +1236,7 @@ function AdminPage() {
             <>
               <div className="stat-grid">
                 <AdminStat label="공연" value={`${adminStats.totalEvents}개`} />
+                <AdminStat label="지난 공연" value={`${adminStats.pastEvents ?? 0}개`} />
                 <AdminStat
                   label="후보"
                   value={adminStats.pendingCandidates === null ? "테이블 준비 전" : `${adminStats.pendingCandidates}개`}
