@@ -114,6 +114,10 @@ function normalizeFullWidth(value: string) {
   return value.replace(/[！-～]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0));
 }
 
+function escapePattern(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function cleanTitle(value: string, hostname: string) {
   return compactWhitespace(value)
     .replace(/\s*[|｜]\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|LiveFans).*$/i, "")
@@ -137,6 +141,23 @@ function normalizeDate(value: string) {
 
 function normalizeTime(value: string) {
   return value.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/)?.[0] ?? "";
+}
+
+function labeledTextValue(text: string, labels: string[]) {
+  const normalized = normalizeFullWidth(text);
+  const labelPattern = labels.map(escapePattern).join("|");
+  const lines = normalized
+    .split(/\r?\n/)
+    .map(compactWhitespace)
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const match = line.match(new RegExp(`^(?:${labelPattern})\\s*[:：]\\s*(.+)$`, "i"));
+    if (match) return compactWhitespace(match[1]);
+  }
+
+  const inlineMatch = normalized.match(new RegExp(`(?:${labelPattern})\\s*[:：]\\s*([^\\n。]+)`, "i"));
+  return inlineMatch ? compactWhitespace(inlineMatch[1]) : "";
 }
 
 function normalizePriceText(value: string) {
@@ -192,10 +213,11 @@ function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ti
 function saleWindowFromText(text: string) {
   const normalized = normalizeFullWidth(text);
   const range = normalized.match(
-    /(受付期間|販売期間|申込期間|発売期間|抽選受付|先行受付|一般発売|発売日)?[:：]?\s*(\d{4}[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*(?:[01]?\d|2[0-3]):[0-5]\d)\s*(?:[~〜～\-]|から|より)\s*(\d{4}[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*(?:[01]?\d|2[0-3]):[0-5]\d|予定枚数終了|売切|売り切れ)/,
+    /(受付期間|販売期間|申込期間|発売期間|抽選受付|先行受付|一般発売|発売日)?[:：]?\s*((\d{4})[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*(?:[01]?\d|2[0-3]):[0-5]\d)\s*(?:[~〜～\-]|から|より)\s*((?:\d{4}[./年-]\s*)?\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*(?:[01]?\d|2[0-3]):[0-5]\d|予定枚数終了|売切|売り切れ)/,
   );
   if (!range) return "";
-  return `${compactWhitespace(range[2])} - ${compactWhitespace(range[3])}`;
+  const end = /^\d{4}/.test(compactWhitespace(range[4])) ? range[4] : `${range[3]}/${range[4]}`;
+  return `${compactWhitespace(range[2])} - ${compactWhitespace(end)}`;
 }
 
 function artistFromTitle(title: string) {
@@ -286,6 +308,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
     eventJson?.name,
     propertyContent($, "meta[property='og:title']"),
     propertyContent($, "meta[name='twitter:title']"),
+    $("h1").first().text(),
     $("title").first().text(),
   );
   const title = cleanTitle(rawTitle, sourceUrl.hostname);
@@ -294,14 +317,28 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
     propertyContent($, "meta[property='og:description']"),
     propertyContent($, "meta[name='description']"),
   );
-  const dateSource = firstString(eventJson?.startDate, $("time[datetime]").first().attr("datetime"), pageText);
+  const rawBodyText = $("body").text();
+  const dateSource = firstString(
+    eventJson?.startDate,
+    $("time[datetime]").first().attr("datetime"),
+    labeledTextValue(rawBodyText, ["公演日", "開催日", "日程", "日時", "公演日時"]),
+    pageText,
+  );
   const price = normalizePriceText(firstString(offers.price, offers.lowPrice, offers.highPrice, pageText));
   const imageValue = eventJson?.image;
   const image = Array.isArray(imageValue) ? firstString(imageValue[0]) : firstString(imageValue);
-  const venue = firstString(location.name);
+  const venue = firstString(
+    location.name,
+    labeledTextValue(rawBodyText, ["会場", "会場名", "場所", "Venue", "公演会場"]),
+  );
   const textForCity = [venue, address.addressLocality, address.addressRegion, pageText].join(" ");
   const access = accessFromText(`${description} ${pageText}`);
-  const saleWindow = firstString(offers.availabilityStarts, offers.validFrom, saleWindowFromText(pageText));
+  const saleWindow = firstString(
+    offers.availabilityStarts,
+    offers.validFrom,
+    saleWindowFromText(pageText),
+    labeledTextValue(rawBodyText, ["受付期間", "販売期間", "申込期間", "発売期間"]),
+  );
 
   return {
     ...fallbackDraft,
