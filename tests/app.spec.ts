@@ -143,6 +143,12 @@ test("imports an admin draft from a URL", async ({ page }) => {
       }),
     });
   });
+  await page.route("/api/admin-candidates", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ configured: false, candidates: [] }),
+    });
+  });
 
   await page.goto("/#admin");
 
