@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Bell,
+  BarChart3,
   CalendarDays,
   Check,
   ChevronRight,
@@ -62,6 +63,32 @@ type ImportCandidate = {
   url: string;
   draft: ImportedEventDraft;
   createdAt: string;
+  storage: "local" | "db";
+  source?: string;
+};
+type CandidateApiItem = {
+  id: string;
+  source: string;
+  sourceUrl: string | null;
+  draft: ImportedEventDraft;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+};
+type AdminStats = {
+  totalEvents: number;
+  pendingCandidates: number | null;
+  candidateTableReady: boolean;
+  quality: {
+    missingLink: number;
+    missingSaleWindow: number;
+    missingPrice: number;
+    needsAccessReview: number;
+    phoneRequired: number;
+    koreaFriendly: number;
+  };
+  bySource: Array<{ label: string; count: number }>;
+  byCity: Array<{ label: string; count: number }>;
+  generatedAt: string;
 };
 
 const accessOptions: Array<TicketAccess | "전체"> = [
@@ -74,6 +101,7 @@ const dateWindowOptions: DateWindow[] = ["전체", "60일 이내", "90일 이내
 const today = new Date("2026-05-04T00:00:00+09:00");
 const useSeedData = import.meta.env.VITE_USE_SEED_DATA === "true";
 const savedEventsStorageKey = "japan-live-radar.saved-events";
+const alertClientStorageKey = "japan-live-radar.alert-client";
 const adminTokenStorageKey = "japan-live-radar.admin-token";
 const importCandidatesStorageKey = "japan-live-radar.import-candidates";
 const blankAdminEvent: AdminEventDraft = {
@@ -113,6 +141,18 @@ function loadSavedEventIds() {
   return [seedEvents[3].id];
 }
 
+function loadAlertClientId() {
+  try {
+    const savedValue = window.localStorage.getItem(alertClientStorageKey);
+    if (savedValue) return savedValue;
+    const nextValue = crypto.randomUUID();
+    window.localStorage.setItem(alertClientStorageKey, nextValue);
+    return nextValue;
+  } catch {
+    return "local-alert-client";
+  }
+}
+
 function loadImportCandidates() {
   try {
     const savedValue = window.localStorage.getItem(importCandidatesStorageKey);
@@ -126,13 +166,32 @@ function loadImportCandidates() {
             typeof (value as ImportCandidate).url === "string" &&
             typeof (value as ImportCandidate).createdAt === "string",
         );
-      });
+      }).map((candidate) => ({ ...candidate, storage: "local" as const }));
     }
   } catch {
     // Ignore invalid local candidate cache.
   }
 
   return [];
+}
+
+function toCandidate(apiItem: CandidateApiItem): ImportCandidate {
+  return {
+    id: apiItem.id,
+    url: apiItem.sourceUrl ?? String(apiItem.draft.link ?? ""),
+    draft: apiItem.draft,
+    createdAt: apiItem.createdAt,
+    storage: "db",
+    source: apiItem.source,
+  };
+}
+
+function urlsFromText(value: string) {
+  return value
+    .split(/[\n,]+/)
+    .map((url) => url.trim())
+    .filter(Boolean)
+    .slice(0, 10);
 }
 
 function isInDateWindow(date: string, dateWindow: DateWindow) {
@@ -162,6 +221,7 @@ function App() {
   const [koreaFriendlyOnly, setKoreaFriendlyOnly] = useState(false);
   const [selectedId, setSelectedId] = useState(seedEvents[0].id);
   const [saved, setSaved] = useState<string[]>(loadSavedEventIds);
+  const [alertClientId] = useState(loadAlertClientId);
 
   const cityOptions = useMemo(
     () => ["전체", ...Array.from(new Set(events.map((event) => event.city))).sort((a, b) => a.localeCompare(b, "ko"))],
@@ -236,10 +296,41 @@ function App() {
   const selectedEvent = filteredEvents.find((event) => event.id === selectedId) ?? filteredEvents[0];
   const heroEvent = selectedEvent ?? events[0];
 
+  const syncAlertSubscription = async (event: Event, active: boolean) => {
+    if (useSeedData) return;
+    try {
+      await fetch("/api/alerts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          clientId: alertClientId,
+          active,
+          event: {
+            id: event.id,
+            artist: event.artist,
+            title: event.title,
+            date: event.date,
+            saleWindow: event.saleWindow,
+            link: event.link,
+          },
+        }),
+      });
+    } catch {
+      // The local reminder state remains useful if the backend is unavailable.
+    }
+  };
+
   const toggleSaved = (id: string) => {
+    const event = events.find((item) => item.id === id);
+    const nextActive = !saved.includes(id);
     setSaved((current) =>
       current.includes(id) ? current.filter((savedId) => savedId !== id) : [...current, id],
     );
+    if (event) {
+      void syncAlertSubscription(event, nextActive);
+    }
   };
 
   if (route === "admin") {
@@ -427,7 +518,13 @@ function AdminPage() {
   const [importUrl, setImportUrl] = useState("");
   const [importStatus, setImportStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [importMessage, setImportMessage] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [searchStatus, setSearchStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [searchMessage, setSearchMessage] = useState("");
   const [importCandidates, setImportCandidates] = useState<ImportCandidate[]>(loadImportCandidates);
+  const [candidateStatus, setCandidateStatus] = useState<"idle" | "loading" | "ready" | "local" | "error">("idle");
+  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
+  const [statsStatus, setStatsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   const updateDraft = <Key extends keyof AdminEventDraft>(key: Key, value: AdminEventDraft[Key]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -453,6 +550,57 @@ function AdminPage() {
     }
   };
 
+  const fetchCandidates = async (activeToken = token) => {
+    if (!activeToken) return;
+    setCandidateStatus("loading");
+    try {
+      const response = await fetch("/api/admin-candidates", {
+        headers: {
+          "x-admin-token": activeToken,
+        },
+      });
+      const payload = (await response.json()) as {
+        configured?: boolean;
+        candidates?: CandidateApiItem[];
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "후보 조회 실패");
+      }
+      if (payload.configured === false) {
+        setCandidateStatus("local");
+        return;
+      }
+      setImportCandidates((current) => {
+        const localCandidates = current.filter((candidate) => candidate.storage === "local");
+        return [...(payload.candidates ?? []).map(toCandidate), ...localCandidates].slice(0, 50);
+      });
+      setCandidateStatus("ready");
+    } catch {
+      setCandidateStatus("error");
+    }
+  };
+
+  const fetchStats = async (activeToken = token) => {
+    if (!activeToken) return;
+    setStatsStatus("loading");
+    try {
+      const response = await fetch("/api/admin-stats", {
+        headers: {
+          "x-admin-token": activeToken,
+        },
+      });
+      const payload = (await response.json()) as AdminStats & { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "품질 지표 조회 실패");
+      }
+      setAdminStats(payload);
+      setStatsStatus("ready");
+    } catch {
+      setStatsStatus("error");
+    }
+  };
+
   const submitEvent = async (event: React.FormEvent) => {
     event.preventDefault();
     setStatus("saving");
@@ -475,7 +623,7 @@ function AdminPage() {
       setStatus("saved");
       setMessage("공연 정보가 저장됐어요.");
       setDraft(blankAdminEvent);
-      await fetchRecentEvents(token);
+      await Promise.all([fetchRecentEvents(token), fetchStats(token)]);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "저장 실패");
@@ -495,22 +643,65 @@ function AdminPage() {
           "Content-Type": "application/json",
           "x-admin-token": token,
         },
-        body: JSON.stringify({ url: importUrl }),
+        body: JSON.stringify({ urls: urlsFromText(importUrl) }),
       });
-      const payload = (await response.json()) as { draft?: ImportedEventDraft; error?: string };
-      if (!response.ok || !payload.draft) {
+      const payload = (await response.json()) as {
+        results?: Array<{ url: string; draft?: ImportedEventDraft; error?: string }>;
+        error?: string;
+      };
+      if (!response.ok || !payload.results) {
         throw new Error(payload.error ?? "URL 가져오기 실패");
       }
-      const candidate: ImportCandidate = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        url: importUrl,
-        draft: payload.draft,
-        createdAt: new Date().toISOString(),
-      };
-      setImportCandidates((current) => [candidate, ...current].slice(0, 12));
-      applyCandidate(candidate);
+      const importedCandidates = payload.results
+        .filter((result): result is { url: string; draft: ImportedEventDraft } => Boolean(result.draft))
+        .map((result): ImportCandidate => ({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          url: result.url,
+          draft: result.draft,
+          createdAt: new Date().toISOString(),
+          storage: "local",
+        }));
+      if (importedCandidates.length === 0) {
+        throw new Error(payload.results.find((result) => result.error)?.error ?? "가져올 수 있는 초안이 없어요");
+      }
+
+      let finalCandidates = importedCandidates;
+      try {
+        const candidateResponse = await fetch("/api/admin-candidates", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-token": token,
+          },
+          body: JSON.stringify({
+            candidates: importedCandidates.map((candidate) => ({
+              source: candidate.draft.source,
+              sourceUrl: candidate.url,
+              draft: candidate.draft,
+            })),
+          }),
+        });
+        const candidatePayload = (await candidateResponse.json()) as {
+          candidates?: CandidateApiItem[];
+          configured?: boolean;
+        };
+        if (candidateResponse.ok && candidatePayload.configured !== false && candidatePayload.candidates) {
+          finalCandidates = candidatePayload.candidates.map(toCandidate);
+          setCandidateStatus("ready");
+        } else {
+          setCandidateStatus("local");
+        }
+      } catch {
+        setCandidateStatus("local");
+      }
+
+      setImportCandidates((current) => {
+        const existingIds = new Set(finalCandidates.map((candidate) => candidate.id));
+        return [...finalCandidates, ...current.filter((candidate) => !existingIds.has(candidate.id))].slice(0, 50);
+      });
+      applyCandidate(finalCandidates[0]);
       setImportStatus("ready");
-      setImportMessage("URL에서 초안을 가져오고 후보에 추가했어요.");
+      setImportMessage(`${finalCandidates.length}개 URL 초안을 후보에 추가했어요.`);
     } catch (error) {
       setImportStatus("error");
       setImportMessage(error instanceof Error ? error.message : "URL 가져오기 실패");
@@ -526,18 +717,139 @@ function AdminPage() {
     }));
   };
 
+  const candidateReadyForApproval = (candidate: ImportCandidate) => {
+    const appliedDraft = { ...blankAdminEvent, ...candidate.draft };
+    return Boolean(
+      appliedDraft.artist.trim() &&
+        appliedDraft.title.trim() &&
+        appliedDraft.city.trim() &&
+        appliedDraft.venue.trim() &&
+        appliedDraft.date.trim(),
+    );
+  };
+
   const removeCandidate = (id: string) => {
     setImportCandidates((current) => current.filter((candidate) => candidate.id !== id));
+  };
+
+  const approveCandidate = async (candidate: ImportCandidate) => {
+    applyCandidate(candidate);
+    if (candidate.storage === "local" || !candidateReadyForApproval(candidate)) {
+      removeCandidate(candidate.id);
+      setMessage("후보를 입력폼에 적용했어요. 빈 항목을 채운 뒤 공연 저장을 누르세요.");
+      setStatus("idle");
+      return;
+    }
+
+    setStatus("saving");
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin-candidates", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": token,
+        },
+        body: JSON.stringify({
+          id: candidate.id,
+          action: "approve",
+          draft: { ...blankAdminEvent, ...candidate.draft },
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "후보 승인 실패");
+      }
+      removeCandidate(candidate.id);
+      setStatus("saved");
+      setMessage("후보를 승인하고 공연으로 저장했어요.");
+      await Promise.all([fetchRecentEvents(token), fetchCandidates(token), fetchStats(token)]);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "후보 승인 실패");
+    }
+  };
+
+  const collectKeywordCandidates = async () => {
+    if (!searchKeyword.trim()) return;
+    setSearchStatus("loading");
+    setSearchMessage("");
+    window.localStorage.setItem(adminTokenStorageKey, token);
+
+    try {
+      const response = await fetch("/api/search-candidates", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": token,
+        },
+        body: JSON.stringify({ keyword: searchKeyword }),
+      });
+      const payload = (await response.json()) as {
+        configured?: boolean;
+        candidates?: CandidateApiItem[];
+        error?: string;
+      };
+      if (!response.ok || !payload.candidates) {
+        throw new Error(payload.error ?? "검색 후보 생성 실패");
+      }
+
+      const nextCandidates = payload.candidates.map((candidate) => ({
+        ...toCandidate(candidate),
+        storage: payload.configured === false ? "local" as const : "db" as const,
+      }));
+      setImportCandidates((current) => {
+        const existingIds = new Set(nextCandidates.map((candidate) => candidate.id));
+        return [...nextCandidates, ...current.filter((candidate) => !existingIds.has(candidate.id))].slice(0, 50);
+      });
+      setCandidateStatus(payload.configured === false ? "local" : "ready");
+      setSearchStatus("ready");
+      setSearchMessage(`${nextCandidates.length}개 검색 후보를 만들었어요.`);
+    } catch (error) {
+      setSearchStatus("error");
+      setSearchMessage(error instanceof Error ? error.message : "검색 후보 생성 실패");
+    }
+  };
+
+  const rejectCandidate = async (candidate: ImportCandidate) => {
+    if (candidate.storage === "local") {
+      removeCandidate(candidate.id);
+      return;
+    }
+
+    setCandidateStatus("loading");
+    try {
+      const response = await fetch("/api/admin-candidates", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": token,
+        },
+        body: JSON.stringify({ id: candidate.id, action: "reject", reason: "관리자 화면에서 제외" }),
+      });
+      if (!response.ok) {
+        throw new Error("후보 제외 실패");
+      }
+      removeCandidate(candidate.id);
+      setCandidateStatus("ready");
+    } catch {
+      setCandidateStatus("error");
+    }
   };
 
   useEffect(() => {
     if (token) {
       void fetchRecentEvents(token);
+      void fetchCandidates(token);
+      void fetchStats(token);
     }
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(importCandidatesStorageKey, JSON.stringify(importCandidates));
+    window.localStorage.setItem(
+      importCandidatesStorageKey,
+      JSON.stringify(importCandidates.filter((candidate) => candidate.storage === "local")),
+    );
   }, [importCandidates]);
 
   return (
@@ -556,14 +868,54 @@ function AdminPage() {
           </a>
         </header>
 
+        <section className="admin-stats" aria-label="데이터 품질">
+          <div className="list-summary">
+            <strong><BarChart3 size={18} /> 데이터 품질</strong>
+            <button className="secondary-button" type="button" onClick={() => fetchStats()}>
+              {statsStatus === "loading" ? "확인 중" : "새로고침"}
+            </button>
+          </div>
+          {statsStatus === "error" && <div className="empty-state">품질 지표를 불러오지 못했어요.</div>}
+          {adminStats ? (
+            <>
+              <div className="stat-grid">
+                <AdminStat label="공연" value={`${adminStats.totalEvents}개`} />
+                <AdminStat
+                  label="후보"
+                  value={adminStats.pendingCandidates === null ? "테이블 준비 전" : `${adminStats.pendingCandidates}개`}
+                />
+                <AdminStat label="링크 누락" value={`${adminStats.quality.missingLink}개`} />
+                <AdminStat label="예매 확인 필요" value={`${adminStats.quality.needsAccessReview}개`} />
+                <AdminStat label="일본 번호 필요" value={`${adminStats.quality.phoneRequired}개`} />
+                <AdminStat label="한국 구매 가능" value={`${adminStats.quality.koreaFriendly}개`} />
+              </div>
+              <div className="quality-breakdown">
+                <div>
+                  <strong>출처</strong>
+                  {(adminStats.bySource.length ? adminStats.bySource : [{ label: "데이터 없음", count: 0 }]).map((item) => (
+                    <span key={item.label}>{item.label} · {item.count}</span>
+                  ))}
+                </div>
+                <div>
+                  <strong>도시</strong>
+                  {(adminStats.byCity.length ? adminStats.byCity : [{ label: "데이터 없음", count: 0 }]).map((item) => (
+                    <span key={item.label}>{item.label} · {item.count}</span>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="empty-state">관리자 토큰을 입력하고 품질 지표를 새로고침하세요.</div>
+          )}
+        </section>
+
         <section className="admin-import" aria-label="URL로 가져오기">
           <label className="admin-field">
             <span><Wand2 size={15} /> URL로 초안 가져오기</span>
             <input
               value={importUrl}
               onChange={(event) => setImportUrl(event.target.value)}
-              placeholder="티켓/공연 페이지 URL"
-              type="url"
+              placeholder="티켓/공연 페이지 URL, 여러 개는 줄바꿈"
             />
           </label>
           <button className="secondary-button" disabled={importStatus === "loading"} type="button" onClick={importFromUrl}>
@@ -575,22 +927,54 @@ function AdminPage() {
           )}
         </section>
 
+        <section className="admin-import" aria-label="검색어 후보 만들기">
+          <label className="admin-field">
+            <span><Search size={15} /> 검색어 후보 수집</span>
+            <input
+              value={searchKeyword}
+              onChange={(event) => setSearchKeyword(event.target.value)}
+              placeholder="예: YOASOBI, Ado, Mrs. GREEN APPLE"
+            />
+          </label>
+          <button
+            className="secondary-button"
+            disabled={searchStatus === "loading"}
+            type="button"
+            onClick={collectKeywordCandidates}
+          >
+            <Search size={17} />
+            {searchStatus === "loading" ? "수집 중" : "후보 만들기"}
+          </button>
+          {searchMessage && (
+            <span className={searchStatus === "error" ? "admin-error" : "admin-success"}>{searchMessage}</span>
+          )}
+        </section>
+
         <section className="import-candidates" aria-label="URL 후보">
           <div className="list-summary">
             <strong>URL 후보</strong>
-            <span>{importCandidates.length}개</span>
+            <span>
+              {candidateStatus === "loading"
+                ? "동기화 중"
+                : candidateStatus === "local"
+                  ? `${importCandidates.length}개 · 로컬`
+                  : `${importCandidates.length}개`}
+            </span>
           </div>
           {importCandidates.length === 0 && <div className="empty-state">가져온 URL 초안이 여기에 쌓여요.</div>}
           {importCandidates.map((candidate) => (
             <article className="import-candidate" key={candidate.id}>
               <div>
                 <strong>{candidate.draft.artist || candidate.draft.title || "제목 확인 필요"}</strong>
-                <span>{candidate.draft.date || "날짜 미정"} · {candidate.draft.venue || candidate.url}</span>
+                <span>
+                  {candidate.draft.date || "날짜 미정"} · {candidate.draft.venue || candidate.url}
+                  {candidate.storage === "db" ? " · DB" : " · 로컬"}
+                </span>
               </div>
-              <button className="secondary-button" type="button" onClick={() => applyCandidate(candidate)}>
-                초안 적용
+              <button className="secondary-button" type="button" onClick={() => approveCandidate(candidate)}>
+                {candidate.storage === "db" && candidateReadyForApproval(candidate) ? "승인 저장" : "초안 적용"}
               </button>
-              <button className="icon-button" type="button" aria-label="후보 삭제" onClick={() => removeCandidate(candidate.id)}>
+              <button className="icon-button" type="button" aria-label="후보 제외" onClick={() => rejectCandidate(candidate)}>
                 <X size={17} />
               </button>
             </article>
@@ -704,6 +1088,10 @@ function AdminPage() {
               <Database size={17} />
               최근 목록
             </button>
+            <button className="secondary-button" type="button" onClick={() => fetchCandidates()}>
+              <Wand2 size={17} />
+              후보 새로고침
+            </button>
             {message && <span className={status === "error" ? "admin-error" : "admin-success"}>{message}</span>}
           </div>
         </form>
@@ -730,6 +1118,15 @@ function AdminPage() {
         </section>
       </section>
     </main>
+  );
+}
+
+function AdminStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="admin-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 

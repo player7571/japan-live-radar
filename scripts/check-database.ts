@@ -16,15 +16,24 @@ async function main() {
     requireEnv("SUPABASE_SERVICE_ROLE_KEY", serviceRoleKey),
   );
 
-  const { count, error } = await supabase
-    .from("events")
-    .select("id", { count: "exact", head: true });
+  const checks = [
+    ["events", "Events"],
+    ["sync_runs", "Sync runs"],
+    ["event_candidates", "Event candidates"],
+    ["event_alerts", "Event alerts"],
+  ] as const;
 
-  if (error) {
-    throw new Error(`Events table check failed: ${error.message}`);
+  for (const [table, label] of checks) {
+    const { count, error } = await supabase
+      .from(table)
+      .select("id", { count: "exact", head: true });
+
+    if (error) {
+      throw new Error(`${label} table check failed: ${error.message}`);
+    }
+
+    console.log(`${label} table is reachable. Current rows: ${count ?? 0}`);
   }
-
-  console.log(`Events table is reachable. Current rows: ${count ?? 0}`);
 }
 
 main().catch((error: unknown) => {
