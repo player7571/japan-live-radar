@@ -34,6 +34,17 @@ type AdminEventInput = {
   image?: unknown;
 };
 
+type AdminEventRow = {
+  id: string;
+  artist: string;
+  title: string;
+  city: string;
+  venue: string;
+  date: string;
+  source: string;
+  updated_at: string;
+};
+
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const adminApiToken = process.env.ADMIN_API_TOKEN;
@@ -131,7 +142,7 @@ function toEventRow(input: AdminEventInput) {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-store");
 
-  if (req.method && req.method !== "POST") {
+  if (req.method && req.method !== "GET" && req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
@@ -146,9 +157,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  if (!req.method || req.method === "GET") {
+    const { data, error } = await supabase
+      .from("events")
+      .select("id,artist,title,city,venue,date,source,updated_at")
+      .eq("country_code", "JP")
+      .order("updated_at", { ascending: false })
+      .limit(20);
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.status(200).json({ events: data as AdminEventRow[] });
+    return;
+  }
+
   try {
     const row = toEventRow(parseBody(req.body));
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
     const { data, error } = await supabase
       .from("events")
       .upsert(row, { onConflict: "source,source_event_id" })

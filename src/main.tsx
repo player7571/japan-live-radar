@@ -45,6 +45,16 @@ type AdminEventDraft = {
   link: string;
   image: string;
 };
+type AdminEventSummary = {
+  id: string;
+  artist: string;
+  title: string;
+  city: string;
+  venue: string;
+  date: string;
+  source: string;
+  updated_at: string;
+};
 
 const accessOptions: Array<TicketAccess | "전체"> = [
   "전체",
@@ -381,9 +391,31 @@ function AdminPage() {
   const [draft, setDraft] = useState<AdminEventDraft>(blankAdminEvent);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [recentEvents, setRecentEvents] = useState<AdminEventSummary[]>([]);
+  const [recentStatus, setRecentStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   const updateDraft = <Key extends keyof AdminEventDraft>(key: Key, value: AdminEventDraft[Key]) => {
     setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const fetchRecentEvents = async (activeToken = token) => {
+    if (!activeToken) return;
+    setRecentStatus("loading");
+    try {
+      const response = await fetch("/api/admin-events", {
+        headers: {
+          "x-admin-token": activeToken,
+        },
+      });
+      const payload = (await response.json()) as { events?: AdminEventSummary[]; error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "목록 조회 실패");
+      }
+      setRecentEvents(payload.events ?? []);
+      setRecentStatus("ready");
+    } catch {
+      setRecentStatus("error");
+    }
   };
 
   const submitEvent = async (event: React.FormEvent) => {
@@ -408,11 +440,18 @@ function AdminPage() {
       setStatus("saved");
       setMessage("공연 정보가 저장됐어요.");
       setDraft(blankAdminEvent);
+      await fetchRecentEvents(token);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "저장 실패");
     }
   };
+
+  useEffect(() => {
+    if (token) {
+      void fetchRecentEvents(token);
+    }
+  }, []);
 
   return (
     <main className="app-shell admin-shell">
@@ -533,9 +572,34 @@ function AdminPage() {
               <Plus size={17} />
               {status === "saving" ? "저장 중" : "공연 저장"}
             </button>
+            <button className="secondary-button" type="button" onClick={() => fetchRecentEvents()}>
+              <Database size={17} />
+              최근 목록
+            </button>
             {message && <span className={status === "error" ? "admin-error" : "admin-success"}>{message}</span>}
           </div>
         </form>
+
+        <section className="admin-recent" aria-label="최근 입력 공연">
+          <div className="list-summary">
+            <strong>최근 입력 공연</strong>
+            <span>{recentStatus === "loading" ? "불러오는 중" : `${recentEvents.length}개`}</span>
+          </div>
+          {recentStatus === "error" && <div className="empty-state">목록을 불러오지 못했어요.</div>}
+          {recentStatus !== "error" && recentEvents.length === 0 && (
+            <div className="empty-state">관리자 토큰을 입력하고 최근 목록을 불러오세요.</div>
+          )}
+          {recentEvents.map((event) => (
+            <article className="recent-event" key={event.id}>
+              <div>
+                <strong>{event.artist}</strong>
+                <span>{event.title}</span>
+              </div>
+              <span>{event.city} · {event.venue}</span>
+              <span>{event.date.replaceAll("-", ".")} · {event.source}</span>
+            </article>
+          ))}
+        </section>
       </section>
     </main>
   );

@@ -689,6 +689,12 @@ h2 {
   cursor: pointer;
 }
 
+.admin-actions .secondary-button {
+  min-width: 140px;
+  border: 0;
+  cursor: pointer;
+}
+
 .admin-actions .primary-link:disabled {
   cursor: wait;
   opacity: 0.68;
@@ -707,13 +713,50 @@ h2 {
   color: #8b2828;
 }
 
+.admin-recent {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.recent-event {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 72px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  border-radius: 8px;
+}
+
+.recent-event div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.recent-event strong,
+.recent-event span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-event span {
+  color: #5a675e;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     padding: 16px;
   }
 
   .filters,
-  .content-grid {
+  .content-grid,
+  .recent-event {
     grid-template-columns: 1fr;
   }
 
