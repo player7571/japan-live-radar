@@ -253,6 +253,22 @@ test("searches concerts and opens the detail panel", async ({ page }) => {
   );
 });
 
+test("searches concerts with Korean artist and venue aliases", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("뉴진스");
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /NewJeans/ })).toBeVisible();
+
+  await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("도쿄돔");
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /YOASOBI/ })).toBeVisible();
+
+  await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("원오크락");
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toBeVisible();
+});
+
 test("filters by city and ticket access without horizontal overflow", async ({ page }) => {
   await page.goto("/");
 
