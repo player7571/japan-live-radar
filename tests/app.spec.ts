@@ -219,6 +219,40 @@ test("detects additional Japanese concert cities from imported pages", () => {
   ).toBe("히로시마");
 });
 
+test("detects city from major venue aliases when city text is absent", () => {
+  expect(
+    extractDraft(
+      `
+        <html>
+          <head><title>King Gnu Stadium Live｜チケットぴあ</title></head>
+          <body>
+            <h1>King Gnu Stadium Live</h1>
+            <p>会場：日産スタジアム</p>
+            <p>公演日：2026年10月10日 18:30</p>
+          </body>
+        </html>
+      `,
+      new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600007"),
+    ).city,
+  ).toBe("요코하마");
+
+  expect(
+    extractDraft(
+      `
+        <html>
+          <head><title>Mrs. GREEN APPLE Live｜ローチケ</title></head>
+          <body>
+            <h1>Mrs. GREEN APPLE Live</h1>
+            <p>会場：幕張メッセ 国際展示場</p>
+            <p>公演日：2026年10月11日 17:00</p>
+          </body>
+        </html>
+      `,
+      new URL("https://l-tike.com/concert/mevent/?mid=2600008"),
+    ).city,
+  ).toBe("치바");
+});
+
 test("captures text-only ticket availability cues from imported pages", () => {
   expect(
     extractDraft(
