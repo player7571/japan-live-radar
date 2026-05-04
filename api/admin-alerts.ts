@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 type VercelRequest = {
   method?: string;
   headers?: Record<string, string | string[] | undefined>;
+  query?: Record<string, string | string[] | undefined>;
   body?: unknown;
 };
 
@@ -16,10 +17,14 @@ type AlertActionPayload = {
   id?: unknown;
   status?: unknown;
   error?: unknown;
+  remindAt?: unknown;
 };
 
+type AlertStatus = "active" | "sent" | "error";
+
 type AlertUpdate = {
-  status: "sent" | "error";
+  status: AlertStatus;
+  remind_at?: string;
   last_sent_at?: string;
   last_error: string | null;
   send_count?: number;
@@ -52,6 +57,47 @@ function missingAlertTable(error: { code?: string; message?: string } | null) {
   return Boolean(error && (error.code === "42P01" || error.message?.includes("event_alerts")));
 }
 
+export function normalizeAdminAlertListOptions(query: Record<string, string | string[] | undefined> = {}) {
+  const status = Array.isArray(query.status) ? query.status[0] : query.status;
+  const due = Array.isArray(query.due) ? query.due[0] : query.due;
+  const allowedStatuses = new Set(["active", "sent", "error", "all"]);
+  const normalizedStatus = allowedStatuses.has(status ?? "") ? status as AlertStatus | "all" : "active";
+  return {
+    status: normalizedStatus,
+    dueOnly: due === "all" ? false : normalizedStatus === "active",
+  };
+}
+
+export function buildAlertStatusUpdate(
+  status: AlertStatus,
+  currentSendCount = 0,
+  now = new Date(),
+  error?: string | null,
+  remindAt?: string | null,
+): AlertUpdate {
+  if (status === "sent") {
+    return {
+      status,
+      last_sent_at: now.toISOString(),
+      last_error: null,
+      send_count: currentSendCount + 1,
+    };
+  }
+
+  if (status === "active") {
+    return {
+      status,
+      remind_at: remindAt ?? now.toISOString(),
+      last_error: null,
+    };
+  }
+
+  return {
+    status,
+    last_error: error ?? "Unknown delivery error",
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -74,14 +120,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!req.method || req.method === "GET") {
     const dueBefore = new Date().toISOString();
-    const { data, error } = await supabase
+    const listOptions = normalizeAdminAlertListOptions(req.query);
+    let alertQuery = supabase
       .from("event_alerts")
-      .select("id,client_id,event_key,event_snapshot,channel,contact_email,status,remind_at,last_sent_at,send_count,created_at,updated_at")
-      .eq("status", "active")
-      .not("remind_at", "is", null)
-      .lte("remind_at", dueBefore)
-      .order("remind_at", { ascending: true })
+      .select("id,client_id,event_key,event_snapshot,channel,contact_email,status,remind_at,last_sent_at,last_error,send_count,created_at,updated_at")
       .limit(50);
+
+    if (listOptions.status !== "all") {
+      alertQuery = alertQuery.eq("status", listOptions.status);
+    }
+    if (listOptions.dueOnly) {
+      alertQuery = alertQuery.not("remind_at", "is", null).lte("remind_at", dueBefore);
+    }
+
+    const { data, error } = await alertQuery.order(
+      listOptions.dueOnly ? "remind_at" : "updated_at",
+      { ascending: listOptions.dueOnly },
+    );
 
     if (missingAlertTable(error)) {
       res.status(200).json({ configured: false, alerts: [] });
@@ -103,8 +158,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(400).json({ error: "id is required" });
     return;
   }
-  if (status !== "sent" && status !== "error") {
-    res.status(400).json({ error: "status must be sent or error" });
+  if (status !== "sent" && status !== "error" && status !== "active") {
+    res.status(400).json({ error: "status must be active, sent, or error" });
     return;
   }
 
@@ -125,24 +180,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    update = {
-      status,
-      last_sent_at: new Date().toISOString(),
-      last_error: null,
-      send_count: Number(current?.send_count ?? 0) + 1,
-    };
+    update = buildAlertStatusUpdate(status, Number(current?.send_count ?? 0));
+  } else if (status === "active") {
+    update = buildAlertStatusUpdate(status, 0, new Date(), null, optionalString(body.remindAt));
   } else {
-    update = {
-      status,
-      last_error: optionalString(body.error) ?? "Unknown delivery error",
-    };
+    update = buildAlertStatusUpdate(status, 0, new Date(), optionalString(body.error));
   }
 
   const { data, error } = await supabase
     .from("event_alerts")
     .update(update)
     .eq("id", id)
-    .select("id,event_key,status,last_sent_at,last_error,updated_at")
+    .select("id,event_key,status,remind_at,last_sent_at,last_error,updated_at")
     .single();
 
   if (missingAlertTable(error)) {
