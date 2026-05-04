@@ -28,6 +28,7 @@ import type { Event, EventApiResponse, TicketAccess } from "./types/events";
 import "./styles.css";
 
 type DateWindow = "전체" | "60일 이내" | "90일 이내" | "여름 원정";
+type SaleStatus = "전체" | "오픈 예정" | "판매 중" | "판매 종료" | "확인 필요";
 type Route = "app" | "admin";
 type AdminEventDraft = {
   artist: string;
@@ -98,6 +99,7 @@ const accessOptions: Array<TicketAccess | "전체"> = [
   "확인 필요",
 ];
 const dateWindowOptions: DateWindow[] = ["전체", "60일 이내", "90일 이내", "여름 원정"];
+const saleStatusOptions: SaleStatus[] = ["전체", "오픈 예정", "판매 중", "판매 종료", "확인 필요"];
 const today = new Date("2026-05-04T00:00:00+09:00");
 const useSeedData = import.meta.env.VITE_USE_SEED_DATA === "true";
 const savedEventsStorageKey = "japan-live-radar.saved-events";
@@ -209,6 +211,39 @@ function isInDateWindow(date: string, dateWindow: DateWindow) {
   return eventDate >= today && eventDate <= limit;
 }
 
+function parseSaleWindowDateParts(year: number, month: string, day: string, hour?: string, minute?: string) {
+  return new Date(
+    `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${(hour ?? "00").padStart(2, "0")}:${minute ?? "00"}:00+09:00`,
+  );
+}
+
+function getSaleWindowDates(saleWindow: string, eventDate: string) {
+  const eventYear = Number(eventDate.slice(0, 4)) || today.getFullYear();
+  const explicitYearMatches = Array.from(
+    saleWindow.matchAll(/(\d{4})\s*[年/.-]\s*(\d{1,2})\s*[月/.-]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*(?:(\d{1,2}):(\d{2}))?/g),
+  );
+
+  if (explicitYearMatches.length > 0) {
+    return explicitYearMatches.map((match) =>
+      parseSaleWindowDateParts(Number(match[1]), match[2], match[3], match[4], match[5]),
+    );
+  }
+
+  return Array.from(
+    saleWindow.matchAll(/(^|[^\d])(\d{1,2})[./月]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*(?:(\d{1,2}):(\d{2}))?/g),
+  ).map((match) => parseSaleWindowDateParts(eventYear, match[2], match[3], match[4], match[5]));
+}
+
+function getSaleStatus(event: Event): Exclude<SaleStatus, "전체"> {
+  if (!event.saleWindow.trim()) return "확인 필요";
+
+  const [startDate, endDate] = getSaleWindowDates(event.saleWindow, event.date);
+  if (!startDate) return "확인 필요";
+  if (today < startDate) return "오픈 예정";
+  if (endDate && today > endDate) return "판매 종료";
+  return "판매 중";
+}
+
 function App() {
   const [route, setRoute] = useState<Route>(currentRoute);
   const [events, setEvents] = useState<Event[]>(seedEvents);
@@ -218,6 +253,7 @@ function App() {
   const [city, setCity] = useState<Event["city"] | "전체">("전체");
   const [access, setAccess] = useState<TicketAccess | "전체">("전체");
   const [dateWindow, setDateWindow] = useState<DateWindow>("전체");
+  const [saleStatus, setSaleStatus] = useState<SaleStatus>("전체");
   const [koreaFriendlyOnly, setKoreaFriendlyOnly] = useState(false);
   const [selectedId, setSelectedId] = useState(seedEvents[0].id);
   const [saved, setSaved] = useState<string[]>(loadSavedEventIds);
@@ -288,11 +324,12 @@ function App() {
       const cityMatch = city === "전체" || event.city === city;
       const accessMatch = access === "전체" || event.ticketAccess === access;
       const dateMatch = isInDateWindow(event.date, dateWindow);
+      const saleStatusMatch = saleStatus === "전체" || getSaleStatus(event) === saleStatus;
       const koreaFriendlyMatch =
         !koreaFriendlyOnly || (event.ticketAccess === "한국 구매 가능" && !event.phoneRequired);
-      return queryMatch && cityMatch && accessMatch && dateMatch && koreaFriendlyMatch;
+      return queryMatch && cityMatch && accessMatch && dateMatch && saleStatusMatch && koreaFriendlyMatch;
     });
-  }, [access, city, dateWindow, events, koreaFriendlyOnly, query]);
+  }, [access, city, dateWindow, events, koreaFriendlyOnly, query, saleStatus]);
 
   const savedEventItems = useMemo(
     () => saved
@@ -439,6 +476,18 @@ function App() {
                 ))}
               </select>
             </label>
+            <label>
+              <Clock3 size={15} />
+              <select
+                value={saleStatus}
+                onChange={(event) => setSaleStatus(event.target.value as SaleStatus)}
+                aria-label="판매 상태"
+              >
+                {saleStatusOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
           </div>
         </section>
 
@@ -462,6 +511,7 @@ function App() {
               setCity("전체");
               setAccess("전체");
               setDateWindow("전체");
+              setSaleStatus("전체");
               setKoreaFriendlyOnly(false);
             }}
           >
@@ -509,6 +559,7 @@ function App() {
                   <div className="tag-row">
                     <StatusPill status={event.ticketAccess} />
                     <span className="mini-pill">{event.saleType}</span>
+                    <SaleStatusPill status={getSaleStatus(event)} />
                   </div>
                 </div>
                 <ChevronRight className="card-arrow" size={18} />
@@ -1216,6 +1267,12 @@ function StatusPill({ status }: { status: TicketAccess }) {
   return <span className={`status-pill ${className}`}>{status}</span>;
 }
 
+function SaleStatusPill({ status }: { status: Exclude<SaleStatus, "전체"> }) {
+  const className =
+    status === "판매 중" ? "safe" : status === "판매 종료" ? "blocked" : status === "오픈 예정" ? "upcoming" : "watch";
+  return <span className={`sale-status-pill ${className}`}>{status}</span>;
+}
+
 function EventDetail({
   event,
   saved,
@@ -1248,6 +1305,7 @@ function EventDetail({
           <Fact icon={<CalendarDays size={18} />} label="공연일" value={`${event.date.replaceAll("-", ".")} ${event.time}`} />
           <Fact icon={<MapPin size={18} />} label="도시/회장" value={`${event.city} · ${event.venue}`} />
           <Fact icon={<Ticket size={18} />} label="티켓" value={`${event.saleType} · ${event.price}`} />
+          <Fact icon={<Clock3 size={18} />} label="예매 상태" value={getSaleStatus(event)} />
           <Fact icon={<Clock3 size={18} />} label="판매 기간" value={event.saleWindow} />
         </div>
 

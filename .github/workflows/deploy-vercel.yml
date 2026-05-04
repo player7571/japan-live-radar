@@ -71,16 +71,9 @@ jobs:
 
       - name: Deploy preview
         if: github.ref_name != 'main'
-        run: >
-          npx vercel deploy --prebuilt
-          --env VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
-          --env VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          --env ADMIN_API_TOKEN=${{ secrets.ADMIN_API_TOKEN }}
-          --env SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          echo "Preview deploy is handled by the Vercel GitHub integration."
+          echo "This workflow still syncs preview env and builds the prebuilt output for validation."
 
       - name: Deploy production
         if: github.ref_name == 'main'
