@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { calculateReminderAt } from "../api/alerts";
 import { extractDraft } from "../api/import-url";
 
 test("extracts Japanese ticket page sales cues", () => {
@@ -33,6 +34,31 @@ test("extracts Japanese ticket page sales cues", () => {
   expect(draft.price).toBe("¥9,800 - ¥14,800");
   expect(draft.ticketAccess).toBe("일본 번호 필요");
   expect(draft.phoneRequired).toBe(true);
+});
+
+test("calculates alert reminders from sale windows and event dates", () => {
+  const now = new Date("2026-05-04T00:00:00+09:00");
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "ado-2026",
+        date: "2026-11-12",
+        saleWindow: "2026年5月10日 12:00～2026年5月20日 23:59",
+      },
+      now,
+    ),
+  ).toBe(new Date("2026-05-10T09:00:00+09:00").toISOString());
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "newjeans-2026",
+        date: "2026-06-01",
+      },
+      now,
+    ),
+  ).toBe(new Date("2026-05-25T09:00:00+09:00").toISOString());
 });
 
 test("searches concerts and opens the detail panel", async ({ page }) => {
