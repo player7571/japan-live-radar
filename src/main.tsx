@@ -57,6 +57,12 @@ type AdminEventSummary = {
   updated_at: string;
 };
 type ImportedEventDraft = Partial<Omit<AdminEventDraft, "ticketAccess" | "saleType" | "phoneRequired">>;
+type ImportCandidate = {
+  id: string;
+  url: string;
+  draft: ImportedEventDraft;
+  createdAt: string;
+};
 
 const accessOptions: Array<TicketAccess | "전체"> = [
   "전체",
@@ -69,6 +75,7 @@ const today = new Date("2026-05-04T00:00:00+09:00");
 const useSeedData = import.meta.env.VITE_USE_SEED_DATA === "true";
 const savedEventsStorageKey = "japan-live-radar.saved-events";
 const adminTokenStorageKey = "japan-live-radar.admin-token";
+const importCandidatesStorageKey = "japan-live-radar.import-candidates";
 const blankAdminEvent: AdminEventDraft = {
   artist: "",
   title: "",
@@ -104,6 +111,28 @@ function loadSavedEventIds() {
   }
 
   return [seedEvents[3].id];
+}
+
+function loadImportCandidates() {
+  try {
+    const savedValue = window.localStorage.getItem(importCandidatesStorageKey);
+    const parsedValue = savedValue ? (JSON.parse(savedValue) as unknown) : null;
+    if (Array.isArray(parsedValue)) {
+      return parsedValue.filter((value): value is ImportCandidate => {
+        return Boolean(
+          value &&
+            typeof value === "object" &&
+            typeof (value as ImportCandidate).id === "string" &&
+            typeof (value as ImportCandidate).url === "string" &&
+            typeof (value as ImportCandidate).createdAt === "string",
+        );
+      });
+    }
+  } catch {
+    // Ignore invalid local candidate cache.
+  }
+
+  return [];
 }
 
 function isInDateWindow(date: string, dateWindow: DateWindow) {
@@ -398,6 +427,7 @@ function AdminPage() {
   const [importUrl, setImportUrl] = useState("");
   const [importStatus, setImportStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [importMessage, setImportMessage] = useState("");
+  const [importCandidates, setImportCandidates] = useState<ImportCandidate[]>(loadImportCandidates);
 
   const updateDraft = <Key extends keyof AdminEventDraft>(key: Key, value: AdminEventDraft[Key]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -471,18 +501,33 @@ function AdminPage() {
       if (!response.ok || !payload.draft) {
         throw new Error(payload.error ?? "URL 가져오기 실패");
       }
-      setDraft((current) => ({
-        ...current,
-        ...Object.fromEntries(
-          Object.entries(payload.draft ?? {}).filter(([, value]) => typeof value === "string" && value.trim().length > 0),
-        ),
-      }));
+      const candidate: ImportCandidate = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        url: importUrl,
+        draft: payload.draft,
+        createdAt: new Date().toISOString(),
+      };
+      setImportCandidates((current) => [candidate, ...current].slice(0, 12));
+      applyCandidate(candidate);
       setImportStatus("ready");
-      setImportMessage("URL에서 초안을 가져왔어요.");
+      setImportMessage("URL에서 초안을 가져오고 후보에 추가했어요.");
     } catch (error) {
       setImportStatus("error");
       setImportMessage(error instanceof Error ? error.message : "URL 가져오기 실패");
     }
+  };
+
+  const applyCandidate = (candidate: ImportCandidate) => {
+    setDraft((current) => ({
+      ...current,
+      ...Object.fromEntries(
+        Object.entries(candidate.draft).filter(([, value]) => typeof value === "string" && value.trim().length > 0),
+      ),
+    }));
+  };
+
+  const removeCandidate = (id: string) => {
+    setImportCandidates((current) => current.filter((candidate) => candidate.id !== id));
   };
 
   useEffect(() => {
@@ -490,6 +535,10 @@ function AdminPage() {
       void fetchRecentEvents(token);
     }
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(importCandidatesStorageKey, JSON.stringify(importCandidates));
+  }, [importCandidates]);
 
   return (
     <main className="app-shell admin-shell">
@@ -524,6 +573,28 @@ function AdminPage() {
           {importMessage && (
             <span className={importStatus === "error" ? "admin-error" : "admin-success"}>{importMessage}</span>
           )}
+        </section>
+
+        <section className="import-candidates" aria-label="URL 후보">
+          <div className="list-summary">
+            <strong>URL 후보</strong>
+            <span>{importCandidates.length}개</span>
+          </div>
+          {importCandidates.length === 0 && <div className="empty-state">가져온 URL 초안이 여기에 쌓여요.</div>}
+          {importCandidates.map((candidate) => (
+            <article className="import-candidate" key={candidate.id}>
+              <div>
+                <strong>{candidate.draft.artist || candidate.draft.title || "제목 확인 필요"}</strong>
+                <span>{candidate.draft.date || "날짜 미정"} · {candidate.draft.venue || candidate.url}</span>
+              </div>
+              <button className="secondary-button" type="button" onClick={() => applyCandidate(candidate)}>
+                초안 적용
+              </button>
+              <button className="icon-button" type="button" aria-label="후보 삭제" onClick={() => removeCandidate(candidate.id)}>
+                <X size={17} />
+              </button>
+            </article>
+          ))}
         </section>
 
         <form className="admin-panel" onSubmit={submitEvent}>
