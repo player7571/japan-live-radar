@@ -99,6 +99,13 @@ type AdminStats = {
     message: string | null;
     finishedAt: string | null;
   }> | null;
+  syncHealth?: {
+    status: "healthy" | "stale" | "error" | "missing";
+    lastFinishedAt: string | null;
+    staleAfterHours: number;
+    errorSources: string[];
+    staleSources: string[];
+  } | null;
   quality: {
     missingLink: number;
     missingSaleWindow: number;
@@ -143,6 +150,22 @@ function formatAdminSyncRun(item: NonNullable<AdminStats["syncRuns"]>[number]) {
         })
       : "시간 미정";
   return `${item.source} · ${status} · ${item.upsertedCount}/${item.fetchedCount} · ${finishedText}`;
+}
+
+function formatAdminSyncHealth(syncHealth: AdminStats["syncHealth"]) {
+  if (syncHealth === undefined || syncHealth === null) {
+    return "테이블 준비 전";
+  }
+  if (syncHealth.status === "missing") {
+    return "기록 없음";
+  }
+  if (syncHealth.status === "error") {
+    return `오류 · ${syncHealth.errorSources.join(", ") || "출처 미정"}`;
+  }
+  if (syncHealth.status === "stale") {
+    return `지연 · ${syncHealth.staleSources.join(", ") || `${syncHealth.staleAfterHours}시간 초과`}`;
+  }
+  return "정상";
 }
 
 const accessOptions: Array<TicketAccess | "전체"> = [
@@ -1279,6 +1302,7 @@ function AdminPage() {
                   label="알림 오류"
                   value={adminStats.alertQueue === null ? "테이블 준비 전" : `${adminStats.alertQueue.error}개`}
                 />
+                <AdminStat label="동기화 상태" value={formatAdminSyncHealth(adminStats.syncHealth)} />
               </div>
               <div className="quality-breakdown">
                 <div>
