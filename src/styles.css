@@ -643,6 +643,52 @@ h2 {
   opacity: 0.68;
 }
 
+.import-candidates {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.import-candidate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 44px;
+  gap: 10px;
+  align-items: center;
+  min-height: 70px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  border-radius: 8px;
+}
+
+.import-candidate div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.import-candidate strong,
+.import-candidate span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-candidate span {
+  color: #5a675e;
+}
+
+.import-candidate .secondary-button {
+  min-width: 100px;
+  border: 0;
+  cursor: pointer;
+}
+
+.import-candidate .icon-button {
+  box-shadow: none;
+}
+
 .admin-field,
 .admin-check {
   display: grid;
@@ -781,7 +827,8 @@ h2 {
   .filters,
   .content-grid,
   .recent-event,
-  .admin-import {
+  .admin-import,
+  .import-candidate {
     grid-template-columns: 1fr;
   }
 
