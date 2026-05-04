@@ -263,6 +263,41 @@ test("extracts array-based JSON-LD event data", () => {
   expect(draft.image).toBe("https://example.com/king-gnu.jpg");
 });
 
+test("uses JSON-LD offer availability when sale dates are absent", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Event",
+              "name": "Aimer Arena Live",
+              "startDate": "2026-10-03T18:00:00+09:00",
+              "location": {
+                "@type": "Place",
+                "name": "大阪城ホール",
+                "address": "大阪府大阪市"
+              },
+              "offers": {
+                "@type": "Offer",
+                "availability": "https://schema.org/SoldOut",
+                "price": "9800"
+              }
+            }
+          </script>
+        </head>
+        <body></body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/aimer-arena-live"),
+  );
+
+  expect(draft.saleWindow).toBe("予定枚数終了");
+  expect(draft.price).toBe("¥9,800");
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: draft.saleWindow })).toBe("판매 종료");
+});
+
 test("calculates alert reminders from sale windows and event dates", () => {
   const now = new Date("2026-05-04T00:00:00+09:00");
 
