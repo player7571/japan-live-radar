@@ -69,6 +69,27 @@ test("persists local alert selections", async ({ page }) => {
 test("submits an admin event draft", async ({ page }) => {
   let requestBody: Record<string, unknown> | null = null;
   await page.route("/api/admin-events", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          events: [
+            {
+              id: "manual-test",
+              artist: "Mrs. GREEN APPLE",
+              title: "Arena Live",
+              city: "사이타마",
+              venue: "Saitama Super Arena",
+              date: "2026-10-04",
+              source: "Manual",
+              updated_at: "2026-05-04T00:00:00Z",
+            },
+          ],
+        }),
+      });
+      return;
+    }
+
     requestBody = route.request().postDataJSON() as Record<string, unknown>;
     await route.fulfill({
       contentType: "application/json",
@@ -90,6 +111,7 @@ test("submits an admin event draft", async ({ page }) => {
   await page.getByRole("button", { name: "공연 저장" }).click();
 
   await expect(page.getByText("공연 정보가 저장됐어요.")).toBeVisible();
+  await expect(page.getByLabel("최근 입력 공연").getByText("Mrs. GREEN APPLE")).toBeVisible();
   expect(requestBody).toMatchObject({
     artist: "Mrs. GREEN APPLE",
     city: "사이타마",
