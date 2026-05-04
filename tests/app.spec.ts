@@ -103,7 +103,7 @@ test("persists local alert selections", async ({ page }) => {
 
 test("submits an admin event draft", async ({ page }) => {
   let requestBody: Record<string, unknown> | null = null;
-  await page.route("/api/admin-events", async (route) => {
+  await page.route("**/api/admin-events", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
         contentType: "application/json",
@@ -209,7 +209,7 @@ test("imports an admin draft from a URL", async ({ page }) => {
 
 test("approves a database-backed import candidate", async ({ page }) => {
   let patchBody: Record<string, unknown> | null = null;
-  await page.route("/api/admin-candidates", async (route) => {
+  await page.route("**/api/admin-candidates", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
         contentType: "application/json",
@@ -245,7 +245,7 @@ test("approves a database-backed import candidate", async ({ page }) => {
       body: JSON.stringify({ ok: true, event: { id: "event-1" } }),
     });
   });
-  await page.route("/api/admin-events", async (route) => {
+  await page.route("**/api/admin-events", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ events: [] }),
@@ -264,7 +264,7 @@ test("approves a database-backed import candidate", async ({ page }) => {
 });
 
 test("creates keyword candidates and shows quality stats", async ({ page }) => {
-  await page.route("/api/search-candidates", async (route) => {
+  await page.route("**/api/search-candidates", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -290,7 +290,7 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
       }),
     });
   });
-  await page.route("/api/admin-stats", async (route) => {
+  await page.route("**/api/admin-stats", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
