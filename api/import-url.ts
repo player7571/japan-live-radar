@@ -268,7 +268,12 @@ function saleWindowFromText(text: string) {
   const singleStart = normalized.match(
     /(受付開始|販売開始|発売開始|発売日時|発売日|一般発売|抽選受付|先行受付)[:：]?\s*((\d{4})[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*(?:[01]?\d|2[0-3]):[0-5]\d)/,
   );
-  return singleStart ? compactWhitespace(singleStart[2]) : "";
+  if (singleStart) return compactWhitespace(singleStart[2]);
+
+  const availabilityCue = normalized.match(
+    /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|販売中(?!止)|受付中|発売中|申込受付中|チケット発売中|販売予定|受付予定|発売予定|近日発売|準備中|sold\s*out|closed|ended|on\s*sale|available\s*now|now\s*on\s*sale|coming\s*soon)/i,
+  );
+  return availabilityCue ? compactWhitespace(availabilityCue[1]) : "";
 }
 
 function artistFromTitle(title: string) {
