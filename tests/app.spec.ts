@@ -495,6 +495,42 @@ test("persists an alert contact email in the saved alerts panel", async ({ page 
   await expect(page.getByPlaceholder("알림 받을 이메일")).toHaveValue("fan@example.com");
 });
 
+test("shows alert contact email save feedback", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await page.getByRole("button", { name: "일정 알림" }).click();
+  await page.getByRole("button", { name: "알림 2개" }).click();
+
+  await page.getByPlaceholder("알림 받을 이메일").fill("fan@example.com");
+  await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
+
+  await expect(page.getByRole("status")).toHaveText("알림 이메일을 저장했어요.");
+});
+
+test("validates alert contact email before saving", async ({ page }) => {
+  let alertRequests = 0;
+  await page.route("**/api/alerts", async (route) => {
+    alertRequests += 1;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ configured: true, ok: true }),
+    });
+  });
+
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await page.getByRole("button", { name: "일정 알림" }).click();
+  await page.getByRole("button", { name: "알림 2개" }).click();
+
+  await page.getByPlaceholder("알림 받을 이메일").fill("not-an-email");
+  await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
+
+  await expect(page.getByRole("status")).toHaveText("이메일 형식을 확인해 주세요.");
+  expect(alertRequests).toBe(0);
+});
+
 test("submits an admin event draft", async ({ page }) => {
   let requestBody: Record<string, unknown> | null = null;
   await page.route("**/api/admin-events", async (route) => {
