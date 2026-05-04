@@ -80,6 +80,13 @@ type AdminStats = {
   totalEvents: number;
   pendingCandidates: number | null;
   candidateTableReady: boolean;
+  alertQueue: {
+    activeDue: number;
+    activeScheduled: number;
+    error: number;
+    sent: number;
+    lastErrorAt: string | null;
+  } | null;
   quality: {
     missingLink: number;
     missingSaleWindow: number;
@@ -1125,6 +1132,14 @@ function AdminPage() {
                 <AdminStat label="예매 확인 필요" value={`${adminStats.quality.needsAccessReview}개`} />
                 <AdminStat label="일본 번호 필요" value={`${adminStats.quality.phoneRequired}개`} />
                 <AdminStat label="한국 구매 가능" value={`${adminStats.quality.koreaFriendly}개`} />
+                <AdminStat
+                  label="알림 대기"
+                  value={adminStats.alertQueue === null ? "테이블 준비 전" : `${adminStats.alertQueue.activeDue}개`}
+                />
+                <AdminStat
+                  label="알림 오류"
+                  value={adminStats.alertQueue === null ? "테이블 준비 전" : `${adminStats.alertQueue.error}개`}
+                />
               </div>
               <div className="quality-breakdown">
                 <div>

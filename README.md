@@ -46,7 +46,7 @@ Open `/#admin` and enter `ADMIN_API_TOKEN`.
 - Use `URL로 초안 가져오기` for Ticket Pia, e+, Lawson Ticket, LiveFans, or other ticket pages. Imported drafts are stored as pending candidates when Supabase is configured, and fall back to local browser storage when the candidate table is not ready.
 - Use `검색어 후보 만들기` to create source search links for an artist keyword across Ticket Pia, e+, and Lawson Ticket. These are review candidates, not confirmed events.
 - Review `URL 후보`, then choose `초안 적용` to inspect the fields or `승인 저장` to write a complete candidate into the `events` table.
-- Use `데이터 품질` before releases to find missing links, missing sale windows, missing prices, and ticket-access items that still need review.
+- Use `데이터 품질` before releases to find missing links, missing sale windows, missing prices, ticket-access items that still need review, and alert queue errors.
 
 ## Alert Operations
 

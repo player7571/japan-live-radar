@@ -23,6 +23,12 @@ type EventQualityRow = {
   price: string | null;
 };
 
+type AlertStatsRow = {
+  status: string;
+  remind_at: string | null;
+  updated_at: string;
+};
+
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const adminApiToken = process.env.ADMIN_API_TOKEN;
@@ -49,6 +55,43 @@ function missingCandidateTable(error: { code?: string; message?: string } | null
   return Boolean(error && (error.code === "42P01" || error.message?.includes("event_candidates")));
 }
 
+function missingAlertTable(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (error.code === "42P01" || error.message?.includes("event_alerts")));
+}
+
+export function summarizeAlertQueue(rows: AlertStatsRow[], now = new Date()) {
+  const nowTime = now.getTime();
+  return rows.reduce(
+    (summary, row) => {
+      if (row.status === "active") {
+        const remindTime = row.remind_at ? new Date(row.remind_at).getTime() : Number.NaN;
+        if (Number.isFinite(remindTime) && remindTime <= nowTime) {
+          summary.activeDue += 1;
+        } else {
+          summary.activeScheduled += 1;
+        }
+      }
+      if (row.status === "error") {
+        summary.error += 1;
+        if (!summary.lastErrorAt || row.updated_at > summary.lastErrorAt) {
+          summary.lastErrorAt = row.updated_at;
+        }
+      }
+      if (row.status === "sent") {
+        summary.sent += 1;
+      }
+      return summary;
+    },
+    {
+      activeDue: 0,
+      activeScheduled: 0,
+      error: 0,
+      sent: 0,
+      lastErrorAt: null as string | null,
+    },
+  );
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -69,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const today = new Date().toISOString().slice(0, 10);
-  const [eventsResult, candidatesResult] = await Promise.all([
+  const [eventsResult, candidatesResult, alertsResult] = await Promise.all([
     supabase
       .from("events")
       .select("id,source,city,date,ticket_access,phone_required,link,sale_window,price")
@@ -81,6 +124,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from("event_candidates")
       .select("id", { count: "exact", head: true })
       .eq("status", "pending"),
+    supabase
+      .from("event_alerts")
+      .select("status,remind_at,updated_at")
+      .in("status", ["active", "sent", "error"])
+      .limit(1000),
   ]);
 
   if (eventsResult.error) {
@@ -100,6 +148,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     totalEvents: rows.length,
     pendingCandidates: missingCandidateTable(candidatesResult.error) ? null : candidatesResult.count ?? 0,
     candidateTableReady: !missingCandidateTable(candidatesResult.error),
+    alertQueue: missingAlertTable(alertsResult.error)
+      ? null
+      : summarizeAlertQueue((alertsResult.data ?? []) as AlertStatsRow[]),
     quality: {
       missingLink,
       missingSaleWindow,
