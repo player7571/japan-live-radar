@@ -1,0 +1,178 @@
+name: Retry Production Deploy
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 */6 * * *"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  retry-production-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check deploy blockers
+        id: blockers
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const blockerTitles = new Set([
+              "Production deploy blocked by Vercel daily quota",
+              "Production health check failed",
+            ]);
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "automation",
+              per_page: 100,
+            });
+            const blockers = issues.filter((issue) => blockerTitles.has(issue.title));
+            core.setOutput("should_retry", blockers.length > 0 ? "true" : "false");
+            core.setOutput("issue_numbers", blockers.map((issue) => issue.number).join(","));
+            if (blockers.length === 0) {
+              core.info("No open production deploy or health automation blockers.");
+            } else {
+              core.info(`Retrying production deploy for issues: ${blockers.map((issue) => `#${issue.number}`).join(", ")}`);
+            }
+
+      - name: Check out repository
+        if: steps.blockers.outputs.should_retry == 'true'
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        if: steps.blockers.outputs.should_retry == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.blockers.outputs.should_retry == 'true'
+        run: npm ci
+
+      - name: Sync Vercel production environment
+        if: steps.blockers.outputs.should_retry == 'true'
+        run: |
+          upsert_env() {
+            local name="$1"
+            local value="$2"
+
+            if [ -z "$value" ]; then
+              echo "::error::$name is required for production deployments"
+              exit 1
+            fi
+
+            npx vercel env add "$name" production \
+              --force \
+              --yes \
+              --value "$value" \
+              --token="$VERCEL_TOKEN"
+          }
+
+          upsert_env VITE_SUPABASE_URL "$VITE_SUPABASE_URL"
+          upsert_env VITE_SUPABASE_ANON_KEY "$VITE_SUPABASE_ANON_KEY"
+          upsert_env ADMIN_API_TOKEN "$ADMIN_API_TOKEN"
+          upsert_env SUPABASE_SERVICE_ROLE_KEY "$SUPABASE_SERVICE_ROLE_KEY"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Pull Vercel production environment
+        if: steps.blockers.outputs.should_retry == 'true'
+        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build Vercel output
+        if: steps.blockers.outputs.should_retry == 'true'
+        run: npx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy production
+        if: steps.blockers.outputs.should_retry == 'true'
+        run: >
+          npx vercel deploy --prebuilt --prod
+          --env VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+          --env VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          --env ADMIN_API_TOKEN=${{ secrets.ADMIN_API_TOKEN }}
+          --env SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Verify production
+        if: steps.blockers.outputs.should_retry == 'true'
+        run: |
+          sleep 45
+          npm run health:production
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://japan-live-radar.vercel.app' }}
+          ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+
+      - name: Close resolved blockers
+        if: steps.blockers.outputs.should_retry == 'true' && success()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const issueNumbers = "${{ steps.blockers.outputs.issue_numbers }}"
+              .split(",")
+              .filter(Boolean)
+              .map((value) => Number(value));
+            for (const issue_number of issueNumbers) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body: [
+                  "Production redeploy retry succeeded.",
+                  "",
+                  `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                  "",
+                  "`npm run health:production` passed, so this blocker is resolved."
+                ].join("\n"),
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                state: "closed",
+                state_reason: "completed",
+              });
+            }
+
+      - name: Comment on retry failure
+        if: steps.blockers.outputs.should_retry == 'true' && failure()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const issueNumbers = "${{ steps.blockers.outputs.issue_numbers }}"
+              .split(",")
+              .filter(Boolean)
+              .map((value) => Number(value));
+            for (const issue_number of issueNumbers) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body: [
+                  "Production redeploy retry is still failing.",
+                  "",
+                  `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                  "",
+                  "Codex should inspect the latest logs before making more changes."
+                ].join("\n"),
+              });
+            }
