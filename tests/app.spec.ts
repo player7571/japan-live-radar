@@ -322,6 +322,29 @@ test("extracts Japanese hour-minute sale windows from imported pages", () => {
   expect(draft.saleWindow).toBe("2026年5月10日 12時00分 - 2026年5月20日 23時59分");
 });
 
+test("combines separated sale start and end fields from imported pages", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head><title>RADWIMPS Arena Tour｜e+</title></head>
+        <body>
+          <h1>RADWIMPS Arena Tour</h1>
+          <dl>
+            <dt>会場</dt><dd>東京ガーデンシアター</dd>
+            <dt>公演日</dt><dd>2026/10/04(日) 開演18:00</dd>
+            <dt>受付開始日時</dt><dd>2026/06/02(火) 12:00</dd>
+            <dt>受付終了日時</dt><dd>06/15(月) 23:59</dd>
+          </dl>
+        </body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/radwimps-separated-window"),
+  );
+
+  expect(draft.city).toBe("도쿄");
+  expect(draft.saleWindow).toBe("2026/06/02(火) 12:00 - 2026/06/15(月) 23:59");
+});
+
 test("classifies sale status from text-only availability cues", () => {
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "販売中" })).toBe("판매 중");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "受付終了" })).toBe("판매 종료");
