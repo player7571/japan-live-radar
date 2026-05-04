@@ -76,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const dueBefore = new Date().toISOString();
     const { data, error } = await supabase
       .from("event_alerts")
-      .select("id,client_id,event_key,event_snapshot,channel,status,remind_at,last_sent_at,send_count,created_at,updated_at")
+      .select("id,client_id,event_key,event_snapshot,channel,contact_email,status,remind_at,last_sent_at,send_count,created_at,updated_at")
       .eq("status", "active")
       .not("remind_at", "is", null)
       .lte("remind_at", dueBefore)

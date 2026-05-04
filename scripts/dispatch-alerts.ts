@@ -13,6 +13,7 @@ type DueAlert = {
   id: string;
   event_key: string;
   event_snapshot: EventSnapshot;
+  contact_email?: string | null;
   remind_at: string;
 };
 
@@ -41,6 +42,7 @@ function buildMessage(alert: DueAlert) {
   const event = alert.event_snapshot ?? {};
   const lines = [
     `알림 시간: ${alert.remind_at}`,
+    alert.contact_email ? `수신처: ${alert.contact_email}` : null,
     `공연: ${eventLabel(event)}`,
     event.city || event.venue ? `장소: ${[event.city, event.venue].filter(Boolean).join(" / ")}` : null,
     event.date ? `공연일: ${[event.date, event.time].filter(Boolean).join(" ")}` : null,
@@ -87,6 +89,7 @@ async function sendWebhook(alert: DueAlert) {
       text: buildMessage(alert),
       alertId: alert.id,
       eventKey: alert.event_key,
+      contactEmail: alert.contact_email ?? null,
       event: alert.event_snapshot,
       remindAt: alert.remind_at,
     }),

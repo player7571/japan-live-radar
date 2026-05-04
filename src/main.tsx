@@ -12,6 +12,7 @@ import {
   Filter,
   Heart,
   Lock,
+  Mail,
   MapPin,
   Plane,
   Plus,
@@ -104,6 +105,7 @@ const today = new Date("2026-05-04T00:00:00+09:00");
 const useSeedData = import.meta.env.VITE_USE_SEED_DATA === "true";
 const savedEventsStorageKey = "japan-live-radar.saved-events";
 const alertClientStorageKey = "japan-live-radar.alert-client";
+const alertEmailStorageKey = "japan-live-radar.alert-email";
 const adminTokenStorageKey = "japan-live-radar.admin-token";
 const importCandidatesStorageKey = "japan-live-radar.import-candidates";
 const blankAdminEvent: AdminEventDraft = {
@@ -152,6 +154,14 @@ function loadAlertClientId() {
     return nextValue;
   } catch {
     return "local-alert-client";
+  }
+}
+
+function loadAlertEmail() {
+  try {
+    return window.localStorage.getItem(alertEmailStorageKey) ?? "";
+  } catch {
+    return "";
   }
 }
 
@@ -258,6 +268,7 @@ function App() {
   const [selectedId, setSelectedId] = useState(seedEvents[0].id);
   const [saved, setSaved] = useState<string[]>(loadSavedEventIds);
   const [alertClientId] = useState(loadAlertClientId);
+  const [alertEmail, setAlertEmail] = useState(loadAlertEmail);
   const [alertsOpen, setAlertsOpen] = useState(false);
 
   const cityOptions = useMemo(
@@ -316,6 +327,10 @@ function App() {
     window.localStorage.setItem(savedEventsStorageKey, JSON.stringify(saved));
   }, [saved]);
 
+  useEffect(() => {
+    window.localStorage.setItem(alertEmailStorageKey, alertEmail.trim());
+  }, [alertEmail]);
+
   const filteredEvents = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return events.filter((event) => {
@@ -352,6 +367,7 @@ function App() {
         body: JSON.stringify({
           clientId: alertClientId,
           active,
+          contactEmail: alertEmail.trim(),
           event: {
             id: event.id,
             artist: event.artist,
@@ -375,6 +391,12 @@ function App() {
     );
     if (event) {
       void syncAlertSubscription(event, nextActive);
+    }
+  };
+
+  const saveAlertEmail = () => {
+    for (const event of savedEventItems) {
+      void syncAlertSubscription(event, true);
     }
   };
 
@@ -409,7 +431,10 @@ function App() {
         {alertsOpen && (
           <SavedAlertsPanel
             events={savedEventItems}
+            email={alertEmail}
             onClose={() => setAlertsOpen(false)}
+            onEmailChange={setAlertEmail}
+            onSaveEmail={saveAlertEmail}
             onRemove={toggleSaved}
             onSelect={(id) => {
               setSelectedId(id);
@@ -588,12 +613,18 @@ function App() {
 
 function SavedAlertsPanel({
   events,
+  email,
   onClose,
+  onEmailChange,
+  onSaveEmail,
   onRemove,
   onSelect,
 }: {
   events: Event[];
+  email: string;
   onClose: () => void;
+  onEmailChange: (email: string) => void;
+  onSaveEmail: () => void;
   onRemove: (id: string) => void;
   onSelect: (id: string) => void;
 }) {
@@ -611,29 +642,44 @@ function SavedAlertsPanel({
           <span>관심 공연에서 일정 알림을 누르면 여기에서 다시 확인할 수 있어요.</span>
         </div>
       ) : (
-        <div className="saved-alert-list">
-          {events.map((event) => (
-            <article className="saved-alert-item" key={event.id}>
-              <button
-                type="button"
-                aria-label={`${event.artist} 알림 공연 열기`}
-                onClick={() => onSelect(event.id)}
-              >
-                <span>{event.date.replaceAll("-", ".")} · {event.city}</span>
-                <strong>{event.artist}</strong>
-                <small>{event.saleWindow}</small>
-              </button>
-              <button
-                className="icon-button"
-                aria-label={`${event.artist} 알림 해제`}
-                onClick={() => onRemove(event.id)}
-                type="button"
-              >
-                <X size={17} />
-              </button>
-            </article>
-          ))}
-        </div>
+        <>
+          <label className="alert-email-field">
+            <Mail size={16} />
+            <input
+              value={email}
+              onChange={(event) => onEmailChange(event.target.value)}
+              onBlur={onSaveEmail}
+              placeholder="알림 받을 이메일"
+              type="email"
+            />
+            <button className="secondary-button" onClick={onSaveEmail} type="button">
+              저장
+            </button>
+          </label>
+          <div className="saved-alert-list">
+            {events.map((event) => (
+              <article className="saved-alert-item" key={event.id}>
+                <button
+                  type="button"
+                  aria-label={`${event.artist} 알림 공연 열기`}
+                  onClick={() => onSelect(event.id)}
+                >
+                  <span>{event.date.replaceAll("-", ".")} · {event.city}</span>
+                  <strong>{event.artist}</strong>
+                  <small>{event.saleWindow}</small>
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label={`${event.artist} 알림 해제`}
+                  onClick={() => onRemove(event.id)}
+                  type="button"
+                >
+                  <X size={17} />
+                </button>
+              </article>
+            ))}
+          </div>
+        </>
       )}
     </section>
   );

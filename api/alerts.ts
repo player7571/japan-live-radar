@@ -15,6 +15,7 @@ type AlertPayload = {
   clientId?: unknown;
   event?: unknown;
   active?: unknown;
+  contactEmail?: unknown;
 };
 
 type EventSnapshot = {
@@ -52,6 +53,16 @@ function missingAlertTable(error: { code?: string; message?: string } | null) {
 
 function eventKey(snapshot: EventSnapshot) {
   return requiredString(snapshot.id, "event.id").slice(0, 160);
+}
+
+export function normalizeAlertContactEmail(value: unknown) {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  if (!email) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("contactEmail must be a valid email address");
+  }
+  return email.slice(0, 254);
 }
 
 function parseDate(value: string) {
@@ -162,6 +173,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const snapshot = body.event as EventSnapshot;
     const active = body.active !== false;
     const remindAt = active ? calculateReminderAt(snapshot) : null;
+    const contactEmail = normalizeAlertContactEmail(body.contactEmail);
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     const { data, error } = await supabase
       .from("event_alerts")
@@ -171,7 +183,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           event_key: eventKey(snapshot),
           event_snapshot: snapshot,
           status: active ? "active" : "cancelled",
-          channel: "browser",
+          channel: contactEmail ? "email" : "browser",
+          contact_email: contactEmail,
           remind_at: remindAt,
           updated_at: new Date().toISOString(),
         },

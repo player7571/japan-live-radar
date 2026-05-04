@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { calculateReminderAt } from "../api/alerts";
+import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { extractDraft } from "../api/import-url";
 
 test("extracts Japanese ticket page sales cues", () => {
@@ -206,6 +206,12 @@ test("calculates alert reminders from short sale windows using the event year", 
   ).toBe(new Date("2026-06-02T08:00:00+09:00").toISOString());
 });
 
+test("normalizes alert contact emails", () => {
+  expect(normalizeAlertContactEmail(" Fan@Example.COM ")).toBe("fan@example.com");
+  expect(normalizeAlertContactEmail("")).toBeNull();
+  expect(() => normalizeAlertContactEmail("not-an-email")).toThrow("contactEmail must be a valid email address");
+});
+
 test("searches concerts and opens the detail panel", async ({ page }) => {
   await page.goto("/");
 
@@ -305,6 +311,22 @@ test("opens saved alerts and jumps back to a saved concert", async ({ page }) =>
   await page.getByRole("button", { name: "NewJeans 알림 해제" }).click();
   await expect(page.getByRole("button", { name: "알림 1개" })).toBeVisible();
   await expect(page.getByLabel("저장한 알림").getByText("NewJeans")).toHaveCount(0);
+});
+
+test("persists an alert contact email in the saved alerts panel", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await page.getByRole("button", { name: "일정 알림" }).click();
+  await page.getByRole("button", { name: "알림 2개" }).click();
+
+  const emailInput = page.getByPlaceholder("알림 받을 이메일");
+  await emailInput.fill("fan@example.com");
+  await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
+
+  await page.reload();
+  await page.getByRole("button", { name: "알림 2개" }).click();
+  await expect(page.getByPlaceholder("알림 받을 이메일")).toHaveValue("fan@example.com");
 });
 
 test("submits an admin event draft", async ({ page }) => {
