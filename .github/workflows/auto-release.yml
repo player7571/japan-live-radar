@@ -25,14 +25,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          existing_pr="$(gh pr list --base main --head dev --state open --json number --jq '.[0].number // ""')"
+          with_retry() {
+            local attempt
+            for attempt in 1 2 3 4 5; do
+              if "$@"; then
+                return 0
+              fi
+              echo "GitHub CLI command failed on attempt $attempt; retrying shortly."
+              sleep $((attempt * 5))
+            done
+            "$@"
+          }
+
+          existing_pr="$(with_retry gh pr list --base main --head dev --state open --json number --jq '.[0].number // ""')"
           if [ -n "$existing_pr" ]; then
             echo "Release PR #$existing_pr already exists."
-            gh pr edit "$existing_pr" --body "Automated release from dev to main. CI, Vercel, migrations, and production health checks run through GitHub Actions."
+            with_retry gh pr edit "$existing_pr" --body "Automated release from dev to main. CI, Vercel, migrations, and production health checks run through GitHub Actions."
             exit 0
           fi
 
-          pr_url="$(gh pr create \
+          pr_url="$(with_retry gh pr create \
             --base main \
             --head dev \
             --title "Release dev to production" \
