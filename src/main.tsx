@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { seedEvents } from "./data/seedEvents";
+import { buildAlertEventSnapshot } from "./lib/alertSnapshot";
 import { getSaleStatus, type SaleStatus } from "./lib/saleStatus";
 import type { Event, EventApiResponse, TicketAccess } from "./types/events";
 import "./styles.css";
@@ -438,14 +439,7 @@ function App() {
           clientId: alertClientId,
           active,
           contactEmail: alertEmail.trim(),
-          event: {
-            id: event.id,
-            artist: event.artist,
-            title: event.title,
-            date: event.date,
-            saleWindow: event.saleWindow,
-            link: event.link,
-          },
+          event: buildAlertEventSnapshot(event),
         }),
       });
       if (!response.ok) return false;
