@@ -5,7 +5,7 @@ import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
 import { buildAlertMessage, buildAlertWebhookPayload } from "../scripts/dispatch-alerts";
-import { formatSaleWindow } from "../scripts/sync-ticketmaster";
+import { formatSaleWindow, searchProfiles } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
 import { serverReadKey } from "../src/lib/supabaseServer";
 import { seedEvents } from "../src/data/seedEvents";
@@ -236,6 +236,17 @@ test("formats Ticketmaster sale windows for alert parsing", () => {
       new Date("2026-05-04T00:00:00+09:00"),
     ),
   ).toBe(new Date("2026-06-02T08:00:00+09:00").toISOString());
+});
+
+test("queries Ticketmaster by music classification as well as keywords", () => {
+  expect(searchProfiles).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        label: "music-classification",
+        params: { classificationName: "music" },
+      }),
+    ]),
+  );
 });
 
 test("serves the shared seed event catalog from the events API fallback", () => {

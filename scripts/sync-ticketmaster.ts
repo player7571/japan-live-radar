@@ -83,8 +83,9 @@ type EventsSupabaseClient = ReturnType<typeof createClient<any, "public">>;
 const ticketmasterApiKey = process.env.TICKETMASTER_API_KEY;
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const searchProfiles = [
+export const searchProfiles = [
   { label: "all-jp-events", params: {} },
+  { label: "music-classification", params: { classificationName: "music" } },
   { label: "music-keyword", params: { keyword: "music" } },
   { label: "concert-keyword", params: { keyword: "concert" } },
   { label: "live-keyword", params: { keyword: "live" } },
