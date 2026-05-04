@@ -44,6 +44,11 @@ jobs:
             exit 0
           fi
 
+          if git merge-base --is-ancestor origin/dev origin/main; then
+            echo "No release PR needed because main already contains dev."
+            exit 0
+          fi
+
           pr_url="$(with_retry gh pr create \
             --base main \
             --head dev \
