@@ -1185,6 +1185,7 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
       contentType: "application/json",
       body: JSON.stringify({
         totalEvents: 5,
+        pastEvents: 2,
         pendingCandidates: 1,
         candidateTableReady: true,
         quality: {
@@ -1213,8 +1214,9 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
   await page.getByLabel("관리자 토큰").fill("test-token");
   await page.getByLabel("데이터 품질").getByRole("button", { name: "새로고침" }).click();
 
-  await expect(page.getByLabel("데이터 품질").getByText("공연")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("공연", { exact: true })).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("5개")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("지난 공연")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("판매 일정 누락")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("가격 누락")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("알림 대기")).toBeVisible();
