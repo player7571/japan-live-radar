@@ -83,6 +83,7 @@ type EventsSupabaseClient = ReturnType<typeof createClient<any, "public">>;
 const ticketmasterApiKey = process.env.TICKETMASTER_API_KEY;
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ticketmasterPageLimit = normalizeTicketmasterPageLimit(process.env.TICKETMASTER_PAGE_LIMIT);
 export const searchProfiles = [
   { label: "all-jp-events", params: {} },
   { label: "music-classification", params: { classificationName: "music" } },
@@ -99,10 +100,70 @@ function requireEnv(name: string, value: string | undefined): string {
   return value;
 }
 
+export function normalizeTicketmasterPageLimit(value: string | undefined) {
+  const parsed = value ? Number(value) : Number.NaN;
+  if (!Number.isFinite(parsed)) return 2;
+  return Math.min(Math.max(Math.trunc(parsed), 1), 5);
+}
+
+export function nextTicketmasterPages(
+  page: TicketmasterResponse["page"] | undefined,
+  pageLimit = 2,
+) {
+  const currentPage = page?.number ?? 0;
+  const totalPages = page?.totalPages ?? 1;
+  const cappedTotalPages = Math.min(totalPages, pageLimit);
+  return Array.from(
+    { length: Math.max(cappedTotalPages - currentPage - 1, 0) },
+    (_value, index) => currentPage + index + 1,
+  );
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function ticketmasterEndpoint(
+  profile: (typeof searchProfiles)[number],
+  apiKey: string,
+  pageNumber = 0,
+) {
+  const endpoint = new URL("https://app.ticketmaster.com/discovery/v2/events.json");
+  endpoint.searchParams.set("apikey", apiKey);
+  endpoint.searchParams.set("countryCode", "JP");
+  endpoint.searchParams.set("size", "200");
+  endpoint.searchParams.set("sort", "date,asc");
+  endpoint.searchParams.set("locale", "*");
+  endpoint.searchParams.set("page", String(pageNumber));
+  for (const [key, value] of Object.entries(profile.params)) {
+    endpoint.searchParams.set(key, value);
+  }
+  return endpoint;
+}
+
+async function fetchTicketmasterPage(
+  profile: (typeof searchProfiles)[number],
+  apiKey: string,
+  pageNumber = 0,
+) {
+  const response = await fetch(ticketmasterEndpoint(profile, apiKey, pageNumber));
+  if (response.status === 429) {
+    console.warn(`Skipping ${profile.label}: Ticketmaster rate limit`);
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Ticketmaster ${profile.label} page ${pageNumber} request failed: ${response.status} ${await response.text()}`,
+    );
+  }
+
+  const payload = (await response.json()) as TicketmasterResponse;
+  const events = payload._embedded?.events ?? [];
+  console.log(`${profile.label} page ${pageNumber}: fetched ${events.length} events`);
+  return payload;
 }
 
 function bestImage(images: TicketmasterEvent["images"]) {
@@ -343,32 +404,26 @@ async function main() {
       await sleep(1_250);
     }
 
-    const endpoint = new URL("https://app.ticketmaster.com/discovery/v2/events.json");
-    endpoint.searchParams.set("apikey", apiKey);
-    endpoint.searchParams.set("countryCode", "JP");
-    endpoint.searchParams.set("size", "200");
-    endpoint.searchParams.set("sort", "date,asc");
-    endpoint.searchParams.set("locale", "*");
-    for (const [key, value] of Object.entries(profile.params)) {
-      endpoint.searchParams.set(key, value);
-    }
-
-    const response = await fetch(endpoint);
-    if (response.status === 429) {
+    const firstPage = await fetchTicketmasterPage(profile, apiKey);
+    if (!firstPage) {
       skippedProfiles.push(profile.label);
-      console.warn(`Skipping ${profile.label}: Ticketmaster rate limit`);
       continue;
     }
 
-    if (!response.ok) {
-      throw new Error(`Ticketmaster ${profile.label} request failed: ${response.status} ${await response.text()}`);
+    for (const event of firstPage._embedded?.events ?? []) {
+      collected.set(event.id, event);
     }
 
-    const payload = (await response.json()) as TicketmasterResponse;
-    const events = payload._embedded?.events ?? [];
-    console.log(`${profile.label}: fetched ${events.length} events`);
-    for (const event of events) {
-      collected.set(event.id, event);
+    for (const pageNumber of nextTicketmasterPages(firstPage.page, ticketmasterPageLimit)) {
+      await sleep(750);
+      const page = await fetchTicketmasterPage(profile, apiKey, pageNumber);
+      if (!page) {
+        skippedProfiles.push(profile.label);
+        break;
+      }
+      for (const event of page._embedded?.events ?? []) {
+        collected.set(event.id, event);
+      }
     }
   }
 

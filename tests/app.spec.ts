@@ -12,7 +12,13 @@ import {
   shouldRetryWebhookStatus,
   summarizeDispatchFailures,
 } from "../scripts/dispatch-alerts";
-import { formatSaleWindow, searchProfiles, toTicketmasterEventRow } from "../scripts/sync-ticketmaster";
+import {
+  formatSaleWindow,
+  nextTicketmasterPages,
+  normalizeTicketmasterPageLimit,
+  searchProfiles,
+  toTicketmasterEventRow,
+} from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
 import { serverReadKey } from "../src/lib/supabaseServer";
 import { seedEvents } from "../src/data/seedEvents";
@@ -561,6 +567,15 @@ test("queries Ticketmaster by music classification as well as keywords", () => {
       }),
     ]),
   );
+});
+
+test("limits Ticketmaster pagination while following available pages", () => {
+  expect(normalizeTicketmasterPageLimit(undefined)).toBe(2);
+  expect(normalizeTicketmasterPageLimit("0")).toBe(1);
+  expect(normalizeTicketmasterPageLimit("8")).toBe(5);
+  expect(nextTicketmasterPages({ number: 0, totalPages: 4 }, 3)).toEqual([1, 2]);
+  expect(nextTicketmasterPages({ number: 1, totalPages: 4 }, 3)).toEqual([2]);
+  expect(nextTicketmasterPages({ number: 0, totalPages: 1 }, 3)).toEqual([]);
 });
 
 test("maps Ticketmaster events as Korea-friendly rows", () => {
