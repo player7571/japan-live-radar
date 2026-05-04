@@ -90,6 +90,15 @@ type AdminStats = {
     sent: number;
     lastErrorAt: string | null;
   } | null;
+  syncRuns?: Array<{
+    source: string;
+    status: "success" | "error";
+    fetchedCount: number;
+    upsertedCount: number;
+    skippedCount: number;
+    message: string | null;
+    finishedAt: string | null;
+  }> | null;
   quality: {
     missingLink: number;
     missingSaleWindow: number;
@@ -120,6 +129,21 @@ type AdminAlertItem = {
   send_count: number;
   updated_at: string;
 };
+
+function formatAdminSyncRun(item: NonNullable<AdminStats["syncRuns"]>[number]) {
+  const status = item.status === "success" ? "성공" : "오류";
+  const finishedAt = item.finishedAt ? new Date(item.finishedAt) : null;
+  const finishedText =
+    finishedAt && !Number.isNaN(finishedAt.getTime())
+      ? finishedAt.toLocaleString("ko-KR", {
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "시간 미정";
+  return `${item.source} · ${status} · ${item.upsertedCount}/${item.fetchedCount} · ${finishedText}`;
+}
 
 const accessOptions: Array<TicketAccess | "전체"> = [
   "전체",
@@ -1269,6 +1293,10 @@ function AdminPage() {
                     <span key={item.label}>{item.label} · {item.count}</span>
                   ))}
                 </div>
+                <div>
+                  <strong>동기화</strong>
+                  <AdminSyncRuns syncRuns={adminStats.syncRuns} />
+                </div>
               </div>
             </>
           ) : (
@@ -1545,6 +1573,18 @@ function AdminStat({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+function AdminSyncRuns({ syncRuns }: { syncRuns: AdminStats["syncRuns"] }) {
+  if (syncRuns === undefined || syncRuns === null) {
+    return <span>테이블 준비 전</span>;
+  }
+  if (syncRuns.length === 0) {
+    return <span>기록 없음</span>;
+  }
+  return syncRuns.map((item) => (
+    <span key={`${item.source}-${item.finishedAt ?? item.status}`}>{formatAdminSyncRun(item)}</span>
+  ));
 }
 
 function StatusPill({ status }: { status: TicketAccess }) {
