@@ -299,6 +299,47 @@ test("uses JSON-LD offer availability when sale dates are absent", () => {
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: draft.saleWindow })).toBe("판매 종료");
 });
 
+test("extracts JSON-LD aggregate and fallback offers", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Event",
+              "name": "YOASOBI Dome Live",
+              "startDate": "2026-09-20T17:00:00+09:00",
+              "location": {
+                "@type": "Place",
+                "name": "東京ドーム",
+                "address": "東京都文京区"
+              },
+              "offers": [
+                {
+                  "@type": "AggregateOffer",
+                  "lowPrice": "9800",
+                  "highPrice": "14800",
+                  "availability": "https://schema.org/InStock"
+                },
+                {
+                  "@type": "Offer",
+                  "validFrom": "2026-06-01T12:00:00+09:00"
+                }
+              ]
+            }
+          </script>
+        </head>
+        <body></body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/yoasobi-dome-live"),
+  );
+
+  expect(draft.price).toBe("¥9,800 - ¥14,800");
+  expect(draft.saleWindow).toBe("2026-06-01T12:00:00+09:00");
+});
+
 test("calculates alert reminders from sale windows and event dates", () => {
   const now = new Date("2026-05-04T00:00:00+09:00");
 

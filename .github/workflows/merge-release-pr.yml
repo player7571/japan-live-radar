@@ -46,10 +46,7 @@ jobs:
 
           echo "Checking release PR #$pr_number"
           for attempt in $(seq 1 30); do
-            pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number")"
-            head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
-            mergeable="$(jq -r 'if .mergeable == true then "MERGEABLE" elif .mergeable == false then "CONFLICTING" else "UNKNOWN" end' <<<"$pr_json")"
-            merge_state="$(jq -r '.mergeable_state // "unknown" | ascii_upcase' <<<"$pr_json")"
+            head_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/dev" --jq '.object.sha')"
             check_runs_json="$(gh api "repos/$GITHUB_REPOSITORY/commits/$head_sha/check-runs?per_page=100")"
             status_json="$(gh api "repos/$GITHUB_REPOSITORY/commits/$head_sha/status")"
             pending_check_runs="$(jq '[.check_runs[]? | select(.status != "completed")] | length' <<<"$check_runs_json")"
@@ -57,26 +54,27 @@ jobs:
             failing_statuses="$(jq '[.statuses[]? | select(.state != "success")] | length' <<<"$status_json")"
             quota_statuses="$(jq '[.statuses[]? | select(.state != "success" and (((.target_url // "") + " " + (.description // "") + " " + (.context // "")) | test("build-rate-limit|api-deployments-free-per-day|upgradeToPro|Deployment rate limited")))] | length' <<<"$status_json")"
 
-            echo "Merge state attempt $attempt: $merge_state; pending checks=$pending_check_runs failing checks=$failing_check_runs failing statuses=$failing_statuses quota statuses=$quota_statuses"
-            if [ "$merge_state" = "CLEAN" ] || [ "$merge_state" = "HAS_HOOKS" ]; then
+            echo "Release attempt $attempt for $head_sha: pending checks=$pending_check_runs failing checks=$failing_check_runs failing statuses=$failing_statuses quota statuses=$quota_statuses"
+            if [ "$pending_check_runs" -eq 0 ] &&
+              [ "$failing_check_runs" -eq 0 ] &&
+              [ "$failing_statuses" -eq 0 ]; then
               with_retry gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
               exit 0
             fi
 
-            if [ "$merge_state" = "UNSTABLE" ] &&
-              [ "$mergeable" = "MERGEABLE" ] &&
-              [ "$pending_check_runs" -eq 0 ] &&
+            if [ "$pending_check_runs" -eq 0 ] &&
               [ "$failing_check_runs" -eq 0 ] &&
               [ "$failing_statuses" -gt 0 ] &&
               [ "$failing_statuses" -eq "$quota_statuses" ]; then
-              echo "Release PR #$pr_number is mergeable, but only Vercel quota status checks are failing."
+              echo "Release PR #$pr_number only has Vercel quota status checks failing."
               echo "Merging so the production retry workflow can deploy the latest main commit after quota resets."
               with_retry gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
               exit 0
             fi
 
-            if [ "$merge_state" = "DIRTY" ] || [ "$merge_state" = "BLOCKED" ]; then
-              echo "Release PR #$pr_number is blocked: $merge_state"
+            if [ "$pending_check_runs" -eq 0 ] &&
+              { [ "$failing_check_runs" -gt 0 ] || [ "$failing_statuses" -gt "$quota_statuses" ]; }; then
+              echo "Release PR #$pr_number has non-quota check failures."
               exit 1
             fi
 
