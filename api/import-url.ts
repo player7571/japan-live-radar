@@ -302,9 +302,37 @@ function firstObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
+function objectList(value: unknown): Array<Record<string, unknown>> {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.flatMap(objectList);
+  return typeof value === "object" ? [value as Record<string, unknown>] : [];
+}
+
 function firstJsonString(value: unknown) {
   if (Array.isArray(value)) return firstString(...value);
   return firstString(value);
+}
+
+function normalizeSchemaPriceRange(lowPrice: unknown, highPrice: unknown) {
+  const low = firstString(lowPrice);
+  const high = firstString(highPrice);
+  if (!low || !high || low === high) return "";
+  const lowAmount = Number(low.replaceAll(",", ""));
+  const highAmount = Number(high.replaceAll(",", ""));
+  if (!Number.isFinite(lowAmount) || !Number.isFinite(highAmount)) return "";
+  return `¥${lowAmount.toLocaleString("ja-JP")} - ¥${highAmount.toLocaleString("ja-JP")}`;
+}
+
+function schemaOfferPrice(offer: Record<string, unknown>) {
+  return firstString(
+    normalizeSchemaPriceRange(offer.lowPrice, offer.highPrice),
+    normalizePriceText(firstString(offer.price)),
+    normalizePriceText(firstString(offer.lowPrice, offer.highPrice)),
+  );
+}
+
+function priceFromOffers(offers: Array<Record<string, unknown>>) {
+  return firstString(...offers.map(schemaOfferPrice));
 }
 
 function schemaAvailabilityCue(value: unknown) {
@@ -314,6 +342,13 @@ function schemaAvailabilityCue(value: unknown) {
   if (/discontinued/.test(availability)) return "販売終了";
   if (/(instock|limitedavailability|preorder|presale)/.test(availability)) return "販売中";
   return "";
+}
+
+function saleWindowFromOffers(offers: Array<Record<string, unknown>>) {
+  return firstString(
+    ...offers.flatMap((offer) => [firstJsonString(offer.availabilityStarts), firstJsonString(offer.validFrom)]),
+    ...offers.map((offer) => schemaAvailabilityCue(offer.availability)),
+  );
 }
 
 function sourceFromHostname(hostname: string) {
@@ -382,6 +417,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   const address =
     location.address && typeof location.address === "object" ? (location.address as Record<string, unknown>) : {};
   const offers = firstObject(eventJson?.offers);
+  const offerList = objectList(eventJson?.offers);
   const performer = firstObject(eventJson?.performer);
   const rawTitle = firstString(
     eventJson?.name,
@@ -405,9 +441,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   );
   const price = normalizePriceText(
     firstString(
-      offers.price,
-      offers.lowPrice,
-      offers.highPrice,
+      priceFromOffers(offerList),
       labeledValue($, rawBodyText, ["料金", "価格", "チケット料金", "席種・料金"]),
       pageText,
     ),
@@ -421,11 +455,9 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   const textForCity = [venue, address.addressLocality, address.addressRegion, firstString(location.address), pageText].join(" ");
   const access = accessFromText(`${description} ${pageText}`);
   const saleWindow = firstString(
-    offers.availabilityStarts,
-    offers.validFrom,
+    saleWindowFromOffers(offerList),
     saleWindowFromText(pageText),
     labeledValue($, rawBodyText, ["受付期間", "販売期間", "申込期間", "発売期間", "発売日時", "発売日", "一般発売"]),
-    schemaAvailabilityCue(offers.availability),
   );
 
   return {
