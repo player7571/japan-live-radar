@@ -222,6 +222,7 @@ function App() {
   const [selectedId, setSelectedId] = useState(seedEvents[0].id);
   const [saved, setSaved] = useState<string[]>(loadSavedEventIds);
   const [alertClientId] = useState(loadAlertClientId);
+  const [alertsOpen, setAlertsOpen] = useState(false);
 
   const cityOptions = useMemo(
     () => ["전체", ...Array.from(new Set(events.map((event) => event.city))).sort((a, b) => a.localeCompare(b, "ko"))],
@@ -291,7 +292,14 @@ function App() {
         !koreaFriendlyOnly || (event.ticketAccess === "한국 구매 가능" && !event.phoneRequired);
       return queryMatch && cityMatch && accessMatch && dateMatch && koreaFriendlyMatch;
     });
-  }, [access, city, dateWindow, koreaFriendlyOnly, query]);
+  }, [access, city, dateWindow, events, koreaFriendlyOnly, query]);
+
+  const savedEventItems = useMemo(
+    () => saved
+      .map((id) => events.find((event) => event.id === id))
+      .filter((event): event is Event => Boolean(event)),
+    [events, saved],
+  );
 
   const selectedEvent = filteredEvents.find((event) => event.id === selectedId) ?? filteredEvents[0];
   const heroEvent = selectedEvent ?? events[0];
@@ -348,11 +356,30 @@ function App() {
             </div>
             <h1>일본 콘서트 원정 캘린더</h1>
           </div>
-          <button className="icon-button" aria-label={`알림 ${saved.length}개`}>
+          <button
+            className="icon-button"
+            aria-controls="saved-alerts-panel"
+            aria-expanded={alertsOpen}
+            aria-label={`알림 ${savedEventItems.length}개`}
+            onClick={() => setAlertsOpen((current) => !current)}
+            type="button"
+          >
             <Bell size={20} />
-            {saved.length > 0 && <span className="alert-count">{saved.length}</span>}
+            {savedEventItems.length > 0 && <span className="alert-count">{savedEventItems.length}</span>}
           </button>
         </header>
+
+        {alertsOpen && (
+          <SavedAlertsPanel
+            events={savedEventItems}
+            onClose={() => setAlertsOpen(false)}
+            onRemove={toggleSaved}
+            onSelect={(id) => {
+              setSelectedId(id);
+              setAlertsOpen(false);
+            }}
+          />
+        )}
 
         <section className="hero-strip" aria-label="추천 공연">
           <img src={heroEvent.image} alt="" />
@@ -505,6 +532,59 @@ function App() {
         </section>
       </section>
     </main>
+  );
+}
+
+function SavedAlertsPanel({
+  events,
+  onClose,
+  onRemove,
+  onSelect,
+}: {
+  events: Event[];
+  onClose: () => void;
+  onRemove: (id: string) => void;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <section className="saved-alerts-panel" id="saved-alerts-panel" aria-label="저장한 알림">
+      <div className="list-summary">
+        <strong>저장한 알림</strong>
+        <button className="icon-button" aria-label="알림 패널 닫기" onClick={onClose} type="button">
+          <X size={17} />
+        </button>
+      </div>
+      {events.length === 0 ? (
+        <div className="empty-state">
+          <strong>저장한 공연이 없어요</strong>
+          <span>관심 공연에서 일정 알림을 누르면 여기에서 다시 확인할 수 있어요.</span>
+        </div>
+      ) : (
+        <div className="saved-alert-list">
+          {events.map((event) => (
+            <article className="saved-alert-item" key={event.id}>
+              <button
+                type="button"
+                aria-label={`${event.artist} 알림 공연 열기`}
+                onClick={() => onSelect(event.id)}
+              >
+                <span>{event.date.replaceAll("-", ".")} · {event.city}</span>
+                <strong>{event.artist}</strong>
+                <small>{event.saleWindow}</small>
+              </button>
+              <button
+                className="icon-button"
+                aria-label={`${event.artist} 알림 해제`}
+                onClick={() => onRemove(event.id)}
+                type="button"
+              >
+                <X size={17} />
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

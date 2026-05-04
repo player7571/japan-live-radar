@@ -242,6 +242,84 @@ h1 {
   border-color: rgba(42, 127, 93, 0.28);
 }
 
+.saved-alerts-panel {
+  display: grid;
+  gap: 10px;
+  margin: -6px 0 16px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 16px 36px rgba(25, 37, 30, 0.12);
+}
+
+.saved-alerts-panel .list-summary {
+  padding: 0;
+}
+
+.saved-alerts-panel .icon-button {
+  width: 36px;
+  height: 36px;
+  box-shadow: none;
+}
+
+.saved-alert-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.saved-alert-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px;
+  background: #f8faf7;
+  border: 1px solid rgba(23, 32, 25, 0.09);
+  border-radius: 8px;
+}
+
+.saved-alert-item > button:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.saved-alert-item span,
+.saved-alert-item small {
+  min-width: 0;
+  overflow: hidden;
+  color: #5a675e;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-alert-item span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.saved-alert-item strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-alert-item small {
+  font-size: 12px;
+}
+
 .content-grid {
   display: grid;
   grid-template-columns: minmax(360px, 0.95fr) minmax(420px, 1.25fr);
@@ -914,6 +992,7 @@ h2 {
 
   .filters,
   .content-grid,
+  .saved-alert-list,
   .recent-event,
   .admin-import,
   .import-candidate,
