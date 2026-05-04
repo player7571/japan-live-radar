@@ -9,6 +9,7 @@ import { formatSaleWindow, searchProfiles } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
 import { serverReadKey } from "../src/lib/supabaseServer";
 import { seedEvents } from "../src/data/seedEvents";
+import { getSaleStatus } from "../src/lib/saleStatus";
 
 test("extracts Japanese ticket page sales cues", () => {
   const draft = extractDraft(
@@ -169,6 +170,49 @@ test("detects additional Japanese concert cities from imported pages", () => {
       new URL("https://l-tike.com/concert/mevent/?mid=654321"),
     ).city,
   ).toBe("히로시마");
+});
+
+test("captures text-only ticket availability cues from imported pages", () => {
+  expect(
+    extractDraft(
+      `
+        <html>
+          <head><title>Aimer Hall Tour｜チケットぴあ</title></head>
+          <body>
+            <h1>Aimer Hall Tour</h1>
+            <p>会場：東京ガーデンシアター</p>
+            <p>公演日：2026年9月21日 18:30</p>
+            <p>チケットは予定枚数終了しました。</p>
+          </body>
+        </html>
+      `,
+      new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600003"),
+    ).saleWindow,
+  ).toBe("予定枚数終了");
+
+  expect(
+    extractDraft(
+      `
+        <html>
+          <head><title>MAN WITH A MISSION LIVE｜ローチケ</title></head>
+          <body>
+            <h1>MAN WITH A MISSION LIVE</h1>
+            <p>会場：仙台GIGS</p>
+            <p>公演日：2026年9月22日 18:30</p>
+            <p>現在チケット発売中です。</p>
+          </body>
+        </html>
+      `,
+      new URL("https://l-tike.com/concert/mevent/?mid=2600004"),
+    ).saleWindow,
+  ).toBe("チケット発売中");
+});
+
+test("classifies sale status from text-only availability cues", () => {
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: "販売中" })).toBe("판매 중");
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: "受付終了" })).toBe("판매 종료");
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: "発売予定" })).toBe("오픈 예정");
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: "" })).toBe("확인 필요");
 });
 
 test("extracts array-based JSON-LD event data", () => {

@@ -1,0 +1,54 @@
+import type { Event } from "../types/events";
+
+export type SaleStatus = "전체" | "오픈 예정" | "판매 중" | "판매 종료" | "확인 필요";
+
+const defaultToday = new Date("2026-05-04T00:00:00+09:00");
+
+const endedStatusCue =
+  /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|sold\s*out|closed|ended)/i;
+const activeStatusCue = /(販売中(?!止)|受付中|発売中|申込受付中|チケット発売中|on\s*sale|available\s*now|now\s*on\s*sale)/i;
+const upcomingStatusCue = /(販売予定|受付予定|発売予定|近日発売|準備中|coming\s*soon)/i;
+
+function parseSaleWindowDateParts(year: number, month: string, day: string, hour?: string, minute?: string) {
+  return new Date(
+    `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${(hour ?? "00").padStart(2, "0")}:${minute ?? "00"}:00+09:00`,
+  );
+}
+
+function getSaleWindowDates(saleWindow: string, eventDate: string, referenceDate = defaultToday) {
+  const eventYear = Number(eventDate.slice(0, 4)) || referenceDate.getFullYear();
+  const explicitYearMatches = Array.from(
+    saleWindow.matchAll(/(\d{4})\s*[年/.-]\s*(\d{1,2})\s*[月/.-]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*(?:(\d{1,2}):(\d{2}))?/g),
+  );
+
+  if (explicitYearMatches.length > 0) {
+    return explicitYearMatches.map((match) =>
+      parseSaleWindowDateParts(Number(match[1]), match[2], match[3], match[4], match[5]),
+    );
+  }
+
+  return Array.from(
+    saleWindow.matchAll(/(^|[^\d])(\d{1,2})[./月]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*(?:(\d{1,2}):(\d{2}))?/g),
+  ).map((match) => parseSaleWindowDateParts(eventYear, match[2], match[3], match[4], match[5]));
+}
+
+function getSaleWindowCueStatus(saleWindow: string): Exclude<SaleStatus, "전체"> | null {
+  if (endedStatusCue.test(saleWindow)) return "판매 종료";
+  if (activeStatusCue.test(saleWindow)) return "판매 중";
+  if (upcomingStatusCue.test(saleWindow)) return "오픈 예정";
+  return null;
+}
+
+export function getSaleStatus(event: Event, referenceDate = defaultToday): Exclude<SaleStatus, "전체"> {
+  const saleWindow = event.saleWindow.trim();
+  if (!saleWindow) return "확인 필요";
+
+  const [startDate, endDate] = getSaleWindowDates(saleWindow, event.date, referenceDate);
+  if (startDate) {
+    if (referenceDate < startDate) return "오픈 예정";
+    if (endDate && referenceDate > endDate) return "판매 종료";
+    return "판매 중";
+  }
+
+  return getSaleWindowCueStatus(saleWindow) ?? "확인 필요";
+}

@@ -26,11 +26,11 @@ import {
   X,
 } from "lucide-react";
 import { seedEvents } from "./data/seedEvents";
+import { getSaleStatus, type SaleStatus } from "./lib/saleStatus";
 import type { Event, EventApiResponse, TicketAccess } from "./types/events";
 import "./styles.css";
 
 type DateWindow = "전체" | "60일 이내" | "90일 이내" | "여름 원정";
-type SaleStatus = "전체" | "오픈 예정" | "판매 중" | "판매 종료" | "확인 필요";
 type Route = "app" | "admin";
 type AdminEventDraft = {
   artist: string;
@@ -309,39 +309,6 @@ function isInDateWindow(date: string, dateWindow: DateWindow) {
   const limit = new Date(today);
   limit.setDate(today.getDate() + limitDays);
   return eventDate >= today && eventDate <= limit;
-}
-
-function parseSaleWindowDateParts(year: number, month: string, day: string, hour?: string, minute?: string) {
-  return new Date(
-    `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${(hour ?? "00").padStart(2, "0")}:${minute ?? "00"}:00+09:00`,
-  );
-}
-
-function getSaleWindowDates(saleWindow: string, eventDate: string) {
-  const eventYear = Number(eventDate.slice(0, 4)) || today.getFullYear();
-  const explicitYearMatches = Array.from(
-    saleWindow.matchAll(/(\d{4})\s*[年/.-]\s*(\d{1,2})\s*[月/.-]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*(?:(\d{1,2}):(\d{2}))?/g),
-  );
-
-  if (explicitYearMatches.length > 0) {
-    return explicitYearMatches.map((match) =>
-      parseSaleWindowDateParts(Number(match[1]), match[2], match[3], match[4], match[5]),
-    );
-  }
-
-  return Array.from(
-    saleWindow.matchAll(/(^|[^\d])(\d{1,2})[./月]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*(?:(\d{1,2}):(\d{2}))?/g),
-  ).map((match) => parseSaleWindowDateParts(eventYear, match[2], match[3], match[4], match[5]));
-}
-
-function getSaleStatus(event: Event): Exclude<SaleStatus, "전체"> {
-  if (!event.saleWindow.trim()) return "확인 필요";
-
-  const [startDate, endDate] = getSaleWindowDates(event.saleWindow, event.date);
-  if (!startDate) return "확인 필요";
-  if (today < startDate) return "오픈 예정";
-  if (endDate && today > endDate) return "판매 종료";
-  return "판매 중";
 }
 
 function App() {
