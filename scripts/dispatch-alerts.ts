@@ -7,7 +7,13 @@ type EventSnapshot = {
   venue?: string;
   date?: string;
   time?: string;
+  source?: string;
+  ticketAccess?: string;
+  saleType?: string;
   saleWindow?: string;
+  price?: string;
+  phoneRequired?: boolean;
+  foreignerNote?: string;
   link?: string;
 };
 
@@ -48,7 +54,10 @@ export function buildAlertMessage(alert: DueAlert) {
     `공연: ${eventLabel(event)}`,
     event.city || event.venue ? `장소: ${[event.city, event.venue].filter(Boolean).join(" / ")}` : null,
     event.date ? `공연일: ${[event.date, event.time].filter(Boolean).join(" ")}` : null,
+    event.ticketAccess ? `구매 조건: ${event.ticketAccess}${event.phoneRequired ? " / 일본 번호 확인 필요" : ""}` : null,
+    event.saleType || event.price ? `티켓: ${[event.saleType, event.price].filter(Boolean).join(" / ")}` : null,
     event.saleWindow ? `판매 일정: ${event.saleWindow}` : null,
+    event.foreignerNote ? `확인 메모: ${event.foreignerNote}` : null,
     event.link ? `티켓 링크: ${event.link}` : null,
   ].filter(Boolean);
 
@@ -62,6 +71,10 @@ export function buildAlertWebhookPayload(alert: DueAlert) {
     eventKey: alert.event_key,
     contactEmail: alert.contact_email ?? null,
     event: alert.event_snapshot,
+    source: alert.event_snapshot?.source ?? null,
+    ticketAccess: alert.event_snapshot?.ticketAccess ?? null,
+    saleType: alert.event_snapshot?.saleType ?? null,
+    phoneRequired: alert.event_snapshot?.phoneRequired ?? null,
     remindAt: alert.remind_at,
   };
 }

@@ -22,8 +22,17 @@ type EventSnapshot = {
   id?: unknown;
   artist?: unknown;
   title?: unknown;
+  city?: unknown;
+  venue?: unknown;
   date?: unknown;
+  time?: unknown;
+  source?: unknown;
+  ticketAccess?: unknown;
+  saleType?: unknown;
   saleWindow?: unknown;
+  price?: unknown;
+  phoneRequired?: unknown;
+  foreignerNote?: unknown;
   link?: unknown;
 };
 
