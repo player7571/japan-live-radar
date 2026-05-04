@@ -119,6 +119,31 @@ test("uses explicit no-phone overseas cues for Korea-friendly imports", () => {
   expect(draft.foreignerNote).toContain("일본 전화번호/SMS 인증 불필요");
 });
 
+test("flags Japanese electronic ticket apps as phone-required imports", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>ONE OK ROCK Dome Tour｜チケットぴあ</title>
+        </head>
+        <body>
+          <h1>ONE OK ROCK Dome Tour</h1>
+          <p>会場：東京ドーム</p>
+          <p>公演日：2026年11月22日 18:00</p>
+          <p>本公演は電子チケットアプリ「AnyPASS」でのお受け取りとなります。</p>
+          <p>チケプラのPlus member ID登録が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600011"),
+  );
+
+  expect(draft.city).toBe("도쿄");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+  expect(draft.phoneRequired).toBe(true);
+  expect(draft.foreignerNote).toContain("전자티켓 인증");
+});
+
 test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
   const draft = extractDraft(
     `
