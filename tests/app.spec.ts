@@ -7,6 +7,7 @@ import { extractDraft } from "../api/import-url";
 import { buildAlertMessage, buildAlertWebhookPayload } from "../scripts/dispatch-alerts";
 import { formatSaleWindow } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
+import { serverReadKey } from "../src/lib/supabaseServer";
 import { seedEvents } from "../src/data/seedEvents";
 
 test("extracts Japanese ticket page sales cues", () => {
@@ -242,6 +243,11 @@ test("serves the shared seed event catalog from the events API fallback", () => 
     events: seedEvents,
     source: "seed",
   });
+});
+
+test("prefers the server key for protected server-side reads", () => {
+  expect(serverReadKey("anon-key", "service-role-key")).toBe("service-role-key");
+  expect(serverReadKey("anon-key")).toBe("anon-key");
 });
 
 test("normalizes alert contact emails", () => {
