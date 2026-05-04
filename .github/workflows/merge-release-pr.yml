@@ -46,13 +46,29 @@ jobs:
 
           echo "Checking release PR #$pr_number"
           for attempt in $(seq 1 30); do
-            merge_state="$(gh pr view "$pr_number" \
+            pr_json="$(gh pr view "$pr_number" \
               --repo "$GITHUB_REPOSITORY" \
-              --json mergeStateStatus \
-              --jq '.mergeStateStatus')"
+              --json mergeStateStatus,mergeable,statusCheckRollup)"
+            merge_state="$(jq -r '.mergeStateStatus' <<<"$pr_json")"
+            mergeable="$(jq -r '.mergeable' <<<"$pr_json")"
+            pending_check_runs="$(jq '[.statusCheckRollup[] | select(.__typename == "CheckRun" and .status != "COMPLETED")] | length' <<<"$pr_json")"
+            failing_check_runs="$(jq '[.statusCheckRollup[] | select(.__typename == "CheckRun" and (.conclusion != "SUCCESS" and .conclusion != "SKIPPED"))] | length' <<<"$pr_json")"
+            failing_statuses="$(jq '[.statusCheckRollup[] | select(.__typename == "StatusContext" and .state != "SUCCESS")] | length' <<<"$pr_json")"
+            quota_statuses="$(jq '[.statusCheckRollup[] | select(.__typename == "StatusContext" and .state != "SUCCESS" and ((.targetUrl // "") | test("build-rate-limit|api-deployments-free-per-day|upgradeToPro")))] | length' <<<"$pr_json")"
 
             echo "Merge state attempt $attempt: $merge_state"
             if [ "$merge_state" = "CLEAN" ] || [ "$merge_state" = "HAS_HOOKS" ]; then
+              with_retry gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
+              exit 0
+            fi
+
+            if [ "$merge_state" = "UNSTABLE" ] &&
+              [ "$mergeable" = "MERGEABLE" ] &&
+              [ "$pending_check_runs" -eq 0 ] &&
+              [ "$failing_check_runs" -eq 0 ] &&
+              [ "$failing_statuses" -gt 0 ] &&
+              [ "$failing_statuses" -eq "$quota_statuses" ]; then
+              echo "Release PR #$pr_number is mergeable; only Vercel quota status checks are failing."
               with_retry gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
               exit 0
             fi
