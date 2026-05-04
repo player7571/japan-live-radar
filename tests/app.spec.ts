@@ -119,6 +119,32 @@ test("uses explicit no-phone overseas cues for Korea-friendly imports", () => {
   expect(draft.foreignerNote).toContain("일본 전화번호/SMS 인증 불필요");
 });
 
+test("keeps Japan-resident-only ticket pages out of Korea-friendly imports", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>Vaundy arena tour｜ローチケ</title>
+        </head>
+        <body>
+          <h1>Vaundy arena tour</h1>
+          <p>会場：Kアリーナ横浜</p>
+          <p>公演日：2026年12月12日 18:00</p>
+          <p>本受付は日本国内在住者のみ対象です。</p>
+          <p>海外からのお申し込みはご利用いただけません。</p>
+          <p>海外在住の方は購入できません。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://l-tike.com/concert/vaundy-resident-only"),
+  );
+
+  expect(draft.city).toBe("요코하마");
+  expect(draft.ticketAccess).toBe("확인 필요");
+  expect(draft.phoneRequired).toBe(true);
+  expect(draft.foreignerNote).toContain("일본 국내 거주자/주소 한정");
+});
+
 test("flags Japanese electronic ticket apps as phone-required imports", () => {
   const draft = extractDraft(
     `
