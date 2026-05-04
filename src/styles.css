@@ -770,6 +770,22 @@ h2 {
   cursor: pointer;
 }
 
+.admin-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-inline-actions select {
+  min-height: 38px;
+  color: #172019;
+  background: #f8faf7;
+  border: 1px solid rgba(23, 32, 25, 0.12);
+  border-radius: 8px;
+  padding: 0 10px;
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -862,6 +878,59 @@ h2 {
   display: grid;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.admin-alert-queue {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.admin-alert-queue .list-summary strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-alert-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-alert-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 76px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  border-radius: 8px;
+}
+
+.admin-alert-item div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-alert-item strong,
+.admin-alert-item span,
+.admin-alert-item small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-alert-item span,
+.admin-alert-item small {
+  color: #5a675e;
+}
+
+.admin-alert-item small {
+  font-size: 12px;
 }
 
 .import-candidate {
@@ -1043,6 +1112,7 @@ h2 {
   .content-grid,
   .saved-alert-list,
   .recent-event,
+  .admin-alert-item,
   .admin-import,
   .import-candidate,
   .quality-breakdown {
