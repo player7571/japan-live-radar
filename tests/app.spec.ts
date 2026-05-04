@@ -162,7 +162,7 @@ test("imports an admin draft from a URL", async ({ page }) => {
   await expect(page.getByLabel("공연명")).toHaveValue("YOASOBI Dome Live");
   await expect(page.getByLabel("도시")).toHaveValue("도쿄");
   await expect(page.getByLabel("회장")).toHaveValue("Tokyo Dome");
-  await expect(page.getByLabel("공연일")).toHaveValue("2026-11-02");
+  await expect(page.getByLabel("URL 후보").getByText("2026-11-02")).toBeVisible();
 
   await page.getByLabel("아티스트").fill("임시값");
   await page.getByRole("button", { name: "초안 적용" }).click();
