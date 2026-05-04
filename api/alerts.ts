@@ -58,13 +58,17 @@ function parseDate(value: string) {
   const isoDate = value.match(/\d{4}-\d{2}-\d{2}/)?.[0];
   if (isoDate) return new Date(`${isoDate}T09:00:00+09:00`);
 
-  const jpDate = value.match(/(\d{4})[./年-]\s*(\d{1,2})[./月-]\s*(\d{1,2})/)?.slice(1);
+  const jpDate = parseDateParts(value);
   if (jpDate?.length === 3) {
     const [year, month, day] = jpDate;
     return new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T09:00:00+09:00`);
   }
 
   return null;
+}
+
+function parseDateParts(value: string) {
+  return value.match(/(\d{4})[./年-]\s*(\d{1,2})[./月-]\s*(\d{1,2})/)?.slice(1) ?? null;
 }
 
 function parseSaleWindowStart(value: unknown) {
@@ -74,10 +78,12 @@ function parseSaleWindowStart(value: unknown) {
     /(\d{4}[./年-]\s*\d{1,2}[./月-]\s*\d{1,2})(?:日)?(?:\([^)]*\))?\s*([01]?\d|2[0-3]):([0-5]\d)/,
   );
   if (dateMatch) {
-    const date = parseDate(dateMatch[1]);
-    if (!date) return null;
-    date.setHours(Number(dateMatch[2]), Number(dateMatch[3]), 0, 0);
-    return date;
+    const dateParts = parseDateParts(dateMatch[1]);
+    if (!dateParts) return null;
+    const [year, month, day] = dateParts;
+    return new Date(
+      `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${dateMatch[2].padStart(2, "0")}:${dateMatch[3]}:00+09:00`,
+    );
   }
 
   return parseDate(normalized);
