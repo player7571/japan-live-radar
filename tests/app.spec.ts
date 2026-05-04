@@ -200,7 +200,7 @@ test("imports an admin draft from a URL", async ({ page }) => {
   await expect(page.getByLabel("URL 후보").getByText("2026-11-02")).toBeVisible();
 
   await page.getByLabel("아티스트").fill("임시값");
-  await page.getByRole("button", { name: "초안 적용" }).click();
+  await page.getByLabel("URL 후보").getByRole("button", { name: "초안 적용" }).click();
   await expect(page.getByLabel("아티스트")).toHaveValue("YOASOBI");
 });
 
