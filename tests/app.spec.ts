@@ -9,6 +9,7 @@ import { formatSaleWindow, searchProfiles } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
 import { serverReadKey } from "../src/lib/supabaseServer";
 import { seedEvents } from "../src/data/seedEvents";
+import { buildAlertEventSnapshot } from "../src/lib/alertSnapshot";
 import { getSaleStatus } from "../src/lib/saleStatus";
 
 test("extracts Japanese ticket page sales cues", () => {
@@ -419,19 +420,49 @@ test("builds alert webhook payloads with Korean context and contact email", () =
       venue: "K-Arena Yokohama",
       date: "2026-11-12",
       time: "18:30",
+      source: "Ticket Pia",
+      ticketAccess: "일본 번호 필요",
+      saleType: "추첨 접수",
       saleWindow: "2026年5月10日 12:00～2026年5月20日 23:59",
+      price: "¥9,800",
+      phoneRequired: true,
+      foreignerNote: "SMS 인증 조건 확인",
       link: "https://t.pia.jp/example",
     },
   };
 
   expect(buildAlertMessage(alert)).toContain("수신처: fan@example.com");
   expect(buildAlertMessage(alert)).toContain("공연: Ado - Blue Flame Tour");
+  expect(buildAlertMessage(alert)).toContain("구매 조건: 일본 번호 필요 / 일본 번호 확인 필요");
+  expect(buildAlertMessage(alert)).toContain("티켓: 추첨 접수 / ¥9,800");
+  expect(buildAlertMessage(alert)).toContain("확인 메모: SMS 인증 조건 확인");
   expect(buildAlertWebhookPayload(alert)).toMatchObject({
     text: expect.stringContaining("판매 일정: 2026年5月10日 12:00"),
     alertId: "alert-1",
     eventKey: "ado-2026",
     contactEmail: "fan@example.com",
+    source: "Ticket Pia",
+    ticketAccess: "일본 번호 필요",
+    saleType: "추첨 접수",
+    phoneRequired: true,
     remindAt: "2026-05-10T00:00:00.000Z",
+  });
+});
+
+test("builds alert snapshots with ticket access and travel context", () => {
+  expect(buildAlertEventSnapshot(seedEvents[0])).toMatchObject({
+    id: seedEvents[0].id,
+    artist: seedEvents[0].artist,
+    city: seedEvents[0].city,
+    venue: seedEvents[0].venue,
+    time: seedEvents[0].time,
+    source: seedEvents[0].source,
+    ticketAccess: seedEvents[0].ticketAccess,
+    saleType: seedEvents[0].saleType,
+    price: seedEvents[0].price,
+    phoneRequired: seedEvents[0].phoneRequired,
+    foreignerNote: seedEvents[0].foreignerNote,
+    link: seedEvents[0].link,
   });
 });
 
