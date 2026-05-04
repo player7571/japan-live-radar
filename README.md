@@ -39,6 +39,20 @@ npx playwright test
 - Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
 - Supabase migrations run with `npm run db:migrate` or the manual `Supabase Migrate` workflow.
 
+## Automation
+
+GitHub Actions is the long-running automation layer so Codex heartbeat runs do not need to rely on local full-disk or network permissions.
+
+- `CI`: typecheck, build, and Playwright smoke tests for PRs and pushes to `dev`/`main`.
+- `Deploy to Vercel`: deploys `dev` as preview and `main` as production, then verifies production health.
+- `Auto Release PR`: opens a `dev` to `main` release PR whenever `dev` changes and tries to enable auto-merge.
+- `Supabase Migrate`: applies migrations automatically when migration files land on `main`, and can also be run manually.
+- `Sync Ticketmaster Events`: refreshes seed and Ticketmaster data on a daily schedule.
+- `Dispatch Due Alerts`: checks the protected alert queue every 15 minutes and dispatches via `ALERT_WEBHOOK_URL` when configured.
+- `Production Health Check`: checks `/api/health` and the protected alert queue every 30 minutes.
+
+Scheduled workflows create one open `automation` issue when they fail, so Codex can pick up the issue/logs and continue without waiting for a local heartbeat to have elevated permissions.
+
 Required runtime secrets:
 
 ```text
@@ -48,10 +62,12 @@ SUPABASE_SERVICE_ROLE_KEY
 TICKETMASTER_API_KEY
 SUPABASE_DB_URL
 ADMIN_API_TOKEN
+ALERT_WEBHOOK_URL
 ```
 
 `SUPABASE_DB_URL` is used only by migration automation.
 `ADMIN_API_TOKEN` protects the admin import, candidate, and quality APIs.
+`ALERT_WEBHOOK_URL` is optional until real alert delivery is connected; without it, due alerts are marked `error` instead of pretending they were sent.
 
 ## Branch Rules
 

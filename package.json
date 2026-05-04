@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "tsx scripts/apply-migrations.ts",
     "db:check": "tsx scripts/check-database.ts",
+    "health:production": "tsx scripts/check-production-health.ts",
+    "alerts:dispatch": "tsx scripts/dispatch-alerts.ts",
     "sync:seed": "tsx scripts/sync-seed-events.ts",
     "sync:ticketmaster": "tsx scripts/sync-ticketmaster.ts"
   },
