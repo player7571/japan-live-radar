@@ -37,6 +37,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
+          TICKETMASTER_PAGE_LIMIT: ${{ vars.TICKETMASTER_PAGE_LIMIT || '2' }}
 
       - name: Create issue on failure
         if: failure()
