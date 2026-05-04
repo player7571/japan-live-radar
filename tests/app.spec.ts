@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { extractDraft } from "../api/import-url";
 import { buildAlertMessage, buildAlertWebhookPayload } from "../scripts/dispatch-alerts";
@@ -240,6 +241,34 @@ test("builds alert webhook payloads with Korean context and contact email", () =
     eventKey: "ado-2026",
     contactEmail: "fan@example.com",
     remindAt: "2026-05-10T00:00:00.000Z",
+  });
+});
+
+test("normalizes admin alert queue filters and retry updates", () => {
+  const now = new Date("2026-05-04T12:00:00Z");
+
+  expect(normalizeAdminAlertListOptions()).toEqual({ status: "active", dueOnly: true });
+  expect(normalizeAdminAlertListOptions({ status: "error" })).toEqual({ status: "error", dueOnly: false });
+  expect(normalizeAdminAlertListOptions({ status: "sent", due: "all" })).toEqual({
+    status: "sent",
+    dueOnly: false,
+  });
+  expect(normalizeAdminAlertListOptions({ status: "unknown" })).toEqual({ status: "active", dueOnly: true });
+
+  expect(buildAlertStatusUpdate("sent", 2, now)).toMatchObject({
+    status: "sent",
+    last_sent_at: "2026-05-04T12:00:00.000Z",
+    last_error: null,
+    send_count: 3,
+  });
+  expect(buildAlertStatusUpdate("error", 0, now, "Webhook failed")).toEqual({
+    status: "error",
+    last_error: "Webhook failed",
+  });
+  expect(buildAlertStatusUpdate("active", 0, now, null, "2026-05-05T00:00:00.000Z")).toEqual({
+    status: "active",
+    remind_at: "2026-05-05T00:00:00.000Z",
+    last_error: null,
   });
 });
 

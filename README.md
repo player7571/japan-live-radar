@@ -57,6 +57,7 @@ Users can save interest alerts from the public detail panel. The browser stores 
 - `Dispatch Due Alerts` runs every 15 minutes and reads due rows from `/api/admin-alerts`.
 - `ALERT_WEBHOOK_URL` receives a JSON payload with the Korean message text, alert id, event key, event snapshot, and reminder time.
 - Successful deliveries are marked `sent`; delivery failures are marked `error` with `last_error` so they do not silently disappear.
+- Operators can inspect non-due queues with `/api/admin-alerts?status=error` or `/api/admin-alerts?status=sent&due=all`. Retrying an errored alert is a `PATCH /api/admin-alerts` with `status: "active"` and an optional `remindAt`.
 
 ## Automation
 
