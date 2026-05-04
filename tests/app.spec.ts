@@ -125,16 +125,21 @@ test("imports an admin draft from a URL", async ({ page }) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
-        draft: {
-          artist: "YOASOBI",
-          title: "YOASOBI Dome Live",
-          city: "도쿄",
-          venue: "Tokyo Dome",
-          date: "2026-11-02",
-          time: "18:30",
-          source: "Ticket Pia",
-          link: "https://t.pia.jp/example",
-        },
+        results: [
+          {
+            url: "https://t.pia.jp/example",
+            draft: {
+              artist: "YOASOBI",
+              title: "YOASOBI Dome Live",
+              city: "도쿄",
+              venue: "Tokyo Dome",
+              date: "2026-11-02",
+              time: "18:30",
+              source: "Ticket Pia",
+              link: "https://t.pia.jp/example",
+            },
+          },
+        ],
       }),
     });
   });
@@ -145,7 +150,7 @@ test("imports an admin draft from a URL", async ({ page }) => {
   await page.getByLabel("URL로 초안 가져오기").fill("https://t.pia.jp/example");
   await page.getByRole("button", { name: "가져오기" }).click();
 
-  await expect(page.getByText("URL에서 초안을 가져오고 후보에 추가했어요.")).toBeVisible();
+  await expect(page.getByText("1개 URL 초안을 후보에 추가했어요.")).toBeVisible();
   await expect(page.getByLabel("URL 후보").getByText("YOASOBI")).toBeVisible();
   await expect(page.getByLabel("아티스트")).toHaveValue("YOASOBI");
   await expect(page.getByLabel("공연명")).toHaveValue("YOASOBI Dome Live");
@@ -156,6 +161,127 @@ test("imports an admin draft from a URL", async ({ page }) => {
   await page.getByLabel("아티스트").fill("임시값");
   await page.getByRole("button", { name: "초안 적용" }).click();
   await expect(page.getByLabel("아티스트")).toHaveValue("YOASOBI");
+});
+
+test("approves a database-backed import candidate", async ({ page }) => {
+  let patchBody: Record<string, unknown> | null = null;
+  await page.route("/api/admin-candidates", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          configured: true,
+          candidates: [
+            {
+              id: "candidate-1",
+              source: "Ticket Pia",
+              sourceUrl: "https://t.pia.jp/candidate",
+              status: "pending",
+              createdAt: "2026-05-04T00:00:00Z",
+              draft: {
+                artist: "Ado",
+                title: "Blue Flame Tour",
+                city: "요코하마",
+                venue: "K-Arena Yokohama",
+                date: "2026-11-12",
+                time: "18:00",
+                source: "Ticket Pia",
+                link: "https://t.pia.jp/candidate",
+              },
+            },
+          ],
+        }),
+      });
+      return;
+    }
+
+    patchBody = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, event: { id: "event-1" } }),
+    });
+  });
+  await page.route("/api/admin-events", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ events: [] }),
+    });
+  });
+
+  await page.goto("/#admin");
+  await page.getByLabel("관리자 토큰").fill("test-token");
+  await page.getByRole("button", { name: "후보 새로고침" }).click();
+
+  await expect(page.getByLabel("URL 후보").getByText("Ado", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "승인 저장" }).click();
+
+  await expect(page.getByText("후보를 승인하고 공연으로 저장했어요.")).toBeVisible();
+  expect(patchBody).toMatchObject({ id: "candidate-1", action: "approve" });
+});
+
+test("creates keyword candidates and shows quality stats", async ({ page }) => {
+  await page.route("/api/search-candidates", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        configured: true,
+        candidates: [
+          {
+            id: "search-candidate-1",
+            source: "Ticket Pia",
+            sourceUrl: "https://t.pia.jp/en/pia/search_dtl_input.do?keyword=Ado",
+            status: "pending",
+            createdAt: "2026-05-04T00:00:00Z",
+            draft: {
+              artist: "Ado",
+              title: "Ado 공연 검색 후보",
+              city: "도쿄",
+              venue: "",
+              date: "",
+              source: "Ticket Pia",
+              link: "https://t.pia.jp/en/pia/search_dtl_input.do?keyword=Ado",
+            },
+          },
+        ],
+      }),
+    });
+  });
+  await page.route("/api/admin-stats", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        totalEvents: 5,
+        pendingCandidates: 1,
+        candidateTableReady: true,
+        quality: {
+          missingLink: 0,
+          missingSaleWindow: 1,
+          missingPrice: 1,
+          needsAccessReview: 2,
+          phoneRequired: 3,
+          koreaFriendly: 1,
+        },
+        bySource: [{ label: "Ticket Pia", count: 3 }],
+        byCity: [{ label: "도쿄", count: 2 }],
+        generatedAt: "2026-05-04T00:00:00Z",
+      }),
+    });
+  });
+
+  await page.goto("/#admin");
+  await page.getByLabel("관리자 토큰").fill("test-token");
+  await page.getByLabel("데이터 품질").getByRole("button", { name: "새로고침" }).click();
+
+  await expect(page.getByLabel("데이터 품질").getByText("공연")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("5개")).toBeVisible();
+
+  await page.getByLabel("검색어 후보 수집").fill("Ado");
+  await page.getByRole("button", { name: "후보 만들기" }).click();
+
+  await expect(page.getByText("1개 검색 후보를 만들었어요.")).toBeVisible();
+  await expect(page.getByLabel("URL 후보").getByText("Ado", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "초안 적용" }).click();
+  await expect(page.getByText("후보를 입력폼에 적용했어요.")).toBeVisible();
 });
 
 test("shows an empty state when no concerts match", async ({ page }) => {

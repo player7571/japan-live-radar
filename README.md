@@ -34,6 +34,7 @@ npx playwright test
 
 - Database schema lives in `supabase/migrations`.
 - Public event reads are served by `api/events.ts`.
+- Admin event entry, candidate approval, URL import, search candidates, quality stats, and alert subscriptions live under `api/`.
 - Stable fallback data is synced with `npm run sync:seed`.
 - Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
 - Supabase migrations run with `npm run db:migrate` or the manual `Supabase Migrate` workflow.
@@ -46,9 +47,11 @@ VITE_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 TICKETMASTER_API_KEY
 SUPABASE_DB_URL
+ADMIN_API_TOKEN
 ```
 
 `SUPABASE_DB_URL` is used only by migration automation.
+`ADMIN_API_TOKEN` protects the admin import, candidate, and quality APIs.
 
 ## Branch Rules
 
