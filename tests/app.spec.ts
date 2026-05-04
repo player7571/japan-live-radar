@@ -4,7 +4,14 @@ import { summarizeAlertQueue } from "../api/admin-stats";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
-import { buildAlertMessage, buildAlertWebhookPayload, summarizeDispatchFailures } from "../scripts/dispatch-alerts";
+import {
+  buildAlertMessage,
+  buildAlertWebhookPayload,
+  normalizeWebhookAttempts,
+  sendWebhook,
+  shouldRetryWebhookStatus,
+  summarizeDispatchFailures,
+} from "../scripts/dispatch-alerts";
 import { formatSaleWindow, searchProfiles, toTicketmasterEventRow } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
 import { serverReadKey } from "../src/lib/supabaseServer";
@@ -671,6 +678,73 @@ test("summarizes alert dispatch failures for workflow visibility", () => {
   expect(summarizeDispatchFailures(["a: failed", "b: failed", "c: failed", "d: failed"])).toBe(
     "Failed to dispatch 4 alert(s): a: failed; b: failed; c: failed; +1 more",
   );
+});
+
+test("classifies retryable alert webhook delivery statuses", () => {
+  expect(normalizeWebhookAttempts(undefined)).toBe(3);
+  expect(normalizeWebhookAttempts("0")).toBe(1);
+  expect(normalizeWebhookAttempts("9")).toBe(5);
+  expect(shouldRetryWebhookStatus(408)).toBe(true);
+  expect(shouldRetryWebhookStatus(429)).toBe(true);
+  expect(shouldRetryWebhookStatus(500)).toBe(true);
+  expect(shouldRetryWebhookStatus(400)).toBe(false);
+});
+
+test("retries transient alert webhook failures before marking delivery failed", async () => {
+  const statuses = [500, 429, 200];
+  const sentPayloads: unknown[] = [];
+
+  await sendWebhook(
+    {
+      id: "alert-retry",
+      event_key: "ado-2026",
+      contact_email: "fan@example.com",
+      remind_at: "2026-05-10T00:00:00.000Z",
+      event_snapshot: {
+        artist: "Ado",
+        title: "Blue Flame Tour",
+        link: "https://t.pia.jp/example",
+      },
+    },
+    {
+      webhookUrl: "https://example.com/webhook",
+      attempts: 3,
+      retryDelayMs: 0,
+      fetchImpl: async (_url, init) => {
+        sentPayloads.push(JSON.parse(String(init?.body)));
+        return new Response("ok", { status: statuses.shift() ?? 200 });
+      },
+    },
+  );
+
+  expect(sentPayloads).toHaveLength(3);
+  expect(sentPayloads[0]).toMatchObject({ alertId: "alert-retry", eventKey: "ado-2026" });
+});
+
+test("does not retry non-retryable alert webhook failures", async () => {
+  let attempts = 0;
+
+  await expect(
+    sendWebhook(
+      {
+        id: "alert-bad-request",
+        event_key: "ado-2026",
+        remind_at: "2026-05-10T00:00:00.000Z",
+        event_snapshot: { artist: "Ado" },
+      },
+      {
+        webhookUrl: "https://example.com/webhook",
+        attempts: 3,
+        retryDelayMs: 0,
+        fetchImpl: async () => {
+          attempts += 1;
+          return new Response("bad request", { status: 400 });
+        },
+      },
+    ),
+  ).rejects.toThrow("Webhook failed with 400 after 1 attempt(s)");
+
+  expect(attempts).toBe(1);
 });
 
 test("normalizes admin alert queue filters and retry updates", () => {

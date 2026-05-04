@@ -34,12 +34,36 @@ type DueAlertResponse = {
 const appBaseUrl = (process.env.APP_BASE_URL ?? "https://japan-live-radar.vercel.app").replace(/\/$/, "");
 const adminApiToken = process.env.ADMIN_API_TOKEN;
 const alertWebhookUrl = process.env.ALERT_WEBHOOK_URL;
+const defaultWebhookAttempts = normalizeWebhookAttempts(process.env.ALERT_WEBHOOK_ATTEMPTS);
+
+type WebhookFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+
+type WebhookSendOptions = {
+  webhookUrl?: string;
+  fetchImpl?: WebhookFetch;
+  attempts?: number;
+  retryDelayMs?: number;
+};
 
 function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
     throw new Error(`${name} is required`);
   }
   return value;
+}
+
+export function normalizeWebhookAttempts(value: string | undefined) {
+  const parsed = value ? Number(value) : Number.NaN;
+  if (!Number.isFinite(parsed)) return 3;
+  return Math.min(Math.max(Math.trunc(parsed), 1), 5);
+}
+
+export function shouldRetryWebhookStatus(status: number) {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+function sleep(ms: number) {
+  return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
 }
 
 function eventLabel(event: EventSnapshot) {
@@ -110,20 +134,38 @@ async function patchAlert(id: string, status: "sent" | "error", error?: string) 
   });
 }
 
-async function sendWebhook(alert: DueAlert) {
-  if (!alertWebhookUrl) {
+export async function sendWebhook(alert: DueAlert, options: WebhookSendOptions = {}) {
+  const webhookUrl = options.webhookUrl ?? alertWebhookUrl;
+  if (!webhookUrl) {
     throw new Error("ALERT_WEBHOOK_URL is not configured");
   }
 
-  const response = await fetch(alertWebhookUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(buildAlertWebhookPayload(alert)),
-  });
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const attempts = options.attempts ?? defaultWebhookAttempts;
+  const retryDelayMs = options.retryDelayMs ?? 1_000;
+  let lastStatus = 0;
+  let completedAttempts = 0;
 
-  if (!response.ok) {
-    throw new Error(`Webhook failed with ${response.status}`);
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    completedAttempts = attempt;
+    const response = await fetchImpl(webhookUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(buildAlertWebhookPayload(alert)),
+    });
+
+    if (response.ok) {
+      return;
+    }
+
+    lastStatus = response.status;
+    if (!shouldRetryWebhookStatus(response.status) || attempt === attempts) {
+      break;
+    }
+    await sleep(retryDelayMs * attempt);
   }
+
+  throw new Error(`Webhook failed with ${lastStatus} after ${completedAttempts} attempt(s)`);
 }
 
 async function main() {
