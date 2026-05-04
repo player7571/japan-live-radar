@@ -601,6 +601,112 @@ h2 {
   background: #1f6c4f;
 }
 
+.admin-shell {
+  background:
+    linear-gradient(180deg, rgba(245, 247, 245, 0.94), rgba(245, 247, 245, 0.98)),
+    url("https://images.unsplash.com/photo-1518600506278-4e8ef466b810?auto=format&fit=crop&w=1800&q=80")
+      center/cover fixed;
+}
+
+.admin-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 20px 48px rgba(25, 37, 30, 0.12);
+}
+
+.admin-field,
+.admin-check {
+  display: grid;
+  gap: 7px;
+}
+
+.admin-field.full,
+.admin-check.full,
+.admin-actions.full {
+  grid-column: 1 / -1;
+}
+
+.admin-field span,
+.admin-check span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #435047;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-field input,
+.admin-field select,
+.admin-field textarea {
+  width: 100%;
+  min-width: 0;
+  color: #172019;
+  background: #f8faf7;
+  border: 1px solid rgba(23, 32, 25, 0.12);
+  border-radius: 8px;
+  outline: 0;
+}
+
+.admin-field input,
+.admin-field select {
+  min-height: 46px;
+  padding: 0 12px;
+}
+
+.admin-field textarea {
+  resize: vertical;
+  padding: 12px;
+}
+
+.admin-check {
+  min-height: 46px;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  justify-content: start;
+  padding: 0 12px;
+  background: #f8faf7;
+  border: 1px solid rgba(23, 32, 25, 0.12);
+  border-radius: 8px;
+}
+
+.admin-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-actions .primary-link {
+  min-width: 180px;
+  padding: 0 18px;
+  border: 0;
+  cursor: pointer;
+}
+
+.admin-actions .primary-link:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.admin-success,
+.admin-error {
+  font-weight: 800;
+}
+
+.admin-success {
+  color: #0f5c3e;
+}
+
+.admin-error {
+  color: #8b2828;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     padding: 16px;
@@ -635,7 +741,8 @@ h2 {
 
   .filter-grid,
   .fact-grid,
-  .action-row {
+  .action-row,
+  .admin-panel {
     grid-template-columns: 1fr;
   }
 
