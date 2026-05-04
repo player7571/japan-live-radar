@@ -102,6 +102,8 @@ Normal development flow:
 
 If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, keep the release PR open and continue feature work on `dev`. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
 
+Vercel Git preview builds are skipped by `scripts/vercel-ignore-build.sh` so duplicate Vercel builds do not consume quota. GitHub Actions remains the source of truth for preview checks and uses `vercel build` with `vercel deploy --prebuilt` when a preview deployment is needed.
+
 ## Branch Rules
 
 - Feature: `codex/feature-*`
