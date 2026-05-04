@@ -1,4 +1,39 @@
 import { expect, test } from "@playwright/test";
+import { extractDraft } from "../api/import-url";
+
+test("extracts Japanese ticket page sales cues", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>Ado 全国ツアー2026｜チケットぴあ</title>
+          <meta property="og:image" content="https://example.com/ado.jpg">
+        </head>
+        <body>
+          <h1>Ado 全国ツアー2026</h1>
+          <p>会場：Kアリーナ横浜</p>
+          <p>公演日：2026年11月12日 18:30</p>
+          <p>抽選受付：2026年5月10日 12:00～2026年5月20日 23:59</p>
+          <p>料金：￥9,800～￥14,800</p>
+          <p>電子チケットの受取には携帯電話番号・SMS認証が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600001"),
+  );
+
+  expect(draft.artist).toBe("Ado");
+  expect(draft.title).toBe("Ado 全国ツアー2026");
+  expect(draft.city).toBe("요코하마");
+  expect(draft.date).toBe("2026-11-12");
+  expect(draft.time).toBe("18:30");
+  expect(draft.source).toBe("Ticket Pia");
+  expect(draft.saleType).toBe("추첨 접수");
+  expect(draft.saleWindow).toContain("2026年5月10日 12:00");
+  expect(draft.price).toBe("¥9,800 - ¥14,800");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+  expect(draft.phoneRequired).toBe(true);
+});
 
 test("searches concerts and opens the detail panel", async ({ page }) => {
   await page.goto("/");
