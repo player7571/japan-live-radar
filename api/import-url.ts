@@ -225,13 +225,18 @@ function saleTypeFromText(text: string): ImportedDraft["saleType"] {
 
 function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ticketAccess" | "foreignerNote"> {
   const overseasSignal = /(海外|international|overseas|foreign|外国|訪日|インバウンド).{0,28}(受付|販売|ticket|購入|カード)/i.test(text);
+  const noPhoneSignal =
+    /(日本|国内|携帯|電話番号|SMS|SMS認証|認証).{0,18}(不要|なし|無し|必要ありません|必要なし|不要です)/i.test(text) ||
+    /(不要|なし|無し|必要ありません|必要なし|不要です).{0,18}(日本|国内|携帯|電話番号|SMS|SMS認証|認証)/i.test(text);
   const phoneSignal = /(電話番号|携帯電話|SMS|SMS認証|本人確認|電子チケット|スマチケ|MOALA|ローチケ電子チケット|認証)/i.test(text);
 
-  if (overseasSignal && !phoneSignal) {
+  if ((overseasSignal && !phoneSignal) || (overseasSignal && noPhoneSignal)) {
     return {
       phoneRequired: false,
       ticketAccess: "한국 구매 가능",
-      foreignerNote: "해외/외국인 판매 신호가 있어 한국에서 예매 가능성이 있습니다. 결제와 수령 조건은 원본에서 확인하세요.",
+      foreignerNote: noPhoneSignal
+        ? "해외 판매와 일본 전화번호/SMS 인증 불필요 신호가 있어 한국에서 예매 가능성이 높습니다."
+        : "해외/외국인 판매 신호가 있어 한국에서 예매 가능성이 있습니다. 결제와 수령 조건은 원본에서 확인하세요.",
     };
   }
 
@@ -317,6 +322,12 @@ function cityFromText(text: string) {
     ["Nagoya", "나고야"],
     ["福岡", "후쿠오카"],
     ["Fukuoka", "후쿠오카"],
+    ["札幌", "삿포로"],
+    ["Sapporo", "삿포로"],
+    ["仙台", "센다이"],
+    ["Sendai", "센다이"],
+    ["広島", "히로시마"],
+    ["Hiroshima", "히로시마"],
     ["埼玉", "사이타마"],
     ["さいたま", "사이타마"],
     ["Saitama", "사이타마"],
