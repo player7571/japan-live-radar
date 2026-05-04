@@ -161,6 +161,27 @@ test("persists local alert selections", async ({ page }) => {
   await expect(page.getByRole("button", { name: "알림 설정됨" })).toBeVisible();
 });
 
+test("opens saved alerts and jumps back to a saved concert", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await page.getByRole("button", { name: "일정 알림" }).click();
+  await page.getByRole("button", { name: "알림 2개" }).click();
+
+  const alertsPanel = page.getByLabel("저장한 알림");
+  await expect(alertsPanel.getByText("NewJeans")).toBeVisible();
+  await expect(alertsPanel.getByText("ONE OK ROCK")).toBeVisible();
+
+  await alertsPanel.getByRole("button", { name: "NewJeans 알림 공연 열기" }).click();
+  await expect(page.getByRole("heading", { name: "NewJeans" })).toBeVisible();
+  await expect(alertsPanel).toBeHidden();
+
+  await page.getByRole("button", { name: "알림 2개" }).click();
+  await page.getByRole("button", { name: "NewJeans 알림 해제" }).click();
+  await expect(page.getByRole("button", { name: "알림 1개" })).toBeVisible();
+  await expect(page.getByLabel("저장한 알림").getByText("NewJeans")).toHaveCount(0);
+});
+
 test("submits an admin event draft", async ({ page }) => {
   let requestBody: Record<string, unknown> | null = null;
   await page.route("**/api/admin-events", async (route) => {
