@@ -156,7 +156,7 @@ test("submits an admin event draft", async ({ page }) => {
 });
 
 test("imports an admin draft from a URL", async ({ page }) => {
-  await page.route("/api/import-url", async (route) => {
+  await page.route("**/api/import-url", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -178,7 +178,7 @@ test("imports an admin draft from a URL", async ({ page }) => {
       }),
     });
   });
-  await page.route("/api/admin-candidates", async (route) => {
+  await page.route("**/api/admin-candidates", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ configured: false, candidates: [] }),
@@ -189,7 +189,10 @@ test("imports an admin draft from a URL", async ({ page }) => {
 
   await page.getByLabel("관리자 토큰").fill("test-token");
   await page.getByLabel("URL로 초안 가져오기").fill("https://t.pia.jp/example");
-  await page.getByRole("button", { name: "가져오기" }).click();
+  await Promise.all([
+    page.waitForResponse((response) => response.url().includes("/api/import-url") && response.status() === 200),
+    page.getByRole("button", { name: "가져오기" }).click(),
+  ]);
 
   await expect(page.getByText("1개 URL 초안을 후보에 추가했어요.")).toBeVisible();
   await expect(page.getByLabel("URL 후보").getByText("YOASOBI")).toBeVisible();
