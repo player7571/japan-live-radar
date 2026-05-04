@@ -29,6 +29,16 @@ type AlertStatsRow = {
   updated_at: string;
 };
 
+type SyncRunStatsRow = {
+  source: string;
+  status: "success" | "error";
+  fetched_count: number | null;
+  upserted_count: number | null;
+  skipped_count: number | null;
+  message: string | null;
+  finished_at: string | null;
+};
+
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const adminApiToken = process.env.ADMIN_API_TOKEN;
@@ -57,6 +67,10 @@ function missingCandidateTable(error: { code?: string; message?: string } | null
 
 function missingAlertTable(error: { code?: string; message?: string } | null) {
   return Boolean(error && (error.code === "42P01" || error.message?.includes("event_alerts")));
+}
+
+function missingSyncRunTable(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (error.code === "42P01" || error.message?.includes("sync_runs")));
 }
 
 export function summarizeAlertQueue(rows: AlertStatsRow[], now = new Date()) {
@@ -92,6 +106,26 @@ export function summarizeAlertQueue(rows: AlertStatsRow[], now = new Date()) {
   );
 }
 
+export function summarizeSyncRuns(rows: SyncRunStatsRow[]) {
+  const seen = new Set<string>();
+  return rows
+    .filter((row) => {
+      if (seen.has(row.source)) return false;
+      seen.add(row.source);
+      return true;
+    })
+    .map((row) => ({
+      source: row.source,
+      status: row.status,
+      fetchedCount: row.fetched_count ?? 0,
+      upsertedCount: row.upserted_count ?? 0,
+      skippedCount: row.skipped_count ?? 0,
+      message: row.message,
+      finishedAt: row.finished_at,
+    }))
+    .slice(0, 6);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -112,7 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const today = new Date().toISOString().slice(0, 10);
-  const [eventsResult, pastEventsResult, candidatesResult, alertsResult] = await Promise.all([
+  const [eventsResult, pastEventsResult, candidatesResult, alertsResult, syncRunsResult] = await Promise.all([
     supabase
       .from("events")
       .select("id,source,city,date,ticket_access,phone_required,link,sale_window,price")
@@ -134,6 +168,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select("status,remind_at,updated_at")
       .in("status", ["active", "sent", "error"])
       .limit(1000),
+    supabase
+      .from("sync_runs")
+      .select("source,status,fetched_count,upserted_count,skipped_count,message,finished_at")
+      .order("finished_at", { ascending: false })
+      .limit(20),
   ]);
 
   if (eventsResult.error) {
@@ -161,6 +200,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     alertQueue: missingAlertTable(alertsResult.error)
       ? null
       : summarizeAlertQueue((alertsResult.data ?? []) as AlertStatsRow[]),
+    syncRuns: missingSyncRunTable(syncRunsResult.error)
+      ? null
+      : summarizeSyncRuns((syncRunsResult.data ?? []) as SyncRunStatsRow[]),
     quality: {
       missingLink,
       missingSaleWindow,
