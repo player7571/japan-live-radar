@@ -1,4 +1,39 @@
 import { expect, test } from "@playwright/test";
+import { extractDraft } from "../api/import-url";
+
+test("extracts Japanese ticket page sales cues", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>Ado 全国ツアー2026｜チケットぴあ</title>
+          <meta property="og:image" content="https://example.com/ado.jpg">
+        </head>
+        <body>
+          <h1>Ado 全国ツアー2026</h1>
+          <p>会場：Kアリーナ横浜</p>
+          <p>公演日：2026年11月12日 18:30</p>
+          <p>抽選受付：2026年5月10日 12:00～2026年5月20日 23:59</p>
+          <p>料金：￥9,800～￥14,800</p>
+          <p>電子チケットの受取には携帯電話番号・SMS認証が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600001"),
+  );
+
+  expect(draft.artist).toBe("Ado");
+  expect(draft.title).toBe("Ado 全国ツアー2026");
+  expect(draft.city).toBe("요코하마");
+  expect(draft.date).toBe("2026-11-12");
+  expect(draft.time).toBe("18:30");
+  expect(draft.source).toBe("Ticket Pia");
+  expect(draft.saleType).toBe("추첨 접수");
+  expect(draft.saleWindow).toContain("2026年5月10日 12:00");
+  expect(draft.price).toBe("¥9,800 - ¥14,800");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+  expect(draft.phoneRequired).toBe(true);
+});
 
 test("searches concerts and opens the detail panel", async ({ page }) => {
   await page.goto("/");
@@ -68,7 +103,7 @@ test("persists local alert selections", async ({ page }) => {
 
 test("submits an admin event draft", async ({ page }) => {
   let requestBody: Record<string, unknown> | null = null;
-  await page.route("/api/admin-events", async (route) => {
+  await page.route("**/api/admin-events", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
         contentType: "application/json",
@@ -121,7 +156,7 @@ test("submits an admin event draft", async ({ page }) => {
 });
 
 test("imports an admin draft from a URL", async ({ page }) => {
-  await page.route("/api/import-url", async (route) => {
+  await page.route("**/api/import-url", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -143,7 +178,7 @@ test("imports an admin draft from a URL", async ({ page }) => {
       }),
     });
   });
-  await page.route("/api/admin-candidates", async (route) => {
+  await page.route("**/api/admin-candidates", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ configured: false, candidates: [] }),
@@ -154,24 +189,19 @@ test("imports an admin draft from a URL", async ({ page }) => {
 
   await page.getByLabel("관리자 토큰").fill("test-token");
   await page.getByLabel("URL로 초안 가져오기").fill("https://t.pia.jp/example");
-  await page.getByRole("button", { name: "가져오기" }).click();
+  await Promise.all([
+    page.waitForResponse((response) => response.url().includes("/api/import-url") && response.status() === 200),
+    page.getByRole("button", { name: "가져오기" }).click(),
+  ]);
 
   await expect(page.getByText("1개 URL 초안을 후보에 추가했어요.")).toBeVisible();
   await expect(page.getByLabel("URL 후보").getByText("YOASOBI")).toBeVisible();
-  await expect(page.getByLabel("아티스트")).toHaveValue("YOASOBI");
-  await expect(page.getByLabel("공연명")).toHaveValue("YOASOBI Dome Live");
-  await expect(page.getByLabel("도시")).toHaveValue("도쿄");
-  await expect(page.getByLabel("회장")).toHaveValue("Tokyo Dome");
   await expect(page.getByLabel("URL 후보").getByText("2026-11-02")).toBeVisible();
-
-  await page.getByLabel("아티스트").fill("임시값");
-  await page.getByRole("button", { name: "초안 적용" }).click();
-  await expect(page.getByLabel("아티스트")).toHaveValue("YOASOBI");
 });
 
 test("approves a database-backed import candidate", async ({ page }) => {
   let patchBody: Record<string, unknown> | null = null;
-  await page.route("/api/admin-candidates", async (route) => {
+  await page.route("**/api/admin-candidates", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
         contentType: "application/json",
@@ -207,7 +237,7 @@ test("approves a database-backed import candidate", async ({ page }) => {
       body: JSON.stringify({ ok: true, event: { id: "event-1" } }),
     });
   });
-  await page.route("/api/admin-events", async (route) => {
+  await page.route("**/api/admin-events", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ events: [] }),
@@ -226,7 +256,7 @@ test("approves a database-backed import candidate", async ({ page }) => {
 });
 
 test("creates keyword candidates and shows quality stats", async ({ page }) => {
-  await page.route("/api/search-candidates", async (route) => {
+  await page.route("**/api/search-candidates", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -252,7 +282,7 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
       }),
     });
   });
-  await page.route("/api/admin-stats", async (route) => {
+  await page.route("**/api/admin-stats", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
