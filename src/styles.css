@@ -263,6 +263,34 @@ h1 {
   box-shadow: none;
 }
 
+.alert-email-field {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 9px 10px;
+  background: #f8faf7;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  border-radius: 8px;
+}
+
+.alert-email-field input {
+  min-width: 0;
+  height: 34px;
+  padding: 0;
+  font: inherit;
+  color: #172019;
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+
+.alert-email-field .secondary-button {
+  height: 34px;
+  padding: 0 10px;
+}
+
 .saved-alert-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

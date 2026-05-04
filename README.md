@@ -53,6 +53,7 @@ Open `/#admin` and enter `ADMIN_API_TOKEN`.
 Users can save interest alerts from the public detail panel. The browser stores the local selection immediately, and `/api/alerts` upserts the server-side reminder when Supabase is configured.
 
 - Reminder timing prefers the sale-window start and schedules three hours before sales open. If the sale window is missing, it falls back to seven days before the event date.
+- Users can add an alert email in the saved-alerts panel. The email is stored with each active server-side alert and sent to the delivery webhook as `contactEmail`.
 - `Dispatch Due Alerts` runs every 15 minutes and reads due rows from `/api/admin-alerts`.
 - `ALERT_WEBHOOK_URL` receives a JSON payload with the Korean message text, alert id, event key, event snapshot, and reminder time.
 - Successful deliveries are marked `sent`; delivery failures are marked `error` with `last_error` so they do not silently disappear.
