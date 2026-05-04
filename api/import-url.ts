@@ -269,6 +269,28 @@ function saleWindowFromText(text: string) {
   const clockPattern = String.raw`(?:[01]?\d|2[0-3])(?::[0-5]\d|時\s*(?:[0-5]\d)?\s*分?)`;
   const fullDateTimePattern = String.raw`(\d{4})[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*${clockPattern}`;
   const shortDateTimePattern = String.raw`(?:\d{4}[./年-]\s*)?\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*${clockPattern}`;
+  const normalizeEndDate = (start: string, end: string) => {
+    const trimmedEnd = compactWhitespace(end);
+    if (/^\d{4}/.test(trimmedEnd)) return trimmedEnd;
+    const startYear = compactWhitespace(start).match(/^\d{4}/)?.[0];
+    return startYear ? `${startYear}/${trimmedEnd}` : trimmedEnd;
+  };
+
+  const separateStart = normalized.match(
+    new RegExp(
+      `(受付開始日時|受付開始|販売開始|発売開始|発売日時|申込開始|抽選受付開始|先行受付開始)[:：]?\\s*(${fullDateTimePattern})`,
+    ),
+  );
+  const separateEnd = normalized.match(
+    new RegExp(
+      `(受付終了日時|受付終了|販売終了|発売終了|申込締切|申込終了|抽選受付終了|先行受付終了)[:：]?\\s*(${shortDateTimePattern})`,
+    ),
+  );
+  if (separateStart && separateEnd) {
+    const start = compactWhitespace(separateStart[2]);
+    return `${start} - ${normalizeEndDate(start, separateEnd[2])}`;
+  }
+
   const range = normalized.match(
     new RegExp(
       `(受付期間|販売期間|申込期間|発売期間|抽選受付|先行受付|一般発売|発売日)?[:：]?\\s*` +
@@ -277,7 +299,7 @@ function saleWindowFromText(text: string) {
     ),
   );
   if (range) {
-    const end = /^\d{4}/.test(compactWhitespace(range[4])) ? range[4] : `${range[3]}/${range[4]}`;
+    const end = normalizeEndDate(range[2], range[4]);
     return `${compactWhitespace(range[2])} - ${compactWhitespace(end)}`;
   }
 
