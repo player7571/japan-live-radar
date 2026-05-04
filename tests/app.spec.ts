@@ -4,6 +4,7 @@ import { summarizeAlertQueue } from "../api/admin-stats";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { extractDraft } from "../api/import-url";
 import { buildAlertMessage, buildAlertWebhookPayload } from "../scripts/dispatch-alerts";
+import { formatSaleWindow } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
 
 test("extracts Japanese ticket page sales cues", () => {
@@ -206,6 +207,30 @@ test("calculates alert reminders from short sale windows using the event year", 
         saleWindow: "6.02 11:00 - 8.07 18:00",
       },
       now,
+    ),
+  ).toBe(new Date("2026-06-02T08:00:00+09:00").toISOString());
+});
+
+test("formats Ticketmaster sale windows for alert parsing", () => {
+  const saleWindow = formatSaleWindow({
+    id: "tm-1",
+    sales: {
+      public: {
+        startDateTime: "2026-06-02T02:00:00Z",
+        endDateTime: "2026-08-07T09:00:00Z",
+      },
+    },
+  });
+
+  expect(saleWindow).toBe("2026.06.02 11:00 - 2026.08.07 18:00");
+  expect(
+    calculateReminderAt(
+      {
+        id: "ticketmaster-2026",
+        date: "2026-08-08",
+        saleWindow: saleWindow ?? "",
+      },
+      new Date("2026-05-04T00:00:00+09:00"),
     ),
   ).toBe(new Date("2026-06-02T08:00:00+09:00").toISOString());
 });
