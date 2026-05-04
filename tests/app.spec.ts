@@ -191,6 +191,21 @@ test("calculates alert reminders from ISO sale start timestamps", () => {
   ).toBe(new Date("2026-06-10T09:00:00+09:00").toISOString());
 });
 
+test("calculates alert reminders from short sale windows using the event year", () => {
+  const now = new Date("2026-05-04T00:00:00+09:00");
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "ticketmaster-2026",
+        date: "2026-08-08",
+        saleWindow: "6.02 11:00 - 8.07 18:00",
+      },
+      now,
+    ),
+  ).toBe(new Date("2026-06-02T08:00:00+09:00").toISOString());
+});
+
 test("searches concerts and opens the detail panel", async ({ page }) => {
   await page.goto("/");
 

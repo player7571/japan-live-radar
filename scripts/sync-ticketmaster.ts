@@ -113,8 +113,9 @@ function formatSaleWindow(event: TicketmasterEvent) {
   const end = event.sales?.public?.endDateTime;
   if (!start && !end) return null;
   const formatter = new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    month: "numeric",
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
