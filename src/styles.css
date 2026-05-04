@@ -619,6 +619,30 @@ h2 {
   box-shadow: 0 20px 48px rgba(25, 37, 30, 0.12);
 }
 
+.admin-import {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 14px 30px rgba(25, 37, 30, 0.08);
+}
+
+.admin-import .secondary-button {
+  min-width: 130px;
+  border: 0;
+  cursor: pointer;
+}
+
+.admin-import .secondary-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
 .admin-field,
 .admin-check {
   display: grid;
@@ -756,7 +780,8 @@ h2 {
 
   .filters,
   .content-grid,
-  .recent-event {
+  .recent-event,
+  .admin-import {
     grid-template-columns: 1fr;
   }
 

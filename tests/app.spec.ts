@@ -120,6 +120,39 @@ test("submits an admin event draft", async ({ page }) => {
   });
 });
 
+test("imports an admin draft from a URL", async ({ page }) => {
+  await page.route("/api/import-url", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        draft: {
+          artist: "YOASOBI",
+          title: "YOASOBI Dome Live",
+          city: "도쿄",
+          venue: "Tokyo Dome",
+          date: "2026-11-02",
+          time: "18:30",
+          source: "Ticket Pia",
+          link: "https://t.pia.jp/example",
+        },
+      }),
+    });
+  });
+
+  await page.goto("/#admin");
+
+  await page.getByLabel("관리자 토큰").fill("test-token");
+  await page.getByLabel("URL로 초안 가져오기").fill("https://t.pia.jp/example");
+  await page.getByRole("button", { name: "가져오기" }).click();
+
+  await expect(page.getByText("URL에서 초안을 가져왔어요.")).toBeVisible();
+  await expect(page.getByLabel("아티스트")).toHaveValue("YOASOBI");
+  await expect(page.getByLabel("공연명")).toHaveValue("YOASOBI Dome Live");
+  await expect(page.getByLabel("도시")).toHaveValue("도쿄");
+  await expect(page.getByLabel("회장")).toHaveValue("Tokyo Dome");
+  await expect(page.getByLabel("공연일")).toHaveValue("2026-11-02");
+});
+
 test("shows an empty state when no concerts match", async ({ page }) => {
   await page.goto("/");
 

@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   Smartphone,
   Ticket,
+  Wand2,
   X,
 } from "lucide-react";
 import { seedEvents } from "./data/seedEvents";
@@ -55,6 +56,7 @@ type AdminEventSummary = {
   source: string;
   updated_at: string;
 };
+type ImportedEventDraft = Partial<Omit<AdminEventDraft, "ticketAccess" | "saleType" | "phoneRequired">>;
 
 const accessOptions: Array<TicketAccess | "전체"> = [
   "전체",
@@ -393,6 +395,9 @@ function AdminPage() {
   const [message, setMessage] = useState("");
   const [recentEvents, setRecentEvents] = useState<AdminEventSummary[]>([]);
   const [recentStatus, setRecentStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [importUrl, setImportUrl] = useState("");
+  const [importStatus, setImportStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [importMessage, setImportMessage] = useState("");
 
   const updateDraft = <Key extends keyof AdminEventDraft>(key: Key, value: AdminEventDraft[Key]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -447,6 +452,39 @@ function AdminPage() {
     }
   };
 
+  const importFromUrl = async () => {
+    if (!importUrl.trim()) return;
+    setImportStatus("loading");
+    setImportMessage("");
+    window.localStorage.setItem(adminTokenStorageKey, token);
+
+    try {
+      const response = await fetch("/api/import-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": token,
+        },
+        body: JSON.stringify({ url: importUrl }),
+      });
+      const payload = (await response.json()) as { draft?: ImportedEventDraft; error?: string };
+      if (!response.ok || !payload.draft) {
+        throw new Error(payload.error ?? "URL 가져오기 실패");
+      }
+      setDraft((current) => ({
+        ...current,
+        ...Object.fromEntries(
+          Object.entries(payload.draft ?? {}).filter(([, value]) => typeof value === "string" && value.trim().length > 0),
+        ),
+      }));
+      setImportStatus("ready");
+      setImportMessage("URL에서 초안을 가져왔어요.");
+    } catch (error) {
+      setImportStatus("error");
+      setImportMessage(error instanceof Error ? error.message : "URL 가져오기 실패");
+    }
+  };
+
   useEffect(() => {
     if (token) {
       void fetchRecentEvents(token);
@@ -468,6 +506,25 @@ function AdminPage() {
             <ChevronRight size={20} />
           </a>
         </header>
+
+        <section className="admin-import" aria-label="URL로 가져오기">
+          <label className="admin-field">
+            <span><Wand2 size={15} /> URL로 초안 가져오기</span>
+            <input
+              value={importUrl}
+              onChange={(event) => setImportUrl(event.target.value)}
+              placeholder="티켓/공연 페이지 URL"
+              type="url"
+            />
+          </label>
+          <button className="secondary-button" disabled={importStatus === "loading"} type="button" onClick={importFromUrl}>
+            <Wand2 size={17} />
+            {importStatus === "loading" ? "가져오는 중" : "가져오기"}
+          </button>
+          {importMessage && (
+            <span className={importStatus === "error" ? "admin-error" : "admin-success"}>{importMessage}</span>
+          )}
+        </section>
 
         <form className="admin-panel" onSubmit={submitEvent}>
           <label className="admin-field full">
