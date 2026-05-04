@@ -23,6 +23,7 @@ type EventSnapshot = {
   title?: unknown;
   date?: unknown;
   saleWindow?: unknown;
+  link?: unknown;
 };
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -53,6 +54,54 @@ function eventKey(snapshot: EventSnapshot) {
   return requiredString(snapshot.id, "event.id").slice(0, 160);
 }
 
+function parseDate(value: string) {
+  const isoDate = value.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  if (isoDate) return new Date(`${isoDate}T09:00:00+09:00`);
+
+  const jpDate = value.match(/(\d{4})[./年-]\s*(\d{1,2})[./月-]\s*(\d{1,2})/)?.slice(1);
+  if (jpDate?.length === 3) {
+    const [year, month, day] = jpDate;
+    return new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T09:00:00+09:00`);
+  }
+
+  return null;
+}
+
+function parseSaleWindowStart(value: unknown) {
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/[！-～]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0));
+  const dateMatch = normalized.match(
+    /(\d{4}[./年-]\s*\d{1,2}[./月-]\s*\d{1,2})(?:日)?(?:\([^)]*\))?\s*([01]?\d|2[0-3]):([0-5]\d)/,
+  );
+  if (dateMatch) {
+    const date = parseDate(dateMatch[1]);
+    if (!date) return null;
+    date.setHours(Number(dateMatch[2]), Number(dateMatch[3]), 0, 0);
+    return date;
+  }
+
+  return parseDate(normalized);
+}
+
+export function calculateReminderAt(snapshot: EventSnapshot, now = new Date()) {
+  const saleStart = parseSaleWindowStart(snapshot.saleWindow);
+  if (saleStart && saleStart > now) {
+    const reminder = new Date(saleStart);
+    reminder.setHours(reminder.getHours() - 3);
+    return (reminder > now ? reminder : saleStart).toISOString();
+  }
+
+  if (typeof snapshot.date === "string") {
+    const eventDate = parseDate(snapshot.date);
+    if (eventDate && eventDate > now) {
+      eventDate.setDate(eventDate.getDate() - 7);
+      return (eventDate > now ? eventDate : parseDate(snapshot.date))?.toISOString() ?? null;
+    }
+  }
+
+  return null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -75,6 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const snapshot = body.event as EventSnapshot;
     const active = body.active !== false;
+    const remindAt = active ? calculateReminderAt(snapshot) : null;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     const { data, error } = await supabase
       .from("event_alerts")
@@ -85,11 +135,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           event_snapshot: snapshot,
           status: active ? "active" : "cancelled",
           channel: "browser",
+          remind_at: remindAt,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "client_id,event_key" },
       )
-      .select("id,event_key,status,updated_at")
+      .select("id,event_key,status,remind_at,updated_at")
       .single();
 
     if (missingAlertTable(error)) {
