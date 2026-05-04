@@ -1,0 +1,51 @@
+name: Merge Release PR
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge-release-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Merge clean release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_number="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head dev \
+            --state open \
+            --json number \
+            --jq '.[0].number // ""')"
+
+          if [ -z "$pr_number" ]; then
+            echo "No open dev to main release PR."
+            exit 0
+          fi
+
+          echo "Checking release PR #$pr_number"
+          gh pr checks "$pr_number" --repo "$GITHUB_REPOSITORY" --watch --fail-fast --interval 10
+
+          pending_count="$(gh pr checks "$pr_number" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json bucket \
+            --jq '[.[] | select(.bucket == "pending")] | length')"
+          failing_count="$(gh pr checks "$pr_number" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json bucket \
+            --jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")] | length')"
+
+          if [ "$pending_count" != "0" ] || [ "$failing_count" != "0" ]; then
+            echo "Release PR #$pr_number is not mergeable yet."
+            exit 1
+          fi
+
+          gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge

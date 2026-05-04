@@ -45,7 +45,8 @@ GitHub Actions is the long-running automation layer so Codex heartbeat runs do n
 
 - `CI`: typecheck, build, and Playwright smoke tests for PRs and pushes to `dev`/`main`.
 - `Deploy to Vercel`: deploys `dev` as preview and `main` as production, then verifies production health.
-- `Auto Release PR`: opens a `dev` to `main` release PR whenever `dev` changes and tries to enable auto-merge.
+- `Auto Release PR`: opens a `dev` to `main` release PR whenever `dev` changes.
+- `Merge Release PR`: merges the open `dev` to `main` release PR after all PR checks finish successfully.
 - `Supabase Migrate`: applies migrations automatically when migration files land on `main`, and can also be run manually.
 - `Sync Ticketmaster Events`: refreshes seed and Ticketmaster data on a daily schedule.
 - `Dispatch Due Alerts`: checks the protected alert queue every 15 minutes and dispatches via `ALERT_WEBHOOK_URL` when configured.
