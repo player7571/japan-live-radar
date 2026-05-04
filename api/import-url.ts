@@ -307,6 +307,15 @@ function firstJsonString(value: unknown) {
   return firstString(value);
 }
 
+function schemaAvailabilityCue(value: unknown) {
+  const availability = firstJsonString(value).toLowerCase();
+  if (!availability) return "";
+  if (/(soldout|outofstock)/.test(availability)) return "予定枚数終了";
+  if (/discontinued/.test(availability)) return "販売終了";
+  if (/(instock|limitedavailability|preorder|presale)/.test(availability)) return "販売中";
+  return "";
+}
+
 function sourceFromHostname(hostname: string) {
   if (hostname.includes("pia.jp")) return "Ticket Pia";
   if (hostname.includes("eplus.jp")) return "e+";
@@ -416,6 +425,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
     offers.validFrom,
     saleWindowFromText(pageText),
     labeledValue($, rawBodyText, ["受付期間", "販売期間", "申込期間", "発売期間", "発売日時", "発売日", "一般発売"]),
+    schemaAvailabilityCue(offers.availability),
   );
 
   return {
