@@ -126,6 +126,25 @@ const blankAdminEvent: AdminEventDraft = {
   link: "",
   image: "",
 };
+const koreanSearchAliases: Array<[string, string[]]> = [
+  ["yoasobi", ["요아소비", "요아소비라이브", "요아소비콘서트"]],
+  ["one ok rock", ["원오크락", "원오크록", "원오크", "원오케이락", "원오케이록"]],
+  ["ado", ["아도", "아도콘서트"]],
+  ["newjeans", ["뉴진스", "뉴진스콘서트"]],
+  ["radwimps", ["래드윔프스", "라드윔프스"]],
+  ["king gnu", ["킹누", "킹그누"]],
+  ["米津玄師", ["요네즈켄시", "요네즈 켄시"]],
+  ["宇多田ヒカル", ["우타다히카루", "우타다 히카루"]],
+  ["tokyo dome", ["도쿄돔", "도쿄 돔"]],
+  ["osaka-jō hall", ["오사카성홀", "오사카 성 홀", "오사카조홀"]],
+  ["k-arena yokohama", ["케이아레나요코하마", "케이 아레나 요코하마"]],
+  ["marine messe fukuoka", ["마린멧세후쿠오카", "마린 멧세 후쿠오카"]],
+  ["nippon gaishi hall", ["니폰가이시홀", "일본가이시홀"]],
+  ["ticket pia", ["티켓피아", "피아"]],
+  ["e+", ["이플러스", "이 플러스", "eplus"]],
+  ["lawson ticket", ["로치케", "로손티켓", "로손 티켓"]],
+  ["ticketmaster", ["티켓마스터"]],
+];
 
 function currentRoute(): Route {
   return window.location.hash === "#admin" ? "admin" : "app";
@@ -204,6 +223,47 @@ function urlsFromText(value: string) {
     .map((url) => url.trim())
     .filter(Boolean)
     .slice(0, 10);
+}
+
+function normalizeSearchValue(value: string) {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{Letter}\p{Number}+]+/gu, "");
+}
+
+function searchVariants(value: string) {
+  const normalized = normalizeSearchValue(value);
+  const variants = new Set([normalized]);
+  for (const [canonical, aliases] of koreanSearchAliases) {
+    const canonicalNormalized = normalizeSearchValue(canonical);
+    const aliasValues = aliases.map(normalizeSearchValue);
+    if (normalized === canonicalNormalized || aliasValues.includes(normalized)) {
+      variants.add(canonicalNormalized);
+      for (const alias of aliasValues) variants.add(alias);
+    }
+  }
+  return Array.from(variants).filter(Boolean);
+}
+
+function eventSearchText(event: Event) {
+  const baseValues = [
+    event.artist,
+    event.title,
+    event.city,
+    event.venue,
+    event.genre,
+    event.source,
+    event.ticketAccess,
+    event.saleType,
+  ];
+  const aliases = koreanSearchAliases.flatMap(([canonical, values]) => {
+    const eventValues = baseValues.map(normalizeSearchValue);
+    return eventValues.some((value) => value.includes(normalizeSearchValue(canonical)))
+      ? values
+      : [];
+  });
+  return [...baseValues, ...aliases].map(normalizeSearchValue).join(" ");
 }
 
 function isInDateWindow(date: string, dateWindow: DateWindow) {
@@ -332,10 +392,10 @@ function App() {
   }, [alertEmail]);
 
   const filteredEvents = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+    const queryVariants = searchVariants(query);
     return events.filter((event) => {
-      const text = `${event.artist} ${event.title} ${event.venue} ${event.genre}`.toLowerCase();
-      const queryMatch = !normalized || text.includes(normalized);
+      const text = eventSearchText(event);
+      const queryMatch = queryVariants.length === 0 || queryVariants.some((variant) => text.includes(variant));
       const cityMatch = city === "전체" || event.city === city;
       const accessMatch = access === "전체" || event.ticketAccess === access;
       const dateMatch = isInDateWindow(event.date, dateWindow);
