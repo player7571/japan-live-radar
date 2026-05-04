@@ -72,7 +72,8 @@ jobs:
               [ "$failing_statuses" -gt 0 ] &&
               [ "$failing_statuses" -eq "$quota_statuses" ]; then
               echo "Release PR #$pr_number is mergeable, but only Vercel quota status checks are failing."
-              echo "Leaving the release PR open so production deploy can be retried after quota resets."
+              echo "Merging so the production retry workflow can deploy the latest main commit after quota resets."
+              with_retry gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
               exit 0
             fi
 
