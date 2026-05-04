@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
-import { summarizeAlertQueue, summarizeSyncRuns } from "../api/admin-stats";
+import { summarizeAlertQueue, summarizeSyncHealth, summarizeSyncRuns } from "../api/admin-stats";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
@@ -705,6 +705,82 @@ test("summarizes latest sync run per source for admin quality checks", () => {
   ]);
 });
 
+test("flags stale and errored sync runs for admin stats", () => {
+  expect(
+    summarizeSyncHealth(
+      [
+        {
+          source: "ticketmaster",
+          status: "success",
+          fetched_count: 420,
+          upserted_count: 390,
+          skipped_count: 30,
+          message: null,
+          finished_at: "2026-05-04T10:00:00Z",
+        },
+        {
+          source: "seed",
+          status: "success",
+          fetched_count: null,
+          upserted_count: 8,
+          skipped_count: null,
+          message: null,
+          finished_at: "2026-05-04T09:00:00Z",
+        },
+      ],
+      new Date("2026-05-05T12:00:00Z"),
+      30,
+    ),
+  ).toMatchObject({
+    status: "healthy",
+    lastFinishedAt: "2026-05-04T10:00:00Z",
+    staleSources: [],
+    errorSources: [],
+  });
+
+  expect(
+    summarizeSyncHealth(
+      [
+        {
+          source: "ticketmaster",
+          status: "success",
+          fetched_count: 420,
+          upserted_count: 390,
+          skipped_count: 30,
+          message: null,
+          finished_at: "2026-05-04T10:00:00Z",
+        },
+      ],
+      new Date("2026-05-06T17:00:00Z"),
+      30,
+    ),
+  ).toMatchObject({
+    status: "stale",
+    staleSources: ["ticketmaster"],
+  });
+
+  expect(
+    summarizeSyncHealth(
+      [
+        {
+          source: "ticketmaster",
+          status: "error",
+          fetched_count: 0,
+          upserted_count: 0,
+          skipped_count: 0,
+          message: "rate limited",
+          finished_at: "2026-05-05T11:00:00Z",
+        },
+      ],
+      new Date("2026-05-05T12:00:00Z"),
+      30,
+    ),
+  ).toMatchObject({
+    status: "error",
+    errorSources: ["ticketmaster"],
+  });
+});
+
 test("maps Ticketmaster events as Korea-friendly rows", () => {
   const row = toTicketmasterEventRow({
     id: "tm-korea-friendly",
@@ -1356,6 +1432,13 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
             finishedAt: "2026-05-04T10:00:00Z",
           },
         ],
+        syncHealth: {
+          status: "healthy",
+          lastFinishedAt: "2026-05-04T10:00:00Z",
+          staleAfterHours: 30,
+          errorSources: [],
+          staleSources: [],
+        },
         bySource: [{ label: "Ticket Pia", count: 3 }],
         byCity: [{ label: "도쿄", count: 2 }],
         generatedAt: "2026-05-04T00:00:00Z",
@@ -1374,7 +1457,9 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
   await expect(page.getByLabel("데이터 품질").getByText("가격 누락")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("알림 대기")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("알림 오류")).toBeVisible();
-  await expect(page.getByLabel("데이터 품질").getByText("동기화")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("동기화 상태")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("정상")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("동기화", { exact: true })).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText(/ticketmaster · 성공 · 390\/420/)).toBeVisible();
 
   await page.getByLabel("검색어 후보 수집").fill("Ado");

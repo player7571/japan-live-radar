@@ -39,9 +39,12 @@ type SyncRunStatsRow = {
   finished_at: string | null;
 };
 
+type SyncHealthStatus = "healthy" | "stale" | "error" | "missing";
+
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const adminApiToken = process.env.ADMIN_API_TOKEN;
+const syncStaleAfterHours = Number.parseInt(process.env.SYNC_STALE_AFTER_HOURS ?? "30", 10);
 
 function headerValue(req: VercelRequest, name: string) {
   const value = req.headers?.[name] ?? req.headers?.[name.toLowerCase()];
@@ -126,6 +129,55 @@ export function summarizeSyncRuns(rows: SyncRunStatsRow[]) {
     .slice(0, 6);
 }
 
+function syncFinishedTime(finishedAt: string | null) {
+  if (!finishedAt) return Number.NaN;
+  return new Date(finishedAt).getTime();
+}
+
+export function summarizeSyncHealth(
+  rows: SyncRunStatsRow[],
+  now = new Date(),
+  staleAfterHours = Number.isFinite(syncStaleAfterHours) && syncStaleAfterHours > 0 ? syncStaleAfterHours : 30,
+) {
+  const latestRuns = summarizeSyncRuns(rows);
+  const nowTime = now.getTime();
+  const staleAfterMs = staleAfterHours * 60 * 60 * 1000;
+
+  if (latestRuns.length === 0) {
+    return {
+      status: "missing" as SyncHealthStatus,
+      lastFinishedAt: null,
+      staleAfterHours,
+      errorSources: [] as string[],
+      staleSources: [] as string[],
+    };
+  }
+
+  const lastFinishedAt =
+    [...latestRuns]
+      .map((row) => row.finishedAt)
+      .filter((finishedAt): finishedAt is string => Boolean(finishedAt))
+      .sort()
+      .pop() ?? null;
+  const errorSources = latestRuns.filter((row) => row.status === "error").map((row) => row.source);
+  const staleSources = latestRuns
+    .filter((row) => {
+      const finishedTime = syncFinishedTime(row.finishedAt);
+      return !Number.isFinite(finishedTime) || nowTime - finishedTime > staleAfterMs;
+    })
+    .map((row) => row.source);
+  const status: SyncHealthStatus =
+    errorSources.length > 0 ? "error" : staleSources.length > 0 ? "stale" : "healthy";
+
+  return {
+    status,
+    lastFinishedAt,
+    staleAfterHours,
+    errorSources,
+    staleSources,
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -185,6 +237,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const rows = (eventsResult.data ?? []) as EventQualityRow[];
+  const syncRows = (syncRunsResult.data ?? []) as SyncRunStatsRow[];
   const missingLink = rows.filter((row) => !row.link || row.link === "#").length;
   const missingSaleWindow = rows.filter((row) => !row.sale_window).length;
   const missingPrice = rows.filter((row) => !row.price).length;
@@ -200,9 +253,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     alertQueue: missingAlertTable(alertsResult.error)
       ? null
       : summarizeAlertQueue((alertsResult.data ?? []) as AlertStatsRow[]),
-    syncRuns: missingSyncRunTable(syncRunsResult.error)
-      ? null
-      : summarizeSyncRuns((syncRunsResult.data ?? []) as SyncRunStatsRow[]),
+    syncRuns: missingSyncRunTable(syncRunsResult.error) ? null : summarizeSyncRuns(syncRows),
+    syncHealth: missingSyncRunTable(syncRunsResult.error) ? null : summarizeSyncHealth(syncRows),
     quality: {
       missingLink,
       missingSaleWindow,
