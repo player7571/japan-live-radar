@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { extractDraft } from "../api/import-url";
+import { buildAlertMessage, buildAlertWebhookPayload } from "../scripts/dispatch-alerts";
 import { toEventRow } from "../src/lib/adminEventRows";
 
 test("extracts Japanese ticket page sales cues", () => {
@@ -211,6 +212,35 @@ test("normalizes alert contact emails", () => {
   expect(normalizeAlertContactEmail(" Fan@Example.COM ")).toBe("fan@example.com");
   expect(normalizeAlertContactEmail("")).toBeNull();
   expect(() => normalizeAlertContactEmail("not-an-email")).toThrow("contactEmail must be a valid email address");
+});
+
+test("builds alert webhook payloads with Korean context and contact email", () => {
+  const alert = {
+    id: "alert-1",
+    event_key: "ado-2026",
+    contact_email: "fan@example.com",
+    remind_at: "2026-05-10T00:00:00.000Z",
+    event_snapshot: {
+      artist: "Ado",
+      title: "Blue Flame Tour",
+      city: "요코하마",
+      venue: "K-Arena Yokohama",
+      date: "2026-11-12",
+      time: "18:30",
+      saleWindow: "2026年5月10日 12:00～2026年5月20日 23:59",
+      link: "https://t.pia.jp/example",
+    },
+  };
+
+  expect(buildAlertMessage(alert)).toContain("수신처: fan@example.com");
+  expect(buildAlertMessage(alert)).toContain("공연: Ado - Blue Flame Tour");
+  expect(buildAlertWebhookPayload(alert)).toMatchObject({
+    text: expect.stringContaining("판매 일정: 2026年5月10日 12:00"),
+    alertId: "alert-1",
+    eventKey: "ado-2026",
+    contactEmail: "fan@example.com",
+    remindAt: "2026-05-10T00:00:00.000Z",
+  });
 });
 
 test("uses source URLs for imported admin event ids", () => {
