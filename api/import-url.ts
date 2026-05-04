@@ -265,6 +265,40 @@ function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ti
   };
 }
 
+function paymentPickupNoteFromText(text: string) {
+  const notes: string[] = [];
+  const creditCardOnly =
+    /(クレジットカード|credit card|カード決済|クレカ).{0,20}(のみ|限定|only|必須|決済)/i.test(text) ||
+    /(のみ|限定|only|必須).{0,20}(クレジットカード|credit card|カード決済|クレカ)/i.test(text);
+  const creditCardAvailable = /(クレジットカード|credit card|カード決済|クレカ)/i.test(text);
+  const convenienceStore =
+    /(コンビニ|セブン-?イレブン|ファミリーマート|ローソン).{0,24}(支払|決済|入金|発券|受取|引取)/i.test(text) ||
+    /(支払|決済|入金|発券|受取|引取).{0,24}(コンビニ|セブン-?イレブン|ファミリーマート|ローソン)/i.test(text);
+  const paperTicket = /(紙チケット|店頭発券|配送|郵送|チケットぴあ店舗|Cloak)/i.test(text);
+
+  if (creditCardOnly) {
+    notes.push("신용카드 결제 전용 신호가 있습니다.");
+  } else if (creditCardAvailable) {
+    notes.push("신용카드 결제 가능 신호가 있습니다.");
+  }
+  if (convenienceStore) {
+    notes.push("편의점 결제/발권 또는 현지 수령 조건을 확인하세요.");
+  }
+  if (paperTicket) {
+    notes.push("종이 티켓/매장 발권/배송 조건을 확인하세요.");
+  }
+
+  return notes.join(" ");
+}
+
+function importForeignerNote(description: string, accessNote: string, pageText: string) {
+  return [description, accessNote, paymentPickupNoteFromText(pageText)]
+    .map(compactWhitespace)
+    .filter(Boolean)
+    .filter((note, index, notes) => notes.indexOf(note) === index)
+    .join(" ");
+}
+
 function saleWindowFromText(text: string) {
   const normalized = normalizeFullWidth(text);
   const clockPattern = String.raw`(?:[01]?\d|2[0-3])(?::[0-5]\d|時\s*(?:[0-5]\d)?\s*分?)`;
@@ -528,7 +562,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
     saleWindow,
     price,
     phoneRequired: access.phoneRequired,
-    foreignerNote: description || access.foreignerNote,
+    foreignerNote: importForeignerNote(description, access.foreignerNote, pageText),
     link: sourceUrl.toString(),
     image: firstString(image, propertyContent($, "meta[property='og:image']")),
   };

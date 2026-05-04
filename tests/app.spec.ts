@@ -144,6 +144,32 @@ test("flags Japanese electronic ticket apps as phone-required imports", () => {
   expect(draft.foreignerNote).toContain("전자티켓 인증");
 });
 
+test("adds payment and pickup cues to imported foreigner notes", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>SUPER BEAVER Hall Tour｜ローチケ</title>
+          <meta name="description" content="オフィシャル先行受付">
+        </head>
+        <body>
+          <h1>SUPER BEAVER Hall Tour</h1>
+          <p>会場：福岡サンパレス</p>
+          <p>公演日：2026年9月02日 19:00</p>
+          <p>支払方法はクレジットカード決済のみです。</p>
+          <p>チケットはローソンまたはミニストップ店頭で発券・受取となります。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://l-tike.com/concert/mevent/?mid=2600012"),
+  );
+
+  expect(draft.city).toBe("후쿠오카");
+  expect(draft.foreignerNote).toContain("オフィシャル先行受付");
+  expect(draft.foreignerNote).toContain("신용카드 결제 전용");
+  expect(draft.foreignerNote).toContain("편의점 결제/발권");
+});
+
 test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
   const draft = extractDraft(
     `
