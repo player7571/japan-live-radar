@@ -4,7 +4,7 @@ import { summarizeAlertQueue } from "../api/admin-stats";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
-import { buildAlertMessage, buildAlertWebhookPayload } from "../scripts/dispatch-alerts";
+import { buildAlertMessage, buildAlertWebhookPayload, summarizeDispatchFailures } from "../scripts/dispatch-alerts";
 import { formatSaleWindow, searchProfiles } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
 import { serverReadKey } from "../src/lib/supabaseServer";
@@ -294,6 +294,16 @@ test("builds alert webhook payloads with Korean context and contact email", () =
     contactEmail: "fan@example.com",
     remindAt: "2026-05-10T00:00:00.000Z",
   });
+});
+
+test("summarizes alert dispatch failures for workflow visibility", () => {
+  expect(summarizeDispatchFailures([])).toBeNull();
+  expect(summarizeDispatchFailures(["alert-1: ALERT_WEBHOOK_URL is not configured"])).toBe(
+    "Failed to dispatch 1 alert(s): alert-1: ALERT_WEBHOOK_URL is not configured",
+  );
+  expect(summarizeDispatchFailures(["a: failed", "b: failed", "c: failed", "d: failed"])).toBe(
+    "Failed to dispatch 4 alert(s): a: failed; b: failed; c: failed; +1 more",
+  );
 });
 
 test("normalizes admin alert queue filters and retry updates", () => {
