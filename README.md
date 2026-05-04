@@ -115,12 +115,14 @@ SUPABASE_ANON_KEY
 APP_BASE_URL
 VITE_USE_SEED_DATA
 TICKETMASTER_PAGE_LIMIT
+ALERT_WEBHOOK_ATTEMPTS
 ```
 
 - `SUPABASE_URL` and `SUPABASE_ANON_KEY` are server-side fallbacks for the Vite-prefixed Supabase values.
 - `APP_BASE_URL` overrides the production URL used by health checks and alert dispatch scripts.
 - `VITE_USE_SEED_DATA=true` forces the frontend to use local seed data during development.
 - `TICKETMASTER_PAGE_LIMIT` caps Ticketmaster sync pagination per search profile. It defaults to `2` pages, is clamped from `1` to `5`, and can be set as a GitHub repository variable for the scheduled sync workflow.
+- `ALERT_WEBHOOK_ATTEMPTS` controls retry attempts for transient alert webhook failures. It defaults to `3`, is clamped from `1` to `5`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 
 ## Release Operations
 
