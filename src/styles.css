@@ -169,7 +169,7 @@ h1 {
 
 .filters {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(480px, 1fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(620px, 1fr);
   gap: 12px;
   margin-bottom: 10px;
 }
@@ -210,7 +210,7 @@ h1 {
 
 .filter-grid {
   display: grid;
-  grid-template-columns: 0.9fr 1.15fr 1fr;
+  grid-template-columns: 0.9fr 1.15fr 1fr 1fr;
   gap: 12px;
 }
 
@@ -486,6 +486,7 @@ h1 {
 }
 
 .status-pill,
+.sale-status-pill,
 .mini-pill {
   display: inline-flex;
   align-items: center;
@@ -507,6 +508,26 @@ h1 {
 }
 
 .status-pill.watch {
+  color: #795211;
+  background: #ffefc7;
+}
+
+.sale-status-pill.safe {
+  color: #0f5c3e;
+  background: #dff5e8;
+}
+
+.sale-status-pill.upcoming {
+  color: #245a75;
+  background: #dff0f5;
+}
+
+.sale-status-pill.blocked {
+  color: #8b2828;
+  background: #ffe3df;
+}
+
+.sale-status-pill.watch {
   color: #795211;
   background: #ffefc7;
 }
