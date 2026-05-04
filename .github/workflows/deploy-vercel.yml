@@ -41,6 +41,8 @@ jobs:
           npx vercel deploy --prebuilt
           --env VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
           --env VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          --env ADMIN_API_TOKEN=${{ secrets.ADMIN_API_TOKEN }}
+          --env SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -52,6 +54,8 @@ jobs:
           npx vercel deploy --prebuilt --prod
           --env VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
           --env VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          --env ADMIN_API_TOKEN=${{ secrets.ADMIN_API_TOKEN }}
+          --env SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}

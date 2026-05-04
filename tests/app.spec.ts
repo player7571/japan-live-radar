@@ -66,6 +66,38 @@ test("persists local alert selections", async ({ page }) => {
   await expect(page.getByRole("button", { name: "알림 설정됨" })).toBeVisible();
 });
 
+test("submits an admin event draft", async ({ page }) => {
+  let requestBody: Record<string, unknown> | null = null;
+  await page.route("/api/admin-events", async (route) => {
+    requestBody = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, event: { id: "manual-test" } }),
+    });
+  });
+
+  await page.goto("/#admin");
+
+  await expect(page.getByRole("heading", { name: "공연 정보 입력" })).toBeVisible();
+  await page.getByLabel("관리자 토큰").fill("test-token");
+  await page.getByLabel("아티스트").fill("Mrs. GREEN APPLE");
+  await page.getByLabel("공연명").fill("Arena Live");
+  await page.getByLabel("도시").fill("사이타마");
+  await page.getByLabel("회장").fill("Saitama Super Arena");
+  await page.getByLabel("공연일").fill("2026-10-04");
+  await page.getByLabel("공연 시간").fill("18:00");
+  await page.getByLabel("원본 링크").fill("https://example.com/ticket");
+  await page.getByRole("button", { name: "공연 저장" }).click();
+
+  await expect(page.getByText("공연 정보가 저장됐어요.")).toBeVisible();
+  expect(requestBody).toMatchObject({
+    artist: "Mrs. GREEN APPLE",
+    city: "사이타마",
+    venue: "Saitama Super Arena",
+    date: "2026-10-04",
+  });
+});
+
 test("shows an empty state when no concerts match", async ({ page }) => {
   await page.goto("/");
 

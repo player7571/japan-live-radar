@@ -6,11 +6,14 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  Database,
   ExternalLink,
   Filter,
   Heart,
+  Lock,
   MapPin,
   Plane,
+  Plus,
   Search,
   ShieldCheck,
   SlidersHorizontal,
@@ -23,6 +26,25 @@ import type { Event, EventApiResponse, TicketAccess } from "./types/events";
 import "./styles.css";
 
 type DateWindow = "전체" | "60일 이내" | "90일 이내" | "여름 원정";
+type Route = "app" | "admin";
+type AdminEventDraft = {
+  artist: string;
+  title: string;
+  city: string;
+  venue: string;
+  date: string;
+  time: string;
+  genre: string;
+  source: string;
+  ticketAccess: TicketAccess;
+  saleType: "추첨 접수" | "일반 판매" | "선착 판매" | "해외 판매";
+  saleWindow: string;
+  price: string;
+  phoneRequired: boolean;
+  foreignerNote: string;
+  link: string;
+  image: string;
+};
 
 const accessOptions: Array<TicketAccess | "전체"> = [
   "전체",
@@ -34,6 +56,29 @@ const dateWindowOptions: DateWindow[] = ["전체", "60일 이내", "90일 이내
 const today = new Date("2026-05-04T00:00:00+09:00");
 const useSeedData = import.meta.env.VITE_USE_SEED_DATA === "true";
 const savedEventsStorageKey = "japan-live-radar.saved-events";
+const adminTokenStorageKey = "japan-live-radar.admin-token";
+const blankAdminEvent: AdminEventDraft = {
+  artist: "",
+  title: "",
+  city: "도쿄",
+  venue: "",
+  date: "",
+  time: "",
+  genre: "Music",
+  source: "Manual",
+  ticketAccess: "확인 필요",
+  saleType: "일반 판매",
+  saleWindow: "",
+  price: "",
+  phoneRequired: true,
+  foreignerNote: "",
+  link: "",
+  image: "",
+};
+
+function currentRoute(): Route {
+  return window.location.hash === "#admin" ? "admin" : "app";
+}
 
 function loadSavedEventIds() {
   try {
@@ -65,6 +110,7 @@ function isInDateWindow(date: string, dateWindow: DateWindow) {
 }
 
 function App() {
+  const [route, setRoute] = useState<Route>(currentRoute);
   const [events, setEvents] = useState<Event[]>(seedEvents);
   const [dataSource, setDataSource] = useState<EventApiResponse["source"]>("seed");
   const [lastSyncLabel, setLastSyncLabel] = useState("샘플 데이터");
@@ -80,6 +126,12 @@ function App() {
     () => ["전체", ...Array.from(new Set(events.map((event) => event.city))).sort((a, b) => a.localeCompare(b, "ko"))],
     [events],
   );
+
+  useEffect(() => {
+    const handleHashChange = () => setRoute(currentRoute());
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
 
   useEffect(() => {
     if (useSeedData) return;
@@ -148,6 +200,10 @@ function App() {
       current.includes(id) ? current.filter((savedId) => savedId !== id) : [...current, id],
     );
   };
+
+  if (route === "admin") {
+    return <AdminPage />;
+  }
 
   return (
     <main className="app-shell">
@@ -315,6 +371,171 @@ function App() {
             </aside>
           )}
         </section>
+      </section>
+    </main>
+  );
+}
+
+function AdminPage() {
+  const [token, setToken] = useState(() => window.localStorage.getItem(adminTokenStorageKey) ?? "");
+  const [draft, setDraft] = useState<AdminEventDraft>(blankAdminEvent);
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  const updateDraft = <Key extends keyof AdminEventDraft>(key: Key, value: AdminEventDraft[Key]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const submitEvent = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setStatus("saving");
+    setMessage("");
+    window.localStorage.setItem(adminTokenStorageKey, token);
+
+    try {
+      const response = await fetch("/api/admin-events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": token,
+        },
+        body: JSON.stringify(draft),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "저장 실패");
+      }
+      setStatus("saved");
+      setMessage("공연 정보가 저장됐어요.");
+      setDraft(blankAdminEvent);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "저장 실패");
+    }
+  };
+
+  return (
+    <main className="app-shell admin-shell">
+      <section className="workspace">
+        <header className="topbar">
+          <div>
+            <div className="brand-row">
+              <Database size={20} />
+              <span>Japan Live Radar Admin</span>
+            </div>
+            <h1>공연 정보 입력</h1>
+          </div>
+          <a className="icon-button" aria-label="앱으로 돌아가기" href="#">
+            <ChevronRight size={20} />
+          </a>
+        </header>
+
+        <form className="admin-panel" onSubmit={submitEvent}>
+          <label className="admin-field full">
+            <span><Lock size={15} /> 관리자 토큰</span>
+            <input
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+              type="password"
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          <label className="admin-field">
+            <span>아티스트</span>
+            <input value={draft.artist} onChange={(event) => updateDraft("artist", event.target.value)} required />
+          </label>
+          <label className="admin-field">
+            <span>공연명</span>
+            <input value={draft.title} onChange={(event) => updateDraft("title", event.target.value)} required />
+          </label>
+          <label className="admin-field">
+            <span>도시</span>
+            <input value={draft.city} onChange={(event) => updateDraft("city", event.target.value)} required />
+          </label>
+          <label className="admin-field">
+            <span>회장</span>
+            <input value={draft.venue} onChange={(event) => updateDraft("venue", event.target.value)} required />
+          </label>
+          <label className="admin-field">
+            <span>공연일</span>
+            <input value={draft.date} onChange={(event) => updateDraft("date", event.target.value)} type="date" required />
+          </label>
+          <label className="admin-field">
+            <span>공연 시간</span>
+            <input value={draft.time} onChange={(event) => updateDraft("time", event.target.value)} type="time" />
+          </label>
+          <label className="admin-field">
+            <span>장르</span>
+            <input value={draft.genre} onChange={(event) => updateDraft("genre", event.target.value)} />
+          </label>
+          <label className="admin-field">
+            <span>출처</span>
+            <input value={draft.source} onChange={(event) => updateDraft("source", event.target.value)} />
+          </label>
+          <label className="admin-field">
+            <span>티켓 접근</span>
+            <select
+              value={draft.ticketAccess}
+              onChange={(event) => updateDraft("ticketAccess", event.target.value as AdminEventDraft["ticketAccess"])}
+            >
+              {accessOptions.filter((option) => option !== "전체").map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-field">
+            <span>판매 방식</span>
+            <select
+              value={draft.saleType}
+              onChange={(event) => updateDraft("saleType", event.target.value as AdminEventDraft["saleType"])}
+            >
+              <option>추첨 접수</option>
+              <option>일반 판매</option>
+              <option>선착 판매</option>
+              <option>해외 판매</option>
+            </select>
+          </label>
+          <label className="admin-field">
+            <span>판매 기간</span>
+            <input value={draft.saleWindow} onChange={(event) => updateDraft("saleWindow", event.target.value)} />
+          </label>
+          <label className="admin-field">
+            <span>가격</span>
+            <input value={draft.price} onChange={(event) => updateDraft("price", event.target.value)} />
+          </label>
+          <label className="admin-field full">
+            <span>원본 링크</span>
+            <input value={draft.link} onChange={(event) => updateDraft("link", event.target.value)} type="url" />
+          </label>
+          <label className="admin-field full">
+            <span>이미지 URL</span>
+            <input value={draft.image} onChange={(event) => updateDraft("image", event.target.value)} type="url" />
+          </label>
+          <label className="admin-check full">
+            <input
+              checked={draft.phoneRequired}
+              onChange={(event) => updateDraft("phoneRequired", event.target.checked)}
+              type="checkbox"
+            />
+            <span>일본 전화번호 확인 필요</span>
+          </label>
+          <label className="admin-field full">
+            <span>외국인/한국 예매 메모</span>
+            <textarea
+              value={draft.foreignerNote}
+              onChange={(event) => updateDraft("foreignerNote", event.target.value)}
+              rows={4}
+            />
+          </label>
+          <div className="admin-actions full">
+            <button className="primary-link" disabled={status === "saving"} type="submit">
+              <Plus size={17} />
+              {status === "saving" ? "저장 중" : "공연 저장"}
+            </button>
+            {message && <span className={status === "error" ? "admin-error" : "admin-success"}>{message}</span>}
+          </div>
+        </form>
       </section>
     </main>
   );
