@@ -19,6 +19,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          with_retry() {
+            local attempt
+            for attempt in 1 2 3 4 5; do
+              if "$@"; then
+                return 0
+              fi
+              echo "GitHub CLI command failed on attempt $attempt; retrying shortly."
+              sleep $((attempt * 5))
+            done
+            "$@"
+          }
+
           pr_number="$(gh pr list \
             --repo "$GITHUB_REPOSITORY" \
             --base main \
@@ -41,7 +53,7 @@ jobs:
 
             echo "Merge state attempt $attempt: $merge_state"
             if [ "$merge_state" = "CLEAN" ] || [ "$merge_state" = "HAS_HOOKS" ]; then
-              gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
+              with_retry gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
               exit 0
             fi
 
