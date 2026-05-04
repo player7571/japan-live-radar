@@ -237,7 +237,8 @@ function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ti
   const noPhoneSignal =
     /(日本|国内|携帯|電話番号|SMS|SMS認証|認証).{0,18}(不要|なし|無し|必要ありません|必要なし|不要です)/i.test(text) ||
     /(不要|なし|無し|必要ありません|必要なし|不要です).{0,18}(日本|国内|携帯|電話番号|SMS|SMS認証|認証)/i.test(text);
-  const phoneSignal = /(電話番号|携帯電話|SMS|SMS認証|本人確認|電子チケット|スマチケ|MOALA|ローチケ電子チケット|認証)/i.test(text);
+  const phoneSignal =
+    /(電話番号|携帯電話|SMS|SMS認証|本人確認|電子チケット|スマチケ|MOALA|AnyPASS|チケプラ|Plus member ID|ローチケ電子チケット|認証)/i.test(text);
 
   if ((overseasSignal && !phoneSignal) || (overseasSignal && noPhoneSignal)) {
     return {
