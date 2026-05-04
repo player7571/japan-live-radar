@@ -143,12 +143,14 @@ export function formatSaleWindow(event: TicketmasterEvent) {
 function formatPrice(event: TicketmasterEvent) {
   const price = event.priceRanges?.[0];
   if (!price) return null;
-  const currency = price.currency ?? "JPY";
+  const currency = price.currency === "JPY" || !price.currency ? "¥" : price.currency;
   if (typeof price.min === "number" && typeof price.max === "number" && price.min !== price.max) {
-    return `${currency} ${price.min.toLocaleString()} - ${price.max.toLocaleString()}`;
+    return currency === "¥"
+      ? `${currency}${price.min.toLocaleString("ja-JP")} - ${currency}${price.max.toLocaleString("ja-JP")}`
+      : `${currency} ${price.min.toLocaleString()} - ${price.max.toLocaleString()}`;
   }
   if (typeof price.min === "number") {
-    return `${currency} ${price.min.toLocaleString()}`;
+    return currency === "¥" ? `${currency}${price.min.toLocaleString("ja-JP")}` : `${currency} ${price.min.toLocaleString()}`;
   }
   return null;
 }
@@ -288,7 +290,7 @@ async function deleteStaleTicketmasterRows(
   return count ?? 0;
 }
 
-function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
+export function toTicketmasterEventRow(event: TicketmasterEvent): EventUpsertRow | null {
   const date = event.dates?.start?.localDate ?? event.dates?.start?.dateTime?.slice(0, 10);
   if (!date) return null;
 
@@ -313,12 +315,12 @@ function toEventRow(event: TicketmasterEvent): EventUpsertRow | null {
       event.dates?.start?.dateTime?.slice(11, 16) ??
       null,
     genre,
-    ticket_access: "확인 필요",
+    ticket_access: "한국 구매 가능",
     sale_type: "일반 판매",
     sale_window: formatSaleWindow(event),
     price: formatPrice(event),
     phone_required: false,
-    foreigner_note: "Ticketmaster 원본 페이지에서 해외 결제, 수령 방식, 신분 확인 조건을 확인하세요.",
+    foreigner_note: "Ticketmaster는 해외 계정/카드 접근 가능성이 높지만 수령 방식과 신분 확인 조건은 원본에서 확인하세요.",
     link: event.url ?? null,
     image: bestImage(event.images),
     country_code: "JP",
@@ -370,7 +372,7 @@ async function main() {
     }
   }
 
-  const mappedRows = [...collected.values()].map(toEventRow);
+  const mappedRows = [...collected.values()].map(toTicketmasterEventRow);
   const rows = mappedRows.filter((row): row is EventUpsertRow => row !== null && isLikelyConcert(row.raw));
   const skippedCount = mappedRows.length - rows.length;
 
