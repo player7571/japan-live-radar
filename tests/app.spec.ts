@@ -1215,6 +1215,8 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
 
   await expect(page.getByLabel("데이터 품질").getByText("공연")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("5개")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("판매 일정 누락")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("가격 누락")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("알림 대기")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("알림 오류")).toBeVisible();
 

@@ -1240,6 +1240,8 @@ function AdminPage() {
                   value={adminStats.pendingCandidates === null ? "테이블 준비 전" : `${adminStats.pendingCandidates}개`}
                 />
                 <AdminStat label="링크 누락" value={`${adminStats.quality.missingLink}개`} />
+                <AdminStat label="판매 일정 누락" value={`${adminStats.quality.missingSaleWindow}개`} />
+                <AdminStat label="가격 누락" value={`${adminStats.quality.missingPrice}개`} />
                 <AdminStat label="예매 확인 필요" value={`${adminStats.quality.needsAccessReview}개`} />
                 <AdminStat label="일본 번호 필요" value={`${adminStats.quality.phoneRequired}개`} />
                 <AdminStat label="한국 구매 가능" value={`${adminStats.quality.koreaFriendly}개`} />
