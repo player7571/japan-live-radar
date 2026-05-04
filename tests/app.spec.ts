@@ -176,6 +176,21 @@ test("calculates alert reminders from sale windows and event dates", () => {
   ).toBe(new Date("2026-05-25T09:00:00+09:00").toISOString());
 });
 
+test("calculates alert reminders from ISO sale start timestamps", () => {
+  const now = new Date("2026-05-04T00:00:00+09:00");
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "king-gnu-2026",
+        date: "2026-09-05",
+        saleWindow: "2026-06-10T12:00:00+09:00",
+      },
+      now,
+    ),
+  ).toBe(new Date("2026-06-10T09:00:00+09:00").toISOString());
+});
+
 test("searches concerts and opens the detail panel", async ({ page }) => {
   await page.goto("/");
 
