@@ -1,3 +1,5 @@
+import { pathToFileURL } from "node:url";
+
 type EventSnapshot = {
   artist?: string;
   title?: string;
@@ -38,7 +40,7 @@ function eventLabel(event: EventSnapshot) {
   return [event.artist, event.title].filter(Boolean).join(" - ") || "일본 콘서트";
 }
 
-function buildMessage(alert: DueAlert) {
+export function buildAlertMessage(alert: DueAlert) {
   const event = alert.event_snapshot ?? {};
   const lines = [
     `알림 시간: ${alert.remind_at}`,
@@ -51,6 +53,17 @@ function buildMessage(alert: DueAlert) {
   ].filter(Boolean);
 
   return lines.join("\n");
+}
+
+export function buildAlertWebhookPayload(alert: DueAlert) {
+  return {
+    text: buildAlertMessage(alert),
+    alertId: alert.id,
+    eventKey: alert.event_key,
+    contactEmail: alert.contact_email ?? null,
+    event: alert.event_snapshot,
+    remindAt: alert.remind_at,
+  };
 }
 
 async function requestJson<T>(url: string, init: RequestInit) {
@@ -85,14 +98,7 @@ async function sendWebhook(alert: DueAlert) {
   const response = await fetch(alertWebhookUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      text: buildMessage(alert),
-      alertId: alert.id,
-      eventKey: alert.event_key,
-      contactEmail: alert.contact_email ?? null,
-      event: alert.event_snapshot,
-      remindAt: alert.remind_at,
-    }),
+    body: JSON.stringify(buildAlertWebhookPayload(alert)),
   });
 
   if (!response.ok) {
@@ -132,9 +138,13 @@ async function main() {
   }
 }
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+function isDirectRun() {
+  return Boolean(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href);
+}
 
-export {};
+if (isDirectRun()) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}
