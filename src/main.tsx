@@ -121,7 +121,7 @@ type AdminStats = {
   byCity: Array<{ label: string; count: number }>;
   generatedAt: string;
 };
-type AlertQueueStatus = "error" | "active" | "sent";
+type AlertQueueStatus = "error" | "active" | "upcoming" | "sent";
 type AlertEmailFeedback = {
   status: "idle" | "saving" | "saved" | "error";
   message: string;
@@ -988,8 +988,14 @@ function AdminPage() {
     setAlertQueueState("loading");
     setAlertQueueMessage("");
     try {
-      const params = new URLSearchParams({ status: queueStatus });
-      if (queueStatus !== "active") params.set("due", "all");
+      const params = new URLSearchParams({
+        status: queueStatus === "upcoming" ? "active" : queueStatus,
+      });
+      if (queueStatus === "upcoming") {
+        params.set("due", "upcoming");
+      } else if (queueStatus !== "active") {
+        params.set("due", "all");
+      }
       const response = await fetch(`/api/admin-alerts?${params.toString()}`, {
         headers: {
           "x-admin-token": activeToken,
@@ -1386,6 +1392,7 @@ function AdminPage() {
               >
                 <option value="error">오류</option>
                 <option value="active">대기</option>
+                <option value="upcoming">예정</option>
                 <option value="sent">발송 완료</option>
               </select>
               <button className="secondary-button" type="button" onClick={() => fetchAlertQueue()}>
