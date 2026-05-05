@@ -5,9 +5,9 @@ export type SaleStatus = "전체" | "오픈 예정" | "판매 중" | "판매 종
 const defaultToday = new Date("2026-05-04T00:00:00+09:00");
 
 const endedStatusCue =
-  /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|sold\s*out|closed|ended)/i;
-const activeStatusCue = /(販売中(?!止)|受付中|発売中|申込受付中|チケット発売中|on\s*sale|available\s*now|now\s*on\s*sale)/i;
-const upcomingStatusCue = /(販売予定|受付予定|発売予定|近日発売|準備中|coming\s*soon)/i;
+  /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|판매\s*종료|sold\s*out|closed|ended)/i;
+const activeStatusCue = /(販売中(?!止)|受付中|発売中|申込受付中|チケット発売中|판매\s*중|on\s*sale|available\s*now|now\s*on\s*sale)/i;
+const upcomingStatusCue = /(販売予定|受付予定|発売予定|近日発売|準備中|오픈\s*예정|coming\s*soon)/i;
 
 function parseSaleWindowDateParts(year: number, month: string, day: string, hour?: string, minute?: string) {
   return new Date(

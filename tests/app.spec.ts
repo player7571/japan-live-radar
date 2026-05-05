@@ -535,6 +535,9 @@ test("classifies sale status from text-only availability cues", () => {
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "販売中" })).toBe("판매 중");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "受付終了" })).toBe("판매 종료");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "発売予定" })).toBe("오픈 예정");
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: "판매 중" })).toBe("판매 중");
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: "판매 종료" })).toBe("판매 종료");
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: "오픈 예정" })).toBe("오픈 예정");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "" })).toBe("확인 필요");
 });
 
@@ -755,6 +758,11 @@ test("formats Ticketmaster sale windows for alert parsing", () => {
   });
 
   expect(saleWindow).toBe("2026.06.02 11:00 - 2026.08.07 18:00");
+  expect(formatSaleWindow({ id: "tm-onsale", dates: { status: { code: "onsale" } } })).toBe("판매 중");
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: "판매 중" })).toBe("판매 중");
+  expect(formatSaleWindow({ id: "tm-offsale", dates: { status: { code: "offsale" } } })).toBe("판매 종료");
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: "판매 종료" })).toBe("판매 종료");
+  expect(formatSaleWindow({ id: "tm-cancelled", dates: { status: { code: "cancelled" } } })).toBe("공연 취소");
   expect(
     calculateReminderAt(
       {

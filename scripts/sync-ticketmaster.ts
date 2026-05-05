@@ -15,6 +15,9 @@ type TicketmasterEvent = {
   url?: string;
   images?: Array<{ url: string; width?: number; height?: number }>;
   dates?: {
+    status?: {
+      code?: string;
+    };
     start?: {
       localDate?: string;
       localTime?: string;
@@ -212,10 +215,22 @@ function formatTicketmasterTime(value?: string) {
 export function formatSaleWindow(event: TicketmasterEvent) {
   const start = event.sales?.public?.startDateTime;
   const end = event.sales?.public?.endDateTime;
-  if (!start && !end) return null;
+  if (!start && !end) return formatTicketmasterStatus(event);
   const startText = start ? formatTicketmasterDateTime(start) ?? "시작일 확인 필요" : "시작일 확인 필요";
   const endText = end ? formatTicketmasterDateTime(end) ?? "종료일 확인 필요" : "종료일 확인 필요";
   return `${startText} - ${endText}`;
+}
+
+function formatTicketmasterStatus(event: TicketmasterEvent) {
+  const code = event.dates?.status?.code?.trim().toLowerCase();
+  if (!code) return null;
+
+  if (code === "onsale") return "판매 중";
+  if (code === "offsale") return "판매 종료";
+  if (code === "cancelled" || code === "canceled") return "공연 취소";
+  if (code === "postponed" || code === "rescheduled") return "일정 변경 확인";
+  if (code === "tba" || code === "tbd") return "일정 확인 필요";
+  return `Ticketmaster 상태: ${code}`;
 }
 
 function formatPrice(event: TicketmasterEvent) {
