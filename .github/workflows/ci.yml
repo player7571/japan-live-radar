@@ -14,7 +14,7 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
@@ -36,8 +36,8 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright Chromium
-        timeout-minutes: 20
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 8
+        run: npx playwright install chromium
 
       - name: Typecheck
         run: npm run typecheck
