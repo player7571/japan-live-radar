@@ -74,7 +74,7 @@ GitHub Actions is the long-running automation layer so Codex heartbeat runs do n
 - `Retry Production Deploy`: when production deploy or health automation issues are open, retries the main production deploy every six hours and closes the blockers after health passes.
 - `Supabase Migrate`: applies migrations automatically when migration files land on `main`, and can also be run manually.
 - `Sync Ticketmaster Events`: refreshes seed and Ticketmaster data on a daily schedule.
-- `Dispatch Due Alerts`: checks the protected alert queue every 15 minutes and dispatches via `ALERT_WEBHOOK_URL` when configured.
+- `Dispatch Due Alerts`: checks the protected alert queue every 15 minutes and dispatches via `ALERT_WEBHOOK_URL` when configured. The workflow uses a single concurrency group so scheduled and manual runs do not overlap and double-send the same due alert.
 - `Production Health Check`: checks `/api/health`, the protected alert queue, and admin alert/sync stats every 30 minutes.
 
 Scheduled workflows create one open `automation` issue when they fail, so Codex can pick up the issue/logs and continue without waiting for a local heartbeat to have elevated permissions.
