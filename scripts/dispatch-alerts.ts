@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { createHmac } from "node:crypto";
 
 type EventSnapshot = {
   id?: string;
@@ -37,6 +38,7 @@ type DueAlertResponse = {
 const appBaseUrl = (process.env.APP_BASE_URL ?? "https://japan-live-radar.vercel.app").replace(/\/$/, "");
 const adminApiToken = process.env.ADMIN_API_TOKEN;
 const alertWebhookUrl = process.env.ALERT_WEBHOOK_URL;
+const alertWebhookSecret = process.env.ALERT_WEBHOOK_SECRET;
 const defaultWebhookAttempts = normalizeWebhookAttempts(process.env.ALERT_WEBHOOK_ATTEMPTS);
 const defaultWebhookTimeoutMs = normalizeWebhookTimeoutMs(process.env.ALERT_WEBHOOK_TIMEOUT_MS);
 
@@ -48,6 +50,8 @@ type WebhookSendOptions = {
   attempts?: number;
   retryDelayMs?: number;
   timeoutMs?: number;
+  signatureSecret?: string;
+  signatureTimestamp?: string;
 };
 
 function requireEnv(name: string, value: string | undefined): string {
@@ -131,6 +135,18 @@ export function buildAlertWebhookPayload(alert: DueAlert) {
   };
 }
 
+export function buildAlertWebhookSignature(body: string, secret: string, timestamp: string) {
+  return `sha256=${createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex")}`;
+}
+
+function signedWebhookHeaders(body: string, secret: string | undefined, timestamp: string): Record<string, string> {
+  if (!secret) return {};
+  return {
+    "x-japan-live-radar-signature": buildAlertWebhookSignature(body, secret, timestamp),
+    "x-japan-live-radar-signature-timestamp": timestamp,
+  };
+}
+
 export function summarizeDispatchFailures(failures: string[]) {
   if (failures.length === 0) return null;
   const sample = failures.slice(0, 3).join("; ");
@@ -172,14 +188,17 @@ export async function sendWebhook(alert: DueAlert, options: WebhookSendOptions =
   const attempts = options.attempts ?? defaultWebhookAttempts;
   const retryDelayMs = options.retryDelayMs ?? 1_000;
   const timeoutMs = options.timeoutMs ?? defaultWebhookTimeoutMs;
+  const signatureSecret = options.signatureSecret ?? alertWebhookSecret;
   let lastStatus = 0;
   let lastError: string | null = null;
   let completedAttempts = 0;
+  const deliveryKey = buildAlertDeliveryKey(alert);
+  const body = JSON.stringify(buildAlertWebhookPayload(alert));
+  const signatureTimestamp = options.signatureTimestamp ?? new Date().toISOString();
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     completedAttempts = attempt;
     let response: Response;
-    const deliveryKey = buildAlertDeliveryKey(alert);
     try {
       response = await fetchImpl(webhookUrl, {
         method: "POST",
@@ -188,8 +207,9 @@ export async function sendWebhook(alert: DueAlert, options: WebhookSendOptions =
           "x-japan-live-radar-alert-id": alert.id,
           "x-japan-live-radar-delivery-key": deliveryKey,
           "x-japan-live-radar-event-key": alert.event_key,
+          ...signedWebhookHeaders(body, signatureSecret, signatureTimestamp),
         },
-        body: JSON.stringify(buildAlertWebhookPayload(alert)),
+        body,
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {

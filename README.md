@@ -61,6 +61,7 @@ Users can save interest alerts from the public detail panel. The browser stores 
 - `Dispatch Due Alerts` runs every 15 minutes and reads due rows from `/api/admin-alerts`.
 - `ALERT_WEBHOOK_URL` receives a JSON payload with `text`, `deliveryKey`, `alertId`, `eventKey`, `channel`, `contactEmail`, `appUrl`, `event`, `source`, `ticketAccess`, `saleType`, `phoneRequired`, `remindAt`, and `remindBeforeHours`. `deliveryKey` is stable across retries for the same alert reminder.
 - Webhook requests include `x-japan-live-radar-alert-id`, `x-japan-live-radar-event-key`, and `x-japan-live-radar-delivery-key` headers so delivery workers can dedupe retries before parsing the body.
+- When `ALERT_WEBHOOK_SECRET` is configured, webhook requests also include `x-japan-live-radar-signature` and `x-japan-live-radar-signature-timestamp`. The signature is `sha256=` plus an HMAC-SHA256 hex digest of `${timestamp}.${rawBody}` using the shared secret.
 - Webhook delivery retries transient HTTP statuses (`408`, `429`, and `5xx`) and network exceptions according to `ALERT_WEBHOOK_ATTEMPTS`.
 - Successful deliveries are marked `sent`; delivery failures are marked `error` with `last_error` so they do not silently disappear.
 - Operators can inspect non-due queues with `/api/admin-alerts?status=error` or `/api/admin-alerts?status=sent&due=all`. Retrying an errored alert is a `PATCH /api/admin-alerts` with `status: "active"` and an optional `remindAt`.
@@ -123,6 +124,7 @@ TICKETMASTER_PAGE_LIMIT
 TICKETMASTER_FETCH_TIMEOUT_MS
 ALERT_WEBHOOK_ATTEMPTS
 ALERT_WEBHOOK_TIMEOUT_MS
+ALERT_WEBHOOK_SECRET
 SYNC_STALE_AFTER_HOURS
 ```
 
@@ -133,6 +135,7 @@ SYNC_STALE_AFTER_HOURS
 - `TICKETMASTER_FETCH_TIMEOUT_MS` controls each Ticketmaster API request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable for the scheduled sync workflow.
 - `ALERT_WEBHOOK_ATTEMPTS` controls retry attempts for transient alert webhook HTTP failures and network exceptions. It defaults to `3`, is clamped from `1` to `5`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `ALERT_WEBHOOK_TIMEOUT_MS` controls each alert webhook request timeout. It defaults to `10000`, is clamped from `1000` to `30000`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
+- `ALERT_WEBHOOK_SECRET` optionally signs alert webhook payloads so downstream delivery workers can reject spoofed requests before processing.
 - `SYNC_STALE_AFTER_HOURS` controls when the admin stats API marks the latest sync run as delayed. It defaults to `30` hours to cover the daily Ticketmaster schedule with slack.
 
 ## Release Operations
