@@ -27,7 +27,7 @@ type ImportedDraft = {
   genre: string;
   source: string;
   ticketAccess: "한국 구매 가능" | "일본 번호 필요" | "확인 필요";
-  saleType: "추첨 접수" | "일반 판매" | "선착 판매" | "해외 판매";
+  saleType: "추첨 접수" | "일반 판매" | "선착 판매" | "해외 판매" | "리세일";
   saleWindow: string;
   price: string;
   phoneRequired: boolean;
@@ -225,6 +225,7 @@ function normalizePriceText(value: string) {
 }
 
 function saleTypeFromText(text: string): ImportedDraft["saleType"] {
+  if (/(リセール|再販売|公式トレード|チケットトレード|ticket\s*resale|resale)/i.test(text)) return "리세일";
   if (/(海外|international|overseas).{0,16}(受付|販売|ticket)/i.test(text)) return "해외 판매";
   if (/(抽選|プレリザーブ|先行受付|先行抽選|lottery|抽せん)/i.test(text)) return "추첨 접수";
   if (/(先着|先着順|first[- ]come|先行先着)/i.test(text)) return "선착 판매";
