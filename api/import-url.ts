@@ -699,6 +699,34 @@ function ticketLinkFromPage($: cheerio.CheerioAPI, sourceUrl: URL) {
   return candidates[0]?.url ?? sourceUrl;
 }
 
+function ticketLinkFromStructuredData(eventJson: Record<string, unknown> | undefined, offers: Array<Record<string, unknown>>, sourceUrl: URL) {
+  const candidates = [
+    firstJsonString(eventJson?.url),
+    ...offers.flatMap((offer) => [
+      firstJsonString(offer.url),
+      firstJsonString(offer["@id"]),
+    ]),
+  ]
+    .filter(Boolean)
+    .map((value) => {
+      try {
+        const url = new URL(value, sourceUrl);
+        if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+        return {
+          url,
+          score: ticketLinkScore(url, value),
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter((candidate): candidate is { url: URL; score: number } => Boolean(candidate))
+    .filter((candidate) => candidate.score > 0)
+    .sort((left, right) => right.score - left.score);
+
+  return candidates[0]?.url ?? null;
+}
+
 function cityFromText(text: string) {
   const citySignals: Array<[string, string]> = [
     ["東京", "도쿄"],
@@ -844,7 +872,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   );
   const textForCity = [venue, address.addressLocality, address.addressRegion, firstString(location.address), pageText].join(" ");
   const access = accessFromText(`${description} ${pageText}`);
-  const ticketLink = ticketLinkFromPage($, sourceUrl);
+  const ticketLink = ticketLinkFromStructuredData(eventJson, offerList, sourceUrl) ?? ticketLinkFromPage($, sourceUrl);
   const eventDate = normalizeDate(dateSource);
   const saleWindow = firstString(
     saleWindowFromOffers(offerList),
