@@ -71,7 +71,39 @@ function parseBody(body: unknown): ImportPayload {
   return {};
 }
 
-function safeUrl(value: unknown) {
+function normalizedHostname(value: string) {
+  return value.toLowerCase().replace(/^\[(.*)]$/, "$1").replace(/\.$/, "");
+}
+
+function isPrivateIpv4(hostname: string) {
+  const parts = hostname.split(".");
+  if (parts.length !== 4) return false;
+  const octets = parts.map((part) => Number(part));
+  if (octets.some((octet, index) => !Number.isInteger(octet) || octet < 0 || octet > 255 || String(octet) !== parts[index])) {
+    return false;
+  }
+  const [first, second] = octets;
+  return first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168);
+}
+
+function isPrivateHostname(hostname: string) {
+  const normalized = normalizedHostname(hostname);
+  return normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized.endsWith(".local") ||
+    normalized === "::1" ||
+    (normalized.includes(":") && (normalized.startsWith("fc") || normalized.startsWith("fd"))) ||
+    normalized.startsWith("fe80:") ||
+    isPrivateIpv4(normalized);
+}
+
+export function safeUrl(value: unknown) {
   if (typeof value !== "string") {
     throw new Error("url is required");
   }
@@ -80,13 +112,8 @@ function safeUrl(value: unknown) {
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     throw new Error("url must be http or https");
   }
-  if (
-    url.hostname === "localhost" ||
-    url.hostname === "127.0.0.1" ||
-    url.hostname === "0.0.0.0" ||
-    url.hostname.endsWith(".local")
-  ) {
-    throw new Error("local URLs are not allowed");
+  if (isPrivateHostname(url.hostname)) {
+    throw new Error("private or local URLs are not allowed");
   }
 
   return url;
