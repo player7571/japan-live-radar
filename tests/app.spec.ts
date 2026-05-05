@@ -10,6 +10,7 @@ import {
   validateProductionHealth,
 } from "../scripts/check-production-health";
 import {
+  buildAppEventUrl,
   buildAlertMessage,
   buildAlertWebhookPayload,
   normalizeWebhookAttempts,
@@ -1063,6 +1064,7 @@ test("builds alert webhook payloads with Korean context and contact email", () =
     contact_email: "fan@example.com",
     remind_at: "2026-05-10T00:00:00.000Z",
     event_snapshot: {
+      id: "seed-ado-yokohama-2026-07-21",
       artist: "Ado",
       title: "Blue Flame Tour",
       city: "요코하마",
@@ -1085,11 +1087,18 @@ test("builds alert webhook payloads with Korean context and contact email", () =
   expect(buildAlertMessage(alert)).toContain("구매 조건: 일본 번호 필요 / 일본 번호 확인 필요");
   expect(buildAlertMessage(alert)).toContain("티켓: 추첨 접수 / ¥9,800");
   expect(buildAlertMessage(alert)).toContain("확인 메모: SMS 인증 조건 확인");
+  expect(buildAlertMessage(alert)).toContain(
+    "앱에서 보기: https://japan-live-radar.vercel.app/?event=seed-ado-yokohama-2026-07-21",
+  );
+  expect(buildAppEventUrl(alert, "https://example.com")).toBe(
+    "https://example.com/?event=seed-ado-yokohama-2026-07-21",
+  );
   expect(buildAlertWebhookPayload(alert)).toMatchObject({
     text: expect.stringContaining("판매 일정: 2026年5月10日 12:00"),
     alertId: "alert-1",
     eventKey: "ado-2026",
     contactEmail: "fan@example.com",
+    appUrl: "https://japan-live-radar.vercel.app/?event=seed-ado-yokohama-2026-07-21",
     source: "Ticket Pia",
     ticketAccess: "일본 번호 필요",
     saleType: "추첨 접수",
@@ -1372,6 +1381,15 @@ test("searches concerts with Korean artist and venue aliases", async ({ page }) 
   await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("원오크락");
   await expect(page.getByText("1개 공연")).toBeVisible();
   await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toBeVisible();
+});
+
+test("opens shared event detail URLs and keeps the selected event in the URL", async ({ page }) => {
+  await page.goto(`/?event=${seedEvents[3].id}`);
+
+  await expect(page.getByRole("heading", { name: "NewJeans" })).toBeVisible();
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await expect(page.getByRole("heading", { name: "ONE OK ROCK" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`event=${seedEvents[1].id}`));
 });
 
 test("filters by city and ticket access without horizontal overflow", async ({ page }) => {
