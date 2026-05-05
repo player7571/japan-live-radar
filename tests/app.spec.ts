@@ -1519,6 +1519,22 @@ test("combines travel date and Korea-friendly filters", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "NewJeans" })).toBeVisible();
 });
 
+test("filters concerts by custom travel dates", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByLabel("시작일").fill("2026-07-01");
+  await page.getByLabel("종료일").fill("2026-07-31");
+
+  await expect(page.getByText("2개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Ado/ })).toBeVisible();
+
+  await page.getByLabel("종료일").fill("2026-07-10");
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Ado/ })).toHaveCount(0);
+});
+
 test("filters concerts by sale schedule status", async ({ page }) => {
   await page.goto("/");
 
