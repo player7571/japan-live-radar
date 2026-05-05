@@ -59,6 +59,8 @@ type EplusEventRow = {
   raw: EplusRecord;
 };
 
+const defaultEplusKeywords = ["J-POP", "K-POP", "ライブ", "コンサート", "フェス", "ROCK"];
+
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const eplusFetchTimeoutMs = normalizeEplusFetchTimeoutMs(process.env.EPLUS_FETCH_TIMEOUT_MS);
@@ -79,7 +81,7 @@ export function normalizeEplusFetchTimeoutMs(value: string | undefined) {
 
 export function normalizeEplusRowLimit(value: string | undefined) {
   const parsed = value ? Number(value) : Number.NaN;
-  if (!Number.isFinite(parsed)) return 40;
+  if (!Number.isFinite(parsed)) return 80;
   return Math.min(Math.max(Math.trunc(parsed), 1), 120);
 }
 
@@ -95,7 +97,7 @@ export function eplusSearchUrls() {
   if (explicitUrls.length > 0) return explicitUrls.slice(0, 8);
 
   const keywords = envList("EPLUS_SYNC_KEYWORDS");
-  const defaultKeywords = keywords.length > 0 ? keywords : ["J-POP", "K-POP"];
+  const defaultKeywords = keywords.length > 0 ? keywords : defaultEplusKeywords;
   return defaultKeywords.slice(0, 8).map((keyword) => {
     const url = new URL("https://eplus.jp/sf/search");
     url.searchParams.set("keyword", keyword);
@@ -253,12 +255,24 @@ export function isLikelyEplusConcert(record: EplusRecord) {
   return concertSignals.some((signal) => text.includes(signal));
 }
 
+function postgrestStringList(values: string[]) {
+  return `(${values.map((value) => `"${value.replaceAll('"', '\\"')}"`).join(",")})`;
+}
+
+function eplusDisplayTitle(value: string) {
+  return value
+    .replace(/^(?:【[^】]*(?:先行|早割|受付|抽選|一般|発売|販売)[^】]*】\s*)+/g, "")
+    .replace(/^(?:\[[^\]]*(?:先行|早割|受付|抽選|一般|発売|販売)[^\]]*\]\s*)+/gi, "")
+    .trim();
+}
+
 function eplusTitle(record: EplusRecord) {
   const names = [
     compactText(record.kanren_kogyo_sub?.kogyo_name_1),
     compactText(record.kanren_kogyo_sub?.kogyo_name_2),
   ].filter(Boolean);
-  return names.join(" ").trim() || "e+ 공연";
+  const title = names.join(" ").trim();
+  return eplusDisplayTitle(title) || title || "e+ 공연";
 }
 
 function eplusSaleType(record: EplusRecord) {
@@ -286,6 +300,33 @@ function eplusLink(record: EplusRecord) {
   const raw = record.koen_detail_url_pc;
   if (!raw) return null;
   return new URL(raw, "https://eplus.jp").toString();
+}
+
+export function eplusLogicalEventKey(row: Pick<EplusEventRow, "title" | "date" | "time" | "venue" | "city">) {
+  return [row.title, row.date, row.time ?? "", row.venue, row.city]
+    .map((value) => value.toLowerCase().replace(/\s+/g, " ").trim())
+    .join("|");
+}
+
+function mergeSaleType(current: string, next: string) {
+  if (current === next) return current;
+  const labels = [current, next];
+  return labels.includes("추첨 접수") ? "추첨 접수" : labels.includes("선착 판매") ? "선착 판매" : current;
+}
+
+function mergeSaleWindow(current: string | null, next: string | null) {
+  const windows = [...(current?.split(" / ") ?? []), ...(next?.split(" / ") ?? [])]
+    .map((window) => window.trim())
+    .filter(Boolean);
+  return windows.length > 0 ? Array.from(new Set(windows)).slice(0, 6).join(" / ") : null;
+}
+
+export function mergeEplusEventRows(current: EplusEventRow, next: EplusEventRow) {
+  return {
+    ...current,
+    sale_type: mergeSaleType(current.sale_type, next.sale_type),
+    sale_window: mergeSaleWindow(current.sale_window, next.sale_window),
+  };
 }
 
 export function toEplusEventRow(record: EplusRecord, now = new Date()): EplusEventRow | null {
@@ -336,7 +377,11 @@ async function main() {
     fetchedCount += records.length;
     for (const record of records) {
       const row = toEplusEventRow(record, startedAt);
-      if (row) collected.set(row.source_event_id, row);
+      if (row) {
+        const key = eplusLogicalEventKey(row);
+        const current = collected.get(key);
+        collected.set(key, current ? mergeEplusEventRows(current, row) : row);
+      }
       if (collected.size >= eplusRowLimit) break;
     }
     if (collected.size >= eplusRowLimit) break;
@@ -373,16 +418,34 @@ async function main() {
     throw new Error(`Supabase e+ upsert failed: ${error.message}`);
   }
 
+  const { error: staleError, count: staleDeletedCount } = await supabase
+    .from("events")
+    .delete({ count: "exact" })
+    .eq("source", "e+")
+    .not("source_event_id", "in", postgrestStringList(rows.map((row) => row.source_event_id)));
+
+  if (staleError) {
+    await recordSyncRun(supabase, {
+      source: "e+",
+      status: "error",
+      fetchedCount,
+      skippedCount,
+      message: staleError.message,
+      startedAt,
+    });
+    throw new Error(`Supabase stale e+ cleanup failed: ${staleError.message}`);
+  }
+
   await recordSyncRun(supabase, {
     source: "e+",
     status: "success",
     fetchedCount,
     upsertedCount: rows.length,
     skippedCount,
-    message: `Synced ${rows.length} e+ public search events.`,
+    message: `Synced ${rows.length} e+ public search events. Removed ${staleDeletedCount ?? 0} stale e+ rows.`,
     startedAt,
   });
-  console.log(`Synced ${rows.length} e+ events. Skipped ${skippedCount}.`);
+  console.log(`Synced ${rows.length} e+ events. Skipped ${skippedCount}. Removed ${staleDeletedCount ?? 0} stale rows.`);
 }
 
 function isDirectRun() {
