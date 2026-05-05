@@ -875,6 +875,52 @@ test("classifies sale status from text-only availability cues", () => {
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "" })).toBe("확인 필요");
 });
 
+test("classifies sale status from Japanese hour-minute sale windows", () => {
+  const event = {
+    ...seedEvents[0],
+    date: "2026-06-20",
+    saleWindow: "受付期間：2026年6月1日(月) 12時00分 - 2026年6月10日(水) 23時59分",
+  };
+
+  expect(getSaleStatus(event, new Date("2026-06-01T02:59:00.000Z"))).toBe("오픈 예정");
+  expect(getSaleStatus(event, new Date("2026-06-01T03:00:00.000Z"))).toBe("판매 중");
+  expect(getSaleStatus(event, new Date("2026-06-10T15:01:00.000Z"))).toBe("판매 종료");
+});
+
+test("classifies sale status from short Japanese hour-minute sale windows", () => {
+  const event = {
+    ...seedEvents[0],
+    date: "2026-11-23",
+    saleWindow: "抽選申込期間：6/1(月) 12時 - 6/10(水) 23時59分",
+  };
+
+  expect(getSaleStatus(event, new Date("2026-06-01T02:59:00.000Z"))).toBe("오픈 예정");
+  expect(getSaleStatus(event, new Date("2026-06-01T03:00:00.000Z"))).toBe("판매 중");
+});
+
+test("classifies sale status from full-width Japanese sale windows", () => {
+  const event = {
+    ...seedEvents[0],
+    date: "2026-06-20",
+    saleWindow: "受付期間：２０２６年６月１日（月）１２時００分 - ２０２６年６月１０日（水）２３時５９分",
+  };
+
+  expect(getSaleStatus(event, new Date("2026-06-01T02:59:00.000Z"))).toBe("오픈 예정");
+  expect(getSaleStatus(event, new Date("2026-06-01T03:00:00.000Z"))).toBe("판매 중");
+});
+
+test("classifies sale status from ISO sale windows", () => {
+  const event = {
+    ...seedEvents[0],
+    date: "2026-06-20",
+    saleWindow: "2026-06-01T12:00:00+09:00 - 2026-06-10T23:59:00+09:00",
+  };
+
+  expect(getSaleStatus(event, new Date("2026-06-01T02:59:00.000Z"))).toBe("오픈 예정");
+  expect(getSaleStatus(event, new Date("2026-06-01T03:00:00.000Z"))).toBe("판매 중");
+  expect(getSaleStatus(event, new Date("2026-06-10T15:01:00.000Z"))).toBe("판매 종료");
+});
+
 test("extracts array-based JSON-LD event data", () => {
   const draft = extractDraft(
     `
