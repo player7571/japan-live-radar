@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { seedEvents } from "./data/seedEvents";
 import { buildAlertEventSnapshot } from "./lib/alertSnapshot";
+import { calculateReminderAt } from "./lib/alertSchedule";
 import { getSaleStatus, type SaleStatus } from "./lib/saleStatus";
 import type { Event, EventApiResponse, TicketAccess } from "./types/events";
 import "./styles.css";
@@ -166,6 +167,25 @@ function formatAdminSyncHealth(syncHealth: AdminStats["syncHealth"]) {
     return `지연 · ${syncHealth.staleSources.join(", ") || `${syncHealth.staleAfterHours}시간 초과`}`;
   }
   return "정상";
+}
+
+function formatAlertReminder(event: Event) {
+  const remindAt = calculateReminderAt(event, today);
+  if (!remindAt) {
+    return "판매 일정 확인 후 알림";
+  }
+
+  const reminder = new Date(remindAt);
+  if (Number.isNaN(reminder.getTime())) {
+    return "판매 일정 확인 후 알림";
+  }
+
+  return reminder.toLocaleString("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 const accessOptions: Array<TicketAccess | "전체"> = [
@@ -830,6 +850,7 @@ function SavedAlertsPanel({
                   <span>{event.date.replaceAll("-", ".")} · {event.city}</span>
                   <strong>{event.artist}</strong>
                   <small>{event.saleWindow}</small>
+                  <small>알림 예정 · {formatAlertReminder(event)}</small>
                 </button>
                 <button
                   className="icon-button"
@@ -1658,6 +1679,7 @@ function EventDetail({
           <Fact icon={<Ticket size={18} />} label="티켓" value={`${event.saleType} · ${event.price}`} />
           <Fact icon={<Clock3 size={18} />} label="예매 상태" value={getSaleStatus(event)} />
           <Fact icon={<Clock3 size={18} />} label="판매 기간" value={event.saleWindow} />
+          <Fact icon={<Bell size={18} />} label="알림 예정" value={formatAlertReminder(event)} />
         </div>
 
         <div className="travel-check">
