@@ -1132,13 +1132,27 @@ test("does not retry non-retryable alert webhook failures", async () => {
 test("normalizes admin alert queue filters and retry updates", () => {
   const now = new Date("2026-05-04T12:00:00Z");
 
-  expect(normalizeAdminAlertListOptions()).toEqual({ status: "active", dueOnly: true });
-  expect(normalizeAdminAlertListOptions({ status: "error" })).toEqual({ status: "error", dueOnly: false });
+  expect(normalizeAdminAlertListOptions()).toEqual({ status: "active", dueOnly: true, upcomingOnly: false });
+  expect(normalizeAdminAlertListOptions({ status: "error" })).toEqual({
+    status: "error",
+    dueOnly: false,
+    upcomingOnly: false,
+  });
+  expect(normalizeAdminAlertListOptions({ status: "active", due: "upcoming" })).toEqual({
+    status: "active",
+    dueOnly: false,
+    upcomingOnly: true,
+  });
   expect(normalizeAdminAlertListOptions({ status: "sent", due: "all" })).toEqual({
     status: "sent",
     dueOnly: false,
+    upcomingOnly: false,
   });
-  expect(normalizeAdminAlertListOptions({ status: "unknown" })).toEqual({ status: "active", dueOnly: true });
+  expect(normalizeAdminAlertListOptions({ status: "unknown" })).toEqual({
+    status: "active",
+    dueOnly: true,
+    upcomingOnly: false,
+  });
 
   expect(buildAlertStatusUpdate("sent", 2, now)).toMatchObject({
     status: "sent",
@@ -1649,6 +1663,7 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
 test("shows admin alert queue and retries errored alerts", async ({ page }) => {
   let retryBody: Record<string, unknown> | null = null;
   let queueReads = 0;
+  const queueUrls: string[] = [];
 
   await page.route("**/api/admin-alerts**", async (route) => {
     if (route.request().method() === "PATCH") {
@@ -1661,6 +1676,7 @@ test("shows admin alert queue and retries errored alerts", async ({ page }) => {
     }
 
     queueReads += 1;
+    queueUrls.push(route.request().url());
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -1698,8 +1714,10 @@ test("shows admin alert queue and retries errored alerts", async ({ page }) => {
         alertQueue: {
           activeDue: 0,
           activeScheduled: 1,
+          activeNext24h: 1,
           error: 0,
           sent: 0,
+          nextReminderAt: "2026-05-10T00:00:00.000Z",
           lastErrorAt: null,
         },
         quality: {
@@ -1728,6 +1746,9 @@ test("shows admin alert queue and retries errored alerts", async ({ page }) => {
   await page.getByRole("button", { name: "재시도" }).click();
   expect(retryBody).toMatchObject({ id: "alert-1", status: "active" });
   await expect(page.getByText("알림을 재시도 큐로 되돌렸어요.")).toBeVisible();
+
+  await page.getByLabel("알림 상태").selectOption("upcoming");
+  expect(queueUrls.some((url) => url.includes("status=active") && url.includes("due=upcoming"))).toBe(true);
 });
 
 test("shows an empty state when no concerts match", async ({ page }) => {

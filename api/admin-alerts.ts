@@ -62,9 +62,11 @@ export function normalizeAdminAlertListOptions(query: Record<string, string | st
   const due = Array.isArray(query.due) ? query.due[0] : query.due;
   const allowedStatuses = new Set(["active", "sent", "error", "all"]);
   const normalizedStatus = allowedStatuses.has(status ?? "") ? status as AlertStatus | "all" : "active";
+  const upcomingOnly = normalizedStatus === "active" && due === "upcoming";
   return {
     status: normalizedStatus,
-    dueOnly: due === "all" ? false : normalizedStatus === "active",
+    dueOnly: !upcomingOnly && due === "all" ? false : normalizedStatus === "active" && !upcomingOnly,
+    upcomingOnly,
   };
 }
 
@@ -132,10 +134,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (listOptions.dueOnly) {
       alertQuery = alertQuery.not("remind_at", "is", null).lte("remind_at", dueBefore);
     }
+    if (listOptions.upcomingOnly) {
+      alertQuery = alertQuery.not("remind_at", "is", null).gt("remind_at", dueBefore);
+    }
 
     const { data, error } = await alertQuery.order(
-      listOptions.dueOnly ? "remind_at" : "updated_at",
-      { ascending: listOptions.dueOnly },
+      listOptions.dueOnly || listOptions.upcomingOnly ? "remind_at" : "updated_at",
+      { ascending: listOptions.dueOnly || listOptions.upcomingOnly },
     );
 
     if (missingAlertTable(error)) {
