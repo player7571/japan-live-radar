@@ -378,6 +378,27 @@ function identityVerificationNoteFromText(text: string) {
   return notes.join(" ");
 }
 
+function membershipRequirementNoteFromText(text: string) {
+  const normalized = normalizeFullWidth(text);
+  const fanclubSignal =
+    /(ファンクラブ|FC|fan\s*club|オフィシャル会員|公式会員|有料会員).{0,28}(限定|先行|受付|抽選|申込|申し込み|対象|入会|登録|認証)/i.test(
+      normalized,
+    ) ||
+    /(限定|先行|受付|抽選|申込|申し込み|対象).{0,18}(ファンクラブ|FC|fan\s*club|オフィシャル会員|公式会員|有料会員)/i.test(
+      normalized,
+    );
+  const companionMembershipSignal =
+    /(同行者|来場者).{0,24}(会員|ファンクラブ|FC).{0,24}(登録|限定|必要|対象|認証)/i.test(normalized) ||
+    /(会員|ファンクラブ|FC).{0,24}(同行者|来場者).{0,24}(登録|限定|必要|対象|認証)/i.test(normalized);
+
+  return [
+    fanclubSignal ? "팬클럽/유료 회원 한정 또는 선행 접수 신호가 있어 가입 가능 여부와 해외 거주자 신청 조건을 확인하세요." : "",
+    companionMembershipSignal ? "동행자도 회원 등록/인증이 필요할 수 있어 동행자 계정 조건을 확인하세요." : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function specialSaleNoteFromText(text: string) {
   const normalized = normalizeFullWidth(text);
   const notes: string[] = [];
@@ -408,6 +429,7 @@ function importForeignerNote(description: string, accessNote: string, pageText: 
     residencyRestrictionNoteFromText(pageText),
     lotteryResultNoteFromText(pageText),
     identityVerificationNoteFromText(pageText),
+    membershipRequirementNoteFromText(pageText),
     specialSaleNoteFromText(pageText),
     paymentPickupNoteFromText(pageText),
   ]
