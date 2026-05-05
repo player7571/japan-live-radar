@@ -1354,6 +1354,32 @@ test("calculates alert reminders from short sale windows using the event year", 
   ).toBe(new Date("2026-06-02T08:00:00+09:00").toISOString());
 });
 
+test("schedules immediately for active sale cues and skips ended sales", () => {
+  const now = new Date("2026-05-04T00:00:00+09:00");
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "ticketmaster-active-2026",
+        date: "2026-08-08",
+        saleWindow: "판매 중",
+      },
+      now,
+    ),
+  ).toBe(now.toISOString());
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "pia-ended-2026",
+        date: "2026-08-08",
+        saleWindow: "予定枚数終了",
+      },
+      now,
+    ),
+  ).toBeNull();
+});
+
 test("formats Ticketmaster sale windows for alert parsing", () => {
   const saleWindow = formatSaleWindow({
     id: "tm-1",
