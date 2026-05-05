@@ -31,6 +31,11 @@ jobs:
 
           base_url="${APP_BASE_URL%/}"
           response="$(curl --fail-with-body --silent --show-error \
+            --connect-timeout "${ALERT_QUEUE_CONNECT_TIMEOUT_SECONDS:-10}" \
+            --max-time "${ALERT_QUEUE_MAX_TIME_SECONDS:-30}" \
+            --retry "${ALERT_QUEUE_RETRY_ATTEMPTS:-2}" \
+            --retry-delay 2 \
+            --retry-all-errors \
             --header "x-admin-token: $ADMIN_API_TOKEN" \
             "$base_url/api/admin-alerts")"
 
@@ -62,6 +67,9 @@ jobs:
         env:
           APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://japan-live-radar.vercel.app' }}
           ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+          ALERT_QUEUE_CONNECT_TIMEOUT_SECONDS: ${{ vars.ALERT_QUEUE_CONNECT_TIMEOUT_SECONDS || '10' }}
+          ALERT_QUEUE_MAX_TIME_SECONDS: ${{ vars.ALERT_QUEUE_MAX_TIME_SECONDS || '30' }}
+          ALERT_QUEUE_RETRY_ATTEMPTS: ${{ vars.ALERT_QUEUE_RETRY_ATTEMPTS || '2' }}
 
       - name: Check out repository
         if: steps.due_alerts.outputs.should_dispatch == 'true'
