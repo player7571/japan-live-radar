@@ -19,19 +19,67 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check due alert queue
+        id: due_alerts
+        run: |
+          set -euo pipefail
+
+          if [ -z "${ADMIN_API_TOKEN:-}" ]; then
+            echo "::error::ADMIN_API_TOKEN is required"
+            exit 1
+          fi
+
+          base_url="${APP_BASE_URL%/}"
+          response="$(curl --fail-with-body --silent --show-error \
+            --header "x-admin-token: $ADMIN_API_TOKEN" \
+            "$base_url/api/admin-alerts")"
+
+          QUEUE_RESPONSE="$response" python3 <<'PY'
+          import json
+          import os
+          import sys
+
+          payload = json.loads(os.environ["QUEUE_RESPONSE"])
+          if payload.get("configured") is False:
+              print("::error::Admin alert API is not configured")
+              sys.exit(1)
+
+          alerts = payload.get("alerts")
+          if not isinstance(alerts, list):
+              print("::error::Admin alert API did not return an alert list")
+              sys.exit(1)
+
+          should_dispatch = "true" if alerts else "false"
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"should_dispatch={should_dispatch}\n")
+              output.write(f"due_count={len(alerts)}\n")
+
+          if alerts:
+              print(f"{len(alerts)} due alert(s) require dispatch.")
+          else:
+              print("No due alerts; skipping Node setup.")
+          PY
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://japan-live-radar.vercel.app' }}
+          ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+
       - name: Check out repository
+        if: steps.due_alerts.outputs.should_dispatch == 'true'
         uses: actions/checkout@v6
 
       - name: Set up Node
+        if: steps.due_alerts.outputs.should_dispatch == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
+        if: steps.due_alerts.outputs.should_dispatch == 'true'
         run: npm ci
 
       - name: Dispatch due alerts
+        if: steps.due_alerts.outputs.should_dispatch == 'true'
         run: npm run alerts:dispatch
         env:
           APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://japan-live-radar.vercel.app' }}
