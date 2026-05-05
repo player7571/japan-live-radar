@@ -185,8 +185,8 @@ function escapePattern(value: string) {
 
 function cleanTitle(value: string, hostname: string) {
   return compactWhitespace(value)
-    .replace(/\s*[|｜]\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|ticket board|チケットボード|Ticketmaster|LiveFans).*$/i, "")
-    .replace(/\s*-\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|ticket board|チケットボード|Ticketmaster|LiveFans).*$/i, "")
+    .replace(/\s*[|｜]\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|ticket board|チケットボード|楽天チケット|Rakuten Ticket|チケプラ|Tixplus|AnyPASS|Ticketmaster|LiveFans).*$/i, "")
+    .replace(/\s*-\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|ticket board|チケットボード|楽天チケット|Rakuten Ticket|チケプラ|Tixplus|AnyPASS|Ticketmaster|LiveFans).*$/i, "")
     .replace(new RegExp(`\\s*[|｜-]\\s*${hostname.replace(/^www\\./, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*$`, "i"), "")
     .trim();
 }
@@ -660,8 +660,12 @@ function sourceFromHostname(hostname: string) {
   if (hostname.includes("pia.jp")) return "Ticket Pia";
   if (hostname.includes("eplus.jp")) return "e+";
   if (hostname.includes("l-tike.com")) return "Lawson Ticket";
+  if (hostname.includes("ticket.rakuten.co.jp")) return "Rakuten Ticket";
   if (hostname.includes("ticketmaster.")) return "Ticketmaster";
   if (hostname.includes("ticketboard.jp") || hostname.includes("tickebo.jp")) return "ticket board";
+  if (hostname.includes("tixplus.jp") || hostname.includes("emtg.jp")) return "Tixplus";
+  if (hostname.includes("anypass.jp")) return "AnyPASS";
+  if (hostname.includes("bitfan.id") || hostname.includes("bitfan.live") || hostname.includes("bitfan.link")) return "Bitfan";
   if (hostname.includes("livefans.jp")) return "LiveFans";
   return hostname.replace(/^www\./, "");
 }
@@ -671,13 +675,13 @@ function ticketLinkScore(url: URL, label: string) {
   const text = normalizeFullWidth(`${label} ${url.pathname} ${url.search}`);
   let score = 0;
 
-  if (/(pia\.jp|eplus\.jp|l-tike\.com|ticketmaster\.|ticketboard\.jp|tickebo\.jp)/i.test(hostname)) {
+  if (/(pia\.jp|eplus\.jp|l-tike\.com|ticket\.rakuten\.co\.jp|ticketmaster\.|ticketboard\.jp|tickebo\.jp|tixplus\.jp|emtg\.jp|anypass\.jp|bitfan\.(id|live|link)|livefans\.jp)/i.test(hostname)) {
     score += 50;
   }
   if (/(申込|申し込み|購入|受付|販売|発売|抽選|先行|一般発売|リセール|resale)/i.test(text)) {
     score += 20;
   }
-  if (/(チケット|ticket|ローチケ|ローソンチケット|イープラス|チケットぴあ|ticketmaster|ticket board)/i.test(text)) {
+  if (/(チケット|ticket|ローチケ|ローソンチケット|イープラス|チケットぴあ|楽天チケット|ticketmaster|ticket board|チケプラ|tixplus|anypass|bitfan|livefans)/i.test(text)) {
     score += 15;
   }
   if (/(twitter|x\.com|instagram|youtube|line\.me|facebook|tiktok)/i.test(hostname)) {

@@ -77,6 +77,14 @@ export function searchSources(keyword: string) {
       source: "Ticketmaster",
       url: `https://www.ticketmaster.com/search?q=${encoded}&sort=date%2Casc&country=jp`,
     },
+    {
+      source: "Rakuten Ticket",
+      url: `https://ticket.rakuten.co.jp/?q=${encoded}`,
+    },
+    {
+      source: "LiveFans",
+      url: `https://www.livefans.jp/search?option=3&keyword=${encoded}`,
+    },
   ];
 }
 
