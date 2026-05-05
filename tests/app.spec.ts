@@ -970,6 +970,57 @@ test("extracts array-based JSON-LD event data", () => {
   expect(draft.image).toBe("https://example.com/king-gnu.jpg");
 });
 
+test("extracts MusicEvent JSON-LD pages as concerts", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>宇多田ヒカル LIVE｜チケットぴあ</title>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": ["MusicEvent", "Event"],
+              "name": "宇多田ヒカル SCIENCE FICTION TOUR",
+              "startDate": "2026-10-18T18:30:00+09:00",
+              "performer": { "@type": "MusicGroup", "name": "宇多田ヒカル" },
+              "location": {
+                "@type": "Place",
+                "name": "日本武道館",
+                "address": {
+                  "@type": "PostalAddress",
+                  "addressLocality": "千代田区",
+                  "addressRegion": "東京都"
+                }
+              },
+              "offers": {
+                "@type": "Offer",
+                "price": "12800",
+                "validFrom": "2026-07-01T12:00:00+09:00",
+                "url": "https://t.pia.jp/pia/event/event.do?eventCd=2600018"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <p>チケットは電子チケットでSMS認証が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600018"),
+  );
+
+  expect(draft.artist).toBe("宇多田ヒカル");
+  expect(draft.title).toBe("宇多田ヒカル SCIENCE FICTION TOUR");
+  expect(draft.city).toBe("도쿄");
+  expect(draft.venue).toBe("日本武道館");
+  expect(draft.date).toBe("2026-10-18");
+  expect(draft.time).toBe("18:30");
+  expect(draft.price).toBe("¥12,800");
+  expect(draft.saleWindow).toBe("2026-07-01T12:00:00+09:00");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+  expect(draft.link).toBe("https://t.pia.jp/pia/event/event.do?eventCd=2600018");
+});
+
 test("extracts JSON-LD offer availability start and end windows", () => {
   const draft = extractDraft(
     `
@@ -1303,6 +1354,43 @@ test("calculates alert reminders from short sale windows using the event year", 
   ).toBe(new Date("2026-06-02T08:00:00+09:00").toISOString());
 });
 
+test("schedules immediately for active sale cues and skips ended sales", () => {
+  const now = new Date("2026-05-04T00:00:00+09:00");
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "ticketmaster-active-2026",
+        date: "2026-08-08",
+        saleWindow: "판매 중",
+      },
+      now,
+    ),
+  ).toBe(now.toISOString());
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "pia-ended-2026",
+        date: "2026-08-08",
+        saleWindow: "予定枚数終了",
+      },
+      now,
+    ),
+  ).toBeNull();
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "ticketmaster-cancelled-2026",
+        date: "2026-08-08",
+        saleWindow: "공연 취소",
+      },
+      now,
+    ),
+  ).toBeNull();
+});
+
 test("formats Ticketmaster sale windows for alert parsing", () => {
   const saleWindow = formatSaleWindow({
     id: "tm-1",
@@ -1538,6 +1626,17 @@ test("summarizes source-specific event quality gaps", () => {
         price: "¥9,000",
       },
       {
+        id: "tm-3",
+        source: "Ticketmaster",
+        city: "후쿠오카",
+        date: "2026-08-04",
+        ticket_access: "한국 구매 가능",
+        phone_required: null,
+        link: "https://www.ticketmaster.com/event/tm-3",
+        sale_window: "판매 중",
+        price: "¥11,000",
+      },
+      {
         id: "pia-1",
         source: "Ticket Pia",
         city: "요코하마",
@@ -1552,11 +1651,11 @@ test("summarizes source-specific event quality gaps", () => {
   ).toEqual([
     {
       source: "Ticketmaster",
-      total: 2,
+      total: 3,
       missingLink: 1,
       missingSaleWindow: 1,
       missingPrice: 1,
-      needsAccessReview: 1,
+      needsAccessReview: 2,
     },
     {
       source: "Ticket Pia",
@@ -1882,6 +1981,9 @@ test("builds alert subscription upsert rows with email and cancellation state", 
     contact_email: "fan@example.com",
     remind_before_hours: 24,
     remind_at: new Date("2026-05-09T12:00:00+09:00").toISOString(),
+    last_sent_at: null,
+    last_error: null,
+    send_count: 0,
     updated_at: now.toISOString(),
   });
 
@@ -1898,6 +2000,9 @@ test("builds alert subscription upsert rows with email and cancellation state", 
     channel: "browser",
     contact_email: null,
     remind_at: null,
+    last_sent_at: null,
+    last_error: null,
+    send_count: 0,
   });
 });
 
@@ -2108,6 +2213,8 @@ test("limits release PR auto-merges to morning and evening KST windows", () => {
   expect(mergeWorkflow).toContain("workflow_dispatch:");
   expect(mergeWorkflow).toContain('cron: "0 0,12 * * *"');
   expect(mergeWorkflow).toContain("09:00 and 21:00 in Asia/Seoul");
+  expect(mergeWorkflow).toContain("actions: write");
+  expect(mergeWorkflow).toContain('gh workflow run "Deploy to Vercel"');
   expect(mergeWorkflow).not.toContain('cron: "*/10 * * * *"');
   expect(autoReleaseWorkflow).toContain("09:00/21:00 KST release windows");
 });

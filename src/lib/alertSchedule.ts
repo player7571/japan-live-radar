@@ -5,6 +5,10 @@ type EventSnapshot = {
 
 export const defaultAlertLeadTimeHours = 3;
 const allowedAlertLeadTimeHours = [3, 24, 72] as const;
+const activeSaleCue =
+  /(販売中(?!止)|受付中|発売中|申込受付中|チケット発売中|판매\s*중|on\s*sale|available\s*now|now\s*on\s*sale)/i;
+const endedSaleCue =
+  /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|公演中止|開催中止|中止|취소|공연\s*취소|판매\s*종료|sold\s*out|cancelled|canceled|closed|ended)/i;
 
 export function normalizeAlertLeadTimeHours(value: unknown) {
   const parsed = typeof value === "string" || typeof value === "number" ? Number(value) : Number.NaN;
@@ -121,6 +125,7 @@ function saleWindowStartCandidates(value: unknown, fallbackYear?: string) {
 }
 
 export function calculateReminderAt(snapshot: EventSnapshot, now = new Date(), leadTimeHours = defaultAlertLeadTimeHours) {
+  const saleWindow = typeof snapshot.saleWindow === "string" ? snapshot.saleWindow : "";
   const saleStart = (saleWindowStartCandidates(snapshot.saleWindow, eventYearFromSnapshot(snapshot)) ?? [])
     .filter((candidate) => candidate > now)
     .sort((left, right) => left.getTime() - right.getTime())[0];
@@ -128,6 +133,12 @@ export function calculateReminderAt(snapshot: EventSnapshot, now = new Date(), l
     const reminder = new Date(saleStart);
     reminder.setHours(reminder.getHours() - normalizeAlertLeadTimeHours(leadTimeHours));
     return (reminder > now ? reminder : saleStart).toISOString();
+  }
+  if (activeSaleCue.test(saleWindow)) {
+    return now.toISOString();
+  }
+  if (endedSaleCue.test(saleWindow)) {
+    return null;
   }
 
   if (typeof snapshot.date === "string") {

@@ -7,6 +7,7 @@ on:
     - cron: "0 0,12 * * *"
 
 permissions:
+  actions: write
   checks: read
   contents: write
   issues: write
@@ -54,6 +55,11 @@ jobs:
             echo "Could not fast-forward dev after release merge. The next release run can reconcile it."
           }
 
+          dispatch_production_deploy() {
+            echo "Dispatching Deploy to Vercel for the released main branch."
+            with_retry gh workflow run "Deploy to Vercel" --repo "$GITHUB_REPOSITORY" --ref main
+          }
+
           pr_number="$(gh pr list \
             --repo "$GITHUB_REPOSITORY" \
             --base main \
@@ -97,6 +103,7 @@ jobs:
               [ "$failing_statuses" -eq 0 ]; then
               with_retry gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
               sync_dev_to_main_after_release
+              dispatch_production_deploy
               exit 0
             fi
 
@@ -108,6 +115,7 @@ jobs:
               echo "Merging so the production retry workflow can deploy the latest main commit after quota resets."
               with_retry gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
               sync_dev_to_main_after_release
+              dispatch_production_deploy
               exit 0
             fi
 
