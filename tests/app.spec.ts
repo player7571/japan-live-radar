@@ -1902,7 +1902,7 @@ test("shows alert contact email save feedback", async ({ page }) => {
   await page.getByPlaceholder("알림 받을 이메일").fill("fan@example.com");
   await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
 
-  await expect(page.getByRole("status")).toHaveText("알림 이메일을 저장했어요.");
+  await expect(page.getByLabel("저장한 알림").getByRole("status")).toHaveText("알림 이메일을 저장했어요.");
 });
 
 test("validates alert contact email before saving", async ({ page }) => {
@@ -1924,7 +1924,7 @@ test("validates alert contact email before saving", async ({ page }) => {
   await page.getByPlaceholder("알림 받을 이메일").fill("not-an-email");
   await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
 
-  await expect(page.getByRole("status")).toHaveText("이메일 형식을 확인해 주세요.");
+  await expect(page.getByLabel("저장한 알림").getByRole("status")).toHaveText("이메일 형식을 확인해 주세요.");
   expect(alertRequests).toBe(0);
 });
 
