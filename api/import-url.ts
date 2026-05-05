@@ -354,6 +354,29 @@ function identityVerificationNoteFromText(text: string) {
   return notes.join(" ");
 }
 
+function specialSaleNoteFromText(text: string) {
+  const normalized = normalizeFullWidth(text);
+  const notes: string[] = [];
+  const upgradeLottery = /(アップグレード|upgrade).{0,24}(抽選|受付|申込|販売)|アップグレード抽選/i.test(normalized);
+  const additionalSale = /(追加販売|追加発売|追加席|機材席開放|開放席|当日券|当日引換券|直前販売)/i.test(normalized);
+  const restrictedView =
+    /(注釈付き指定席|注釈付指定席|見切れ席|見えにくい席|ステージサイド席|サイドバック席|機材席|立見|立ち見)/i.test(
+      normalized,
+    );
+
+  if (upgradeLottery) {
+    notes.push("업그레이드 추첨/좌석 변경 접수 신호가 있어 기존 티켓 보유 조건과 신청 대상을 확인하세요.");
+  }
+  if (additionalSale) {
+    notes.push("추가 판매/기재석 개방/당일권 신호가 있어 판매 시작 시각과 수량 제한을 확인하세요.");
+  }
+  if (restrictedView) {
+    notes.push("주석付き/시야제한/스테이지사이드 좌석 신호가 있어 좌석 시야 조건을 원본에서 확인하세요.");
+  }
+
+  return notes.join(" ");
+}
+
 function importForeignerNote(description: string, accessNote: string, pageText: string) {
   return [
     description,
@@ -361,6 +384,7 @@ function importForeignerNote(description: string, accessNote: string, pageText: 
     residencyRestrictionNoteFromText(pageText),
     lotteryResultNoteFromText(pageText),
     identityVerificationNoteFromText(pageText),
+    specialSaleNoteFromText(pageText),
     paymentPickupNoteFromText(pageText),
   ]
     .map(compactWhitespace)
