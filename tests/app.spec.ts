@@ -321,6 +321,27 @@ test("adds payment and pickup cues to imported foreigner notes", () => {
   expect(draft.foreignerNote).toContain("편의점 결제/발권");
 });
 
+test("flags domestic-issued card restrictions on imported ticket pages", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head><title>Vaundy Arena｜e+</title></head>
+        <body>
+          <h1>Vaundy Arena</h1>
+          <p>会場：大阪城ホール</p>
+          <p>公演日：2026年10月02日 19:00</p>
+          <p>お支払いは日本国内発行のクレジットカードのみご利用いただけます。</p>
+          <p>海外発行カードはご利用いただけません。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/vaundy-arena"),
+  );
+
+  expect(draft.foreignerNote).toContain("일본 국내 발행 카드 한정");
+  expect(draft.foreignerNote).not.toContain("신용카드 결제 가능 신호");
+});
+
 test("adds lottery result announcements to imported foreigner notes", () => {
   const draft = extractDraft(
     `
@@ -530,6 +551,27 @@ test("extracts Lawson table fields and prefers showtime over doors-open time", (
   expect(draft.saleWindow).toBe("2026/06/01(月) 10:00");
   expect(draft.price).toBe("¥11,000");
   expect(draft.ticketAccess).toBe("일본 번호 필요");
+});
+
+test("aggregates multiple imported ticket prices into a range", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head><title>YOASOBI Hall Tour｜チケットぴあ</title></head>
+        <body>
+          <h1>YOASOBI Hall Tour</h1>
+          <table>
+            <tr><th>公演日時</th><td>2026/12/10(木) 開演18:30</td></tr>
+            <tr><th>会場</th><td>東京ガーデンシアター</td></tr>
+            <tr><th>席種・料金</th><td>指定席 12,800円 / 注釈付き指定席 9,800円 / VIP 22,000円</td></tr>
+          </table>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600100"),
+  );
+
+  expect(draft.price).toBe("¥9,800 - ¥22,000");
 });
 
 test("normalizes full-width unlabeled OPEN/START showtimes", () => {
@@ -997,6 +1039,39 @@ test("extracts JSON-LD aggregate and fallback offers", () => {
 
   expect(draft.price).toBe("¥9,800 - ¥14,800");
   expect(draft.saleWindow).toBe("2026-06-01T12:00:00+09:00");
+});
+
+test("aggregates multiple JSON-LD offer prices into a range", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Event",
+              "name": "King Gnu Dome Live",
+              "startDate": "2026-10-20T18:00:00+09:00",
+              "location": {
+                "@type": "Place",
+                "name": "東京ドーム",
+                "address": "東京都文京区"
+              },
+              "offers": [
+                { "@type": "Offer", "price": "9800" },
+                { "@type": "Offer", "price": "14800" },
+                { "@type": "Offer", "price": "22000" }
+              ]
+            }
+          </script>
+        </head>
+        <body></body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/king-gnu-dome-live"),
+  );
+
+  expect(draft.price).toBe("¥9,800 - ¥22,000");
 });
 
 test("prefers JSON-LD offer ticket URLs when source pages have no ticket links", () => {
@@ -2304,6 +2379,20 @@ test("uses source URLs for imported admin event ids", () => {
   expect(row.source).toBe("Ticket Pia");
   expect(row.source_event_id).toMatch(/^url-/);
   expect(row.source_event_id).toContain("t-pia-jp");
+});
+
+test("defaults admin event phone requirements to required unless explicitly false", () => {
+  const baseInput = {
+    artist: "Ado",
+    title: "Blue Flame Tour",
+    city: "요코하마",
+    venue: "K-Arena Yokohama",
+    date: "2026-11-12",
+  };
+
+  expect(toEventRow(baseInput).phone_required).toBe(true);
+  expect(toEventRow({ ...baseInput, phoneRequired: false }).phone_required).toBe(false);
+  expect(toEventRow({ ...baseInput, phoneRequired: 0 }).phone_required).toBe(true);
 });
 
 test("keeps approved or rejected candidate URLs out of pending upserts", () => {
