@@ -311,7 +311,6 @@ export function eplusLogicalEventKey(row: Pick<EplusEventRow, "title" | "date" |
 function mergeSaleType(current: string, next: string) {
   if (current === next) return current;
   const labels = [current, next];
-  if (labels.includes("추첨 접수") && labels.includes("선착 판매")) return "추첨/선착 판매";
   return labels.includes("추첨 접수") ? "추첨 접수" : labels.includes("선착 판매") ? "선착 판매" : current;
 }
 

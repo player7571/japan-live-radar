@@ -2003,7 +2003,7 @@ test("maps eplus public search JSON to Korea-friendly event rows", () => {
   });
   expect(eplusLogicalEventKey(festivalLottery!)).toBe(eplusLogicalEventKey(festivalEarlyBird!));
   expect(mergeEplusEventRows(festivalLottery!, festivalEarlyBird!)).toMatchObject({
-    sale_type: "추첨/선착 판매",
+    sale_type: "추첨 접수",
     sale_window: expect.stringContaining("3次先行: 2026.05.10 10:00 - 2026.05.20 23:59"),
   });
   expect(mergeEplusEventRows(festivalLottery!, festivalEarlyBird!).sale_window).toContain(
