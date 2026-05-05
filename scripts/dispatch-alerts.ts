@@ -77,6 +77,10 @@ export function buildAppEventUrl(alert: DueAlert, baseUrl = appBaseUrl) {
   return `${baseUrl}/?event=${encodeURIComponent(eventId)}`;
 }
 
+export function buildAlertDeliveryKey(alert: DueAlert) {
+  return [alert.id, alert.event_key, alert.remind_at].join(":");
+}
+
 export function buildAlertMessage(alert: DueAlert) {
   const event = alert.event_snapshot ?? {};
   const appEventUrl = buildAppEventUrl(alert);
@@ -100,6 +104,7 @@ export function buildAlertMessage(alert: DueAlert) {
 export function buildAlertWebhookPayload(alert: DueAlert) {
   return {
     text: buildAlertMessage(alert),
+    deliveryKey: buildAlertDeliveryKey(alert),
     alertId: alert.id,
     eventKey: alert.event_key,
     contactEmail: alert.contact_email ?? null,
