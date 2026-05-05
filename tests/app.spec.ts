@@ -386,6 +386,30 @@ test("adds special sale and restricted-view cues to imported notes", () => {
   expect(draft.foreignerNote).toContain("주석付き/시야제한");
 });
 
+test("prefers ticket application links from official imported pages", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>Official髭男dism Arena Tour 2026</title>
+        </head>
+        <body>
+          <h1>Official髭男dism Arena Tour 2026</h1>
+          <p>会場：Kアリーナ横浜</p>
+          <p>公演日：2026年11月12日 18:30</p>
+          <p>受付期間：2026年8月1日 12:00～2026年8月7日 23:59</p>
+          <a href="https://eplus.jp/sf/detail/higedan-tour-2026">イープラスでチケット申し込み</a>
+          <a href="https://www.youtube.com/watch?v=example">Music video</a>
+        </body>
+      </html>
+    `,
+    new URL("https://higedan.example.com/tour/2026"),
+  );
+
+  expect(draft.source).toBe("e+");
+  expect(draft.link).toBe("https://eplus.jp/sf/detail/higedan-tour-2026");
+});
+
 test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
   const draft = extractDraft(
     `
