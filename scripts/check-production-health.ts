@@ -1,8 +1,29 @@
+import { pathToFileURL } from "node:url";
+
 type HealthResponse = {
   ok?: boolean;
   database?: string;
   eventCount?: number;
   message?: string;
+};
+
+type AdminStatsResponse = {
+  alertQueue?: {
+    activeDue?: number;
+    activeScheduled?: number;
+    activeNext24h?: number;
+    error?: number;
+    sent?: number;
+    nextReminderAt?: string | null;
+    lastErrorAt?: string | null;
+  } | null;
+  syncHealth?: {
+    status?: "healthy" | "stale" | "error" | "missing";
+    lastFinishedAt?: string | null;
+    staleAfterHours?: number;
+    errorSources?: string[];
+    staleSources?: string[];
+  } | null;
 };
 
 const appBaseUrl = (process.env.APP_BASE_URL ?? "https://japan-live-radar.vercel.app").replace(/\/$/, "");
@@ -20,8 +41,7 @@ async function getJson<T>(path: string, headers?: Record<string, string>) {
   return body;
 }
 
-async function main() {
-  const health = await getJson<HealthResponse>("/api/health");
+export function validateProductionHealth(health: HealthResponse) {
   if (!health.ok) {
     throw new Error(`Health check failed: ${health.message ?? "unknown error"}`);
   }
@@ -31,22 +51,70 @@ async function main() {
   if (typeof health.eventCount !== "number" || health.eventCount < 1) {
     throw new Error("Production has no events");
   }
+}
+
+export function validateAdminAlertsHealth(alerts: { configured?: boolean; alerts?: unknown[] }) {
+  if (alerts.configured === false) {
+    throw new Error("Admin alerts API is not configured");
+  }
+  if (!Array.isArray(alerts.alerts)) {
+    throw new Error("Admin alerts API did not return an alert list");
+  }
+}
+
+export function validateAdminStatsHealth(stats: AdminStatsResponse) {
+  if (stats.alertQueue === null || stats.alertQueue === undefined) {
+    throw new Error("Admin stats alert queue is not configured");
+  }
+  if ((stats.alertQueue.error ?? 0) > 0) {
+    throw new Error(`Alert queue has ${stats.alertQueue.error} errored alert(s)`);
+  }
+
+  const syncHealth = stats.syncHealth;
+  if (syncHealth === null || syncHealth === undefined) {
+    throw new Error("Admin stats sync health is not configured");
+  }
+  if (syncHealth.status === "missing") {
+    throw new Error("Sync health has no run history");
+  }
+  if (syncHealth.status === "error") {
+    throw new Error(`Sync health reports errors: ${syncHealth.errorSources?.join(", ") || "source unknown"}`);
+  }
+  if (syncHealth.status === "stale") {
+    throw new Error(`Sync health is stale: ${syncHealth.staleSources?.join(", ") || "source unknown"}`);
+  }
+  if (syncHealth.status !== "healthy") {
+    throw new Error(`Sync health status is ${syncHealth.status ?? "unknown"}`);
+  }
+}
+
+async function main() {
+  const health = await getJson<HealthResponse>("/api/health");
+  validateProductionHealth(health);
 
   if (adminApiToken) {
-    const alerts = await getJson<{ configured?: boolean }>("/api/admin-alerts", {
+    const adminHeaders = {
       "x-admin-token": adminApiToken,
-    });
-    if (alerts.configured === false) {
-      throw new Error("Admin alerts API is not configured");
-    }
+    };
+    const alerts = await getJson<{ configured?: boolean; alerts?: unknown[] }>("/api/admin-alerts", adminHeaders);
+    validateAdminAlertsHealth(alerts);
+
+    const stats = await getJson<AdminStatsResponse>("/api/admin-stats", adminHeaders);
+    validateAdminStatsHealth(stats);
   }
 
   console.log(`Production healthy: ${health.eventCount} event(s), database ${health.database}.`);
 }
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+function isDirectRun() {
+  return Boolean(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href);
+}
+
+if (isDirectRun()) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}
 
 export {};
