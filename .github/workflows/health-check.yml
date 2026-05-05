@@ -3,7 +3,8 @@ name: Production Health Check
 on:
   workflow_dispatch:
   schedule:
-    - cron: "7,37 * * * *"
+    # 09:07 in Asia/Seoul while production deploy quota and Actions minutes are constrained.
+    - cron: "7 0 * * *"
 
 permissions:
   contents: read

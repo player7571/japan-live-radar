@@ -67,7 +67,7 @@ Users can save interest alerts from the public detail panel. The browser stores 
 - Users can choose the alert lead time in the saved-alerts panel: three hours, one day, or three days before the ticket window opens. The selected lead time is stored on the server alert row as `remind_before_hours`.
 - Users can add an alert email in the saved-alerts panel. The email is stored with each active server-side alert and sent to the delivery webhook as `contactEmail`.
 - Alert messages include an `appUrl`/`eventUrl` detail link such as `https://japan-live-radar.vercel.app/?event=<event-id>` so recipients can jump back to the matching concert detail. Webhook payloads also include a Korean `subject` and `ticketUrl` when the source ticket link is known.
-- `Dispatch Due Alerts` runs every 15 minutes and reads due rows from `/api/admin-alerts`.
+- `Dispatch Due Alerts` runs twice daily while the app is pre-launch and reads due rows from `/api/admin-alerts`.
 - `ALERT_WEBHOOK_URL` receives a JSON payload with `subject`, `text`, `deliveryKey`, `alertId`, `eventKey`, `channel`, `contactEmail`, `appUrl`, `eventUrl`, `ticketUrl`, `event`, `source`, `ticketAccess`, `saleType`, `phoneRequired`, `remindAt`, and `remindBeforeHours`. `deliveryKey` is stable across retries for the same alert reminder.
 - Webhook requests include `x-japan-live-radar-alert-id`, `x-japan-live-radar-event-key`, and `x-japan-live-radar-delivery-key` headers so delivery workers can dedupe retries before parsing the body.
 - When `ALERT_WEBHOOK_SECRET` is configured, webhook requests also include `x-japan-live-radar-signature` and `x-japan-live-radar-signature-timestamp`. The signature is `sha256=` plus an HMAC-SHA256 hex digest of `${timestamp}.${rawBody}` using the shared secret.
@@ -79,15 +79,15 @@ Users can save interest alerts from the public detail panel. The browser stores 
 
 GitHub Actions is the long-running automation layer so Codex heartbeat runs do not need to rely on local full-disk or network permissions.
 
-- `CI`: typecheck, build, and Playwright smoke tests for PRs and pushes to `dev`/`main`.
-- `Deploy to Vercel`: deploys `main` as production, then verifies production health. It also supports manual `workflow_dispatch` preview validation when needed, but does not run automatically for every `dev` push so the Vercel free daily quota is preserved. Automatic `main` deploys are skipped while open production deploy/health automation blockers exist so quota is preserved for the retry workflow.
+- `CI`: typecheck, build, and desktop Playwright smoke tests for PRs. Manual `workflow_dispatch` runs the full desktop/mobile Playwright suite when deeper validation is worth spending Actions minutes.
+- `Deploy to Vercel`: deploys `main` as production, then verifies production health. It also supports manual `workflow_dispatch` preview validation when needed, but does not run automatically for every `dev` push so the Vercel free daily quota is preserved. Automatic `main` deploys are skipped before Node setup while open production deploy/health automation blockers exist so quota is preserved for the retry workflow.
 - `Auto Release PR`: opens or updates a `dev` to `main` release PR whenever `dev` changes. The PR is a release candidate and can remain open while development continues.
 - `Merge Release PR`: merges the open `dev` to `main` release PR after all PR checks finish successfully during the 09:00 and 21:00 KST release windows. It can also be run manually with `workflow_dispatch` when an immediate production release is desired.
-- `Retry Production Deploy`: when production deploy or health automation issues are open, retries the main production deploy every six hours and closes the blockers after health passes.
+- `Retry Production Deploy`: when production deploy or health automation issues are open, retries the main production deploy once daily and closes the blockers after health passes.
 - `Supabase Migrate`: applies migrations automatically when migration files land on `main`, and can also be run manually.
-- `Sync Ticketmaster Events`: refreshes seed and Ticketmaster data on a daily schedule. The workflow uses a single concurrency group so scheduled and manual syncs do not overlap.
-- `Dispatch Due Alerts`: checks the protected alert queue every 15 minutes and dispatches via `ALERT_WEBHOOK_URL` when configured. The workflow uses a single concurrency group so scheduled and manual runs do not overlap and double-send the same due alert.
-- `Production Health Check`: checks `/api/health`, the protected alert queue, and admin alert/sync stats every 30 minutes.
+- `Sync Ticketmaster Events`: refreshes seed and Ticketmaster data twice weekly while Actions minutes are constrained. The workflow uses a single concurrency group so scheduled and manual syncs do not overlap.
+- `Dispatch Due Alerts`: checks the protected alert queue twice daily and dispatches via `ALERT_WEBHOOK_URL` when configured. The workflow uses a single concurrency group so scheduled and manual runs do not overlap and double-send the same due alert.
+- `Production Health Check`: checks `/api/health`, the protected alert queue, and admin alert/sync stats once daily.
 
 Scheduled workflows create one open `automation` issue when they fail, so Codex can pick up the issue/logs and continue without waiting for a local heartbeat to have elevated permissions.
 
@@ -161,7 +161,7 @@ Normal development flow:
 
 If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, continue feature work on `dev` and avoid manual deploy retries until quota resets. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
 
-Vercel Git preview builds are skipped by `scripts/vercel-ignore-build.sh` so duplicate Vercel builds do not consume quota. GitHub Actions `CI` remains the source of truth for `dev` and PR checks. Use the `Deploy to Vercel` manual workflow only when a real Vercel preview validation is worth spending quota; production deploys happen from `main` or the retry workflow after quota resets.
+Vercel Git preview builds are skipped by `scripts/vercel-ignore-build.sh` so duplicate Vercel builds do not consume quota. GitHub Actions `CI` remains the source of truth for PR checks, with push-only duplicate CI intentionally avoided to preserve Actions minutes. Use the `Deploy to Vercel` manual workflow only when a real Vercel preview validation is worth spending quota; production deploys happen from `main` or the retry workflow after quota resets.
 
 ## Branch Rules
 

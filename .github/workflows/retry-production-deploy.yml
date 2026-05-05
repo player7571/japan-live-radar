@@ -3,7 +3,8 @@ name: Retry Production Deploy
 on:
   workflow_dispatch:
   schedule:
-    - cron: "23 */6 * * *"
+    # 21:23 in Asia/Seoul while Vercel and Actions free quotas are constrained.
+    - cron: "23 12 * * *"
 
 permissions:
   contents: read

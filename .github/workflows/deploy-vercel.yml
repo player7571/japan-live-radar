@@ -18,15 +18,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
       - name: Check production deploy blockers
         id: production_blocker
         if: github.ref_name == 'main' && github.event_name == 'push'
@@ -53,6 +44,17 @@ jobs:
       - name: Skip blocked automatic production deploy
         if: github.ref_name == 'main' && github.event_name == 'push' && steps.production_blocker.outputs.skip_deploy == 'true'
         run: echo "Production deploy is deferred to Retry Production Deploy while automation blockers are open."
+
+      - name: Set up Node
+        if: github.ref_name != 'main' || github.event_name != 'push' || steps.production_blocker.outputs.skip_deploy != 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: github.ref_name != 'main' || github.event_name != 'push' || steps.production_blocker.outputs.skip_deploy != 'true'
+        run: npm ci
 
       - name: Sync Vercel runtime environment
         if: github.ref_name != 'main' || github.event_name != 'push' || steps.production_blocker.outputs.skip_deploy != 'true'
