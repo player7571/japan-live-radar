@@ -138,7 +138,7 @@ Normal development flow:
 3. Open a PR into `dev` and wait for GitHub CI.
 4. Merge to `dev`.
 5. Let `Auto Release PR` update the open `dev` to `main` release PR.
-6. Merge the release PR after its checks pass. If production deploy capacity is exhausted after merge, leave the matching automation issues open and let `Retry Production Deploy` finish the release later. While those blockers are open, automatic `main` push deploys are intentionally skipped to avoid spending more Vercel quota.
+6. Merge the release PR after its checks pass. The `Merge Release PR` workflow first reconciles `dev` with the latest `main` release commit when squash releases have made the branches diverge, then merges the clean release PR. If production deploy capacity is exhausted after merge, leave the matching automation issues open and let `Retry Production Deploy` finish the release later. While those blockers are open, automatic `main` push deploys are intentionally skipped to avoid spending more Vercel quota.
 7. Verify production with `npm run health:production` or `https://japan-live-radar.vercel.app/api/health`. With `ADMIN_API_TOKEN`, the script also verifies that alert queue tables are ready, alert errors are cleared, and sync health is current.
 
 If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, continue feature work on `dev` and avoid manual deploy retries until quota resets. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
