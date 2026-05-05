@@ -256,7 +256,9 @@ function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ti
     /(日本|国内|携帯|電話番号|SMS|SMS認証|認証).{0,18}(不要|なし|無し|必要ありません|必要なし|不要です)/i.test(text) ||
     /(不要|なし|無し|必要ありません|必要なし|不要です).{0,18}(日本|国内|携帯|電話番号|SMS|SMS認証|認証)/i.test(text);
   const phoneSignal =
-    /(電話番号|携帯電話|SMS|SMS認証|本人確認|電子チケット|スマチケ|MOALA|AnyPASS|チケプラ|Plus member ID|ローチケ電子チケット|認証)/i.test(text);
+    /(電話番号|携帯電話|SMS|SMS認証|電話番号認証|携帯認証|電子チケット|スマチケ|MOALA|AnyPASS|チケプラ|Plus member ID|ローチケ電子チケット)/i.test(
+      text,
+    );
 
   if (residencyRestrictionNote) {
     return {
@@ -327,12 +329,38 @@ function lotteryResultNoteFromText(text: string) {
   return `추첨 결과 발표: ${compactWhitespace(result[2])}.`;
 }
 
+function identityVerificationNoteFromText(text: string) {
+  const normalized = normalizeFullWidth(text);
+  const notes: string[] = [];
+  const identitySignal =
+    /(本人確認|本人確認書類|身分証明書|身分証|公的身分証|顔写真|顔写真登録|顔写真付き|顔認証|入場時.{0,16}確認|名義確認|購入者確認)/i.test(
+      normalized,
+    ) ||
+    /(パスポート|運転免許証|マイナンバーカード|健康保険証|在留カード).{0,24}(提示|確認|必要|持参|登録)/i.test(
+      normalized,
+    );
+  const companionSignal =
+    /(同行者|来場者).{0,24}(登録|情報|指定|変更|本人確認|分配|譲渡)/i.test(normalized) ||
+    /(代表者|申込者|購入者).{0,24}(同行者|来場者|分配|譲渡)/i.test(normalized) ||
+    /(チケット分配|分配|来場者登録|同行者登録|同行者情報)/i.test(normalized);
+
+  if (identitySignal) {
+    notes.push("입장 시 본인확인/신분증/얼굴사진 확인 신호가 있어 여권명과 예매자명 조건을 확인하세요.");
+  }
+  if (companionSignal) {
+    notes.push("동행자 등록/티켓 분배/방문자 정보 입력 신호가 있어 동행자 변경 가능 여부와 계정 조건을 확인하세요.");
+  }
+
+  return notes.join(" ");
+}
+
 function importForeignerNote(description: string, accessNote: string, pageText: string) {
   return [
     description,
     accessNote,
     residencyRestrictionNoteFromText(pageText),
     lotteryResultNoteFromText(pageText),
+    identityVerificationNoteFromText(pageText),
     paymentPickupNoteFromText(pageText),
   ]
     .map(compactWhitespace)
