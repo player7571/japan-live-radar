@@ -54,6 +54,16 @@ jobs:
           EPLUS_ROW_LIMIT: ${{ vars.EPLUS_ROW_LIMIT || '80' }}
           EPLUS_FETCH_TIMEOUT_MS: ${{ vars.EPLUS_FETCH_TIMEOUT_MS || '12000' }}
 
+      - name: Sync Ticket Pia events
+        run: npm run sync:ticket-pia
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TICKET_PIA_SYNC_KEYWORDS: ${{ vars.TICKET_PIA_SYNC_KEYWORDS || 'J-POP,K-POP,ライブ,コンサート,フェス,ROCK' }}
+          TICKET_PIA_PAGE_LIMIT: ${{ vars.TICKET_PIA_PAGE_LIMIT || '1' }}
+          TICKET_PIA_ROW_LIMIT: ${{ vars.TICKET_PIA_ROW_LIMIT || '80' }}
+          TICKET_PIA_FETCH_TIMEOUT_MS: ${{ vars.TICKET_PIA_FETCH_TIMEOUT_MS || '12000' }}
+
       - name: Create issue on failure
         if: failure()
         uses: actions/github-script@v9
@@ -65,7 +75,7 @@ jobs:
               "",
               `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               "",
-              "Codex should inspect API errors, e+ page mapping changes, data mapping changes, or missing secrets."
+              "Codex should inspect API errors, e+/Ticket Pia page mapping changes, data mapping changes, or missing secrets."
             ].join("\n");
             try {
               await github.rest.issues.createLabel({
