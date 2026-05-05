@@ -359,44 +359,70 @@ function venueCity(venue?: TicketmasterVenue) {
 
 const concertSignals = [
   "music",
+  "音楽",
   "concert",
+  "コンサート",
   "live",
+  "ライブ",
   "festival",
+  "フェス",
+  "フェスティバル",
   "tour",
+  "ツアー",
   "dj",
   "orchestra",
+  "オーケストラ",
   "symphony",
+  "シンフォニー",
   "band",
+  "バンド",
   "idol",
+  "アイドル",
   "j-pop",
   "k-pop",
   "rock",
+  "ロック",
   "pop",
+  "ポップ",
 ];
 
 const nonConcertSignals = [
   "basketball",
+  "バスケットボール",
   "baseball",
+  "野球",
   "football",
   "soccer",
+  "サッカー",
   "rugby",
+  "ラグビー",
   "volleyball",
+  "バレーボール",
   "hockey",
   "marathon",
+  "マラソン",
   "triathlon",
   "gymnastics",
   "tennis",
+  "テニス",
   "golf",
+  "ゴルフ",
   "swimming",
   "athletics",
   "wrestling",
+  "プロレス",
   "boxing",
+  "ボクシング",
   "judo",
+  "柔道",
   "karate",
+  "空手",
   "cycling",
   "handball",
   "badminton",
   "bkb",
+  "格闘技",
+  "相撲",
 ];
 
 function eventSearchText(event: TicketmasterEvent) {
@@ -414,7 +440,7 @@ function eventSearchText(event: TicketmasterEvent) {
     .toLowerCase();
 }
 
-function isLikelyConcert(event: TicketmasterEvent) {
+export function isLikelyConcert(event: TicketmasterEvent) {
   const text = eventSearchText(event);
   if (!text) return false;
   if (nonConcertSignals.some((signal) => text.includes(signal))) return false;
