@@ -23,6 +23,7 @@ import {
 import {
   formatSaleWindow,
   nextTicketmasterPages,
+  normalizeTicketmasterFetchTimeoutMs,
   normalizeTicketmasterPageLimit,
   searchProfiles,
   toTicketmasterEventRow,
@@ -968,6 +969,9 @@ test("limits Ticketmaster pagination while following available pages", () => {
   expect(normalizeTicketmasterPageLimit(undefined)).toBe(2);
   expect(normalizeTicketmasterPageLimit("0")).toBe(1);
   expect(normalizeTicketmasterPageLimit("8")).toBe(5);
+  expect(normalizeTicketmasterFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeTicketmasterFetchTimeoutMs("1000")).toBe(3000);
+  expect(normalizeTicketmasterFetchTimeoutMs("45000")).toBe(30000);
   expect(nextTicketmasterPages({ number: 0, totalPages: 4 }, 3)).toEqual([1, 2]);
   expect(nextTicketmasterPages({ number: 1, totalPages: 4 }, 3)).toEqual([2]);
   expect(nextTicketmasterPages({ number: 0, totalPages: 1 }, 3)).toEqual([]);
