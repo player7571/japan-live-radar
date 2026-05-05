@@ -35,6 +35,14 @@ import {
   toEplusEventRow,
 } from "../scripts/sync-eplus";
 import {
+  extractTicketPiaRows,
+  normalizeTicketPiaFetchTimeoutMs,
+  normalizeTicketPiaPageLimit,
+  normalizeTicketPiaRowLimit,
+  ticketPiaLogicalEventKey,
+  ticketPiaSearchUrls,
+} from "../scripts/sync-ticket-pia";
+import {
   buildAppEventUrl,
   buildAlertDeliveryKey,
   buildAlertMessage,
@@ -2025,6 +2033,118 @@ test("maps eplus public search JSON to Korea-friendly event rows", () => {
   );
 });
 
+test("maps Ticket Pia rlsInfo search HTML to Korea-friendly event rows", () => {
+  const html = `
+    <section class="sales_list">
+      <section class="sales_data">
+        <header class="sales_data_header">
+          <h3 class="sales_data_title">
+            <a href="http://t.pia.jp/pia/event/event.do?eventCd=2548498">相川七瀬</a>
+          </h3>
+        </header>
+        <div class="event_link" itemscope itemtype="http://schema.org/Event">
+          <a href="https://ticket.pia.jp/pia/ticketInformation.do?eventCd=2548498&rlsCd=001&lotRlsCd=" itemprop="url">
+            <ul class="table_data">
+              <li class="is_title">一般発売／相川七瀬</li>
+              <li class="is_date">
+                <span class="dt">
+                  <time itemprop="startDate" datetime="2026-05-09T00:00:00+09:00"></time>
+                  2026/5/9(土)
+                </span>
+              </li>
+              <li class="is_place" itemprop="location" itemscope itemtype="http://schema.org/Place">
+                <span itemprop="name">東松山市民文化センター</span>
+                (<span itemprop="address" itemscope itemtype="http://schema.org/PostalAddress"><span itemprop="addressRegion">埼玉県</span></span>)
+              </li>
+              <li class="is_status"><span class="is_red">販売期間中</span> ～2026/5/5(火・祝) 23:59</li>
+            </ul>
+          </a>
+        </div>
+      </section>
+      <section class="sales_data">
+        <header class="sales_data_header">
+          <h3 class="sales_data_title">
+            <a href="http://t.pia.jp/pia/event/event.do?eventBundleCd=b2665243">access</a>
+          </h3>
+        </header>
+        <div class="event_link" itemscope itemtype="http://schema.org/Event">
+          <a href="https://ticket.pia.jp/pia/ticketInformation.do?eventCd=2606060&rlsCd=001&lotRlsCd=" itemprop="url">
+            <ul class="table_data">
+              <li class="is_title">一般発売／ａｃｃｅｓｓ</li>
+              <li class="is_date"><span class="dt"><time itemprop="startDate" datetime="2026-05-24T00:00:00+09:00"></time>2026/5/24(日)</span></li>
+              <li class="is_place" itemprop="location" itemscope itemtype="http://schema.org/Place">
+                <span itemprop="name">なんばＨａｔｃｈ</span>
+                (<span itemprop="address" itemscope itemtype="http://schema.org/PostalAddress"><span itemprop="addressRegion">大阪府</span></span>)
+              </li>
+              <li class="is_status"><span class="is_blue">予定枚数終了</span> ～2026/5/7(木) 23:59</li>
+            </ul>
+          </a>
+        </div>
+        <div class="event_link" itemscope itemtype="http://schema.org/Event">
+          <a href="https://ticket.pia.jp/pia/ticketInformation.do?eventCd=2606060&rlsCd=002&lotRlsCd=" itemprop="url">
+            <ul class="table_data">
+              <li class="is_title">【２Ｆ後方立見】一般発売／ａｃｃｅｓｓ</li>
+              <li class="is_date"><span class="dt"><time itemprop="startDate" datetime="2026-05-24T00:00:00+09:00"></time>2026/5/24(日)</span></li>
+              <li class="is_place" itemprop="location" itemscope itemtype="http://schema.org/Place">
+                <span itemprop="name">なんばＨａｔｃｈ</span>
+                (<span itemprop="address" itemscope itemtype="http://schema.org/PostalAddress"><span itemprop="addressRegion">大阪府</span></span>)
+              </li>
+              <li class="is_status"><span class="is_blue">予定枚数終了</span> ～2026/5/7(木) 23:59</li>
+            </ul>
+          </a>
+        </div>
+        <div class="event_link" itemscope itemtype="http://schema.org/Event">
+          <a href="https://ticket.pia.jp/pia/ticketInformation.do?eventCd=stage&rlsCd=001&lotRlsCd=" itemprop="url">
+            <ul class="table_data">
+              <li class="is_title">一般発売／演劇舞台</li>
+              <li class="is_date"><span class="dt"><time itemprop="startDate" datetime="2026-05-25T00:00:00+09:00"></time>2026/5/25(月)</span></li>
+              <li class="is_place" itemprop="location" itemscope itemtype="http://schema.org/Place">
+                <span itemprop="name">東京劇場</span>
+                (<span itemprop="address" itemscope itemtype="http://schema.org/PostalAddress"><span itemprop="addressRegion">東京都</span></span>)
+              </li>
+              <li class="is_status"><span>販売期間中</span></li>
+            </ul>
+          </a>
+        </div>
+      </section>
+    </section>
+  `;
+  const rows = extractTicketPiaRows(html, new Date("2026-05-05T00:00:00+09:00"));
+
+  expect(rows).toHaveLength(3);
+  expect(rows[0]).toMatchObject({
+    source: "Ticket Pia",
+    source_event_id: "https://ticket.pia.jp/pia/ticketInformation.do?eventCd=2548498&rlsCd=001&lotRlsCd=",
+    artist: "相川七瀬",
+    title: "相川七瀬",
+    city: "사이타마",
+    venue: "東松山市民文化センター",
+    date: "2026-05-09",
+    time: null,
+    ticket_access: "일본 번호 필요",
+    sale_type: "선착 판매",
+    phone_required: true,
+  });
+  expect(rows[0].sale_window).toBe("販売期間中 종료: 2026.05.05 23:59");
+  expect(rows[1]).toMatchObject({
+    title: "access",
+    venue: "なんばHatch",
+  });
+  expect(ticketPiaLogicalEventKey(rows[1])).toBe(ticketPiaLogicalEventKey(rows[2]));
+  expect(normalizeTicketPiaRowLimit(undefined)).toBe(80);
+  expect(normalizeTicketPiaRowLimit("200")).toBe(120);
+  expect(normalizeTicketPiaPageLimit(undefined)).toBe(1);
+  expect(normalizeTicketPiaPageLimit("8")).toBe(3);
+  expect(normalizeTicketPiaFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeTicketPiaFetchTimeoutMs("1000")).toBe(3000);
+  expect(ticketPiaSearchUrls()).toEqual(
+    expect.arrayContaining([
+      "https://t.pia.jp/pia/rlsInfo.do?kw=J-POP&cAsgnFlg=false&bAsgnFlg=false&includeSaleEnd=false&page=1&responsive=true&noConvert=true&searchMode=1&mode=2&dispMode=1",
+      "https://t.pia.jp/pia/rlsInfo.do?kw=K-POP&cAsgnFlg=false&bAsgnFlg=false&includeSaleEnd=false&page=1&responsive=true&noConvert=true&searchMode=1&mode=2&dispMode=1",
+    ]),
+  );
+});
+
 test("maps Ticketmaster events as Korea-friendly rows", () => {
   const row = toTicketmasterEventRow({
     id: "tm-korea-friendly",
@@ -2520,6 +2640,8 @@ test("keeps automatic CI and scheduled operations within Actions minute budget",
   expect(syncWorkflow).toContain('cron: "17 18 * * 1,4"');
   expect(syncWorkflow).toContain("npm run sync:eplus");
   expect(syncWorkflow).toContain("EPLUS_SYNC_KEYWORDS");
+  expect(syncWorkflow).toContain("npm run sync:ticket-pia");
+  expect(syncWorkflow).toContain("TICKET_PIA_SYNC_KEYWORDS");
 });
 
 test("summarizes alert dispatch failures for workflow visibility", () => {
