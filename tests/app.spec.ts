@@ -767,6 +767,56 @@ test("captures text-only ticket availability cues from imported pages", () => {
       new URL("https://l-tike.com/concert/mevent/?mid=2600004"),
     ).saleWindow,
   ).toBe("チケット発売中");
+
+  expect(
+    extractDraft(
+      `
+        <html>
+          <head><title>Perfume Dome Live｜チケットぴあ</title></head>
+          <body>
+            <h1>Perfume Dome Live</h1>
+            <p>会場：東京ドーム</p>
+            <p>公演日：2026年9月23日 18:30</p>
+            <p>本公演は開催中止となりました。</p>
+          </body>
+        </html>
+      `,
+      new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600005"),
+    ).saleWindow,
+  ).toBe("공연 취소");
+});
+
+test("captures cancelled JSON-LD event status from imported pages", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>milet Hall Tour｜Official</title>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "MusicEvent",
+              "name": "milet Hall Tour",
+              "eventStatus": "https://schema.org/EventCancelled",
+              "startDate": "2026-09-24T18:30:00+09:00",
+              "location": {
+                "@type": "Place",
+                "name": "東京ガーデンシアター",
+                "address": "東京都江東区有明"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <h1>milet Hall Tour</h1>
+        </body>
+      </html>
+    `,
+    new URL("https://artist.example.com/live/milet-cancelled"),
+  );
+
+  expect(draft.city).toBe("도쿄");
+  expect(draft.saleWindow).toBe("공연 취소");
 });
 
 test("extracts Japanese hour-minute sale windows from imported pages", () => {
@@ -874,6 +924,8 @@ test("classifies sale status from text-only availability cues", () => {
   );
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "販売中" })).toBe("판매 중");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "受付終了" })).toBe("판매 종료");
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: "開催中止" })).toBe("판매 종료");
+  expect(getSaleStatus({ ...seedEvents[0], saleWindow: "공연 취소" })).toBe("판매 종료");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "発売予定" })).toBe("오픈 예정");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "판매 중" })).toBe("판매 중");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "판매 종료" })).toBe("판매 종료");

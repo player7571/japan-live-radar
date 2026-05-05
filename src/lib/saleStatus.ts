@@ -3,7 +3,7 @@ import type { Event } from "../types/events";
 export type SaleStatus = "전체" | "오픈 예정" | "판매 중" | "판매 종료" | "확인 필요";
 
 const endedStatusCue =
-  /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|판매\s*종료|sold\s*out|closed|ended)/i;
+  /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|公演中止|開催中止|中止|취소|공연\s*취소|판매\s*종료|sold\s*out|cancelled|canceled|closed|ended)/i;
 const activeStatusCue = /(販売中(?!止)|受付中|発売中|申込受付中|チケット発売中|판매\s*중|on\s*sale|available\s*now|now\s*on\s*sale)/i;
 const upcomingStatusCue = /(販売予定|受付予定|発売予定|近日発売|準備中|오픈\s*예정|coming\s*soon)/i;
 
