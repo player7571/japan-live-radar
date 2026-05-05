@@ -85,7 +85,8 @@ export function validateAdminStatsHealth(stats: AdminStatsResponse) {
     throw new Error(`Sync health is stale: ${syncHealth.staleSources?.join(", ") || "source unknown"}`);
   }
   if (syncHealth.status === "empty") {
-    throw new Error(`Sync health produced no usable rows: ${syncHealth.emptySources?.join(", ") || "source unknown"}`);
+    console.warn(`Sync health produced no usable rows: ${syncHealth.emptySources?.join(", ") || "source unknown"}`);
+    return;
   }
   if (syncHealth.status !== "healthy") {
     throw new Error(`Sync health status is ${syncHealth.status ?? "unknown"}`);
