@@ -87,8 +87,10 @@ type AdminStats = {
   alertQueue: {
     activeDue: number;
     activeScheduled: number;
+    activeNext24h: number;
     error: number;
     sent: number;
+    nextReminderAt: string | null;
     lastErrorAt: string | null;
   } | null;
   syncRuns?: Array<{
@@ -167,6 +169,21 @@ function formatAdminSyncHealth(syncHealth: AdminStats["syncHealth"]) {
     return `지연 · ${syncHealth.staleSources.join(", ") || `${syncHealth.staleAfterHours}시간 초과`}`;
   }
   return "정상";
+}
+
+function formatAdminNextReminder(alertQueue: AdminStats["alertQueue"]) {
+  if (alertQueue === null) return "테이블 준비 전";
+  if (!alertQueue.nextReminderAt) return "예정 없음";
+
+  const nextReminder = new Date(alertQueue.nextReminderAt);
+  if (Number.isNaN(nextReminder.getTime())) return "시간 확인 필요";
+
+  return nextReminder.toLocaleString("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatAlertReminder(event: Event) {
@@ -1319,6 +1336,11 @@ function AdminPage() {
                   label="알림 대기"
                   value={adminStats.alertQueue === null ? "테이블 준비 전" : `${adminStats.alertQueue.activeDue}개`}
                 />
+                <AdminStat
+                  label="24시간 내 알림"
+                  value={adminStats.alertQueue === null ? "테이블 준비 전" : `${adminStats.alertQueue.activeNext24h}개`}
+                />
+                <AdminStat label="다음 알림" value={formatAdminNextReminder(adminStats.alertQueue)} />
                 <AdminStat
                   label="알림 오류"
                   value={adminStats.alertQueue === null ? "테이블 준비 전" : `${adminStats.alertQueue.error}개`}
