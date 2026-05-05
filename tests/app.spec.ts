@@ -974,6 +974,55 @@ test("prefers JSON-LD offer ticket URLs when source pages have no ticket links",
   expect(draft.price).toBe("¥11,000");
 });
 
+test("extracts nested JSON-LD aggregate offer ticket windows", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Event",
+              "name": "IVE Japan Arena Tour",
+              "startDate": "2026-11-03T18:30:00+09:00",
+              "performer": { "@type": "MusicGroup", "name": "IVE" },
+              "location": {
+                "@type": "Place",
+                "name": "大阪城ホール",
+                "address": "大阪府大阪市"
+              },
+              "offers": {
+                "@type": "AggregateOffer",
+                "lowPrice": "9800",
+                "highPrice": "16800",
+                "offers": [
+                  {
+                    "@type": "Offer",
+                    "url": "https://ticket.pia.jp/pia/event.do?eventCd=2601234",
+                    "validFrom": "2026-07-01T12:00:00+09:00",
+                    "validThrough": "2026-07-10T23:59:00+09:00"
+                  }
+                ]
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <p>抽選受付の詳細をご確認ください。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://www.ive-official.jp/news/arena-tour"),
+  );
+
+  expect(draft.artist).toBe("IVE");
+  expect(draft.city).toBe("오사카");
+  expect(draft.price).toBe("¥9,800 - ¥16,800");
+  expect(draft.saleWindow).toBe("2026-07-01T12:00:00+09:00 - 2026-07-10T23:59:00+09:00");
+  expect(draft.link).toBe("https://ticket.pia.jp/pia/event.do?eventCd=2601234");
+  expect(draft.source).toBe("Ticket Pia");
+});
+
 test("calculates alert reminders from sale windows and event dates", () => {
   const now = new Date("2026-05-04T00:00:00+09:00");
 
