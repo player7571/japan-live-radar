@@ -715,7 +715,7 @@ h2 {
 
 .action-row {
   display: grid;
-  grid-template-columns: 1fr 0.72fr;
+  grid-template-columns: 1fr 0.72fr 0.78fr;
   gap: 10px;
 }
 
