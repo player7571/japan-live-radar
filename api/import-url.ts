@@ -605,6 +605,15 @@ function flattenJsonLd(value: unknown): Array<Record<string, unknown>> {
   return [];
 }
 
+function jsonLdTypeMatches(value: unknown, matcher: (type: string) => boolean): boolean {
+  if (Array.isArray(value)) return value.some((item) => jsonLdTypeMatches(item, matcher));
+  return typeof value === "string" && matcher(value);
+}
+
+function isJsonLdEventType(value: unknown) {
+  return jsonLdTypeMatches(value, (type) => /(^|[/#])[\w-]*Event$/i.test(type));
+}
+
 function firstObject(value: unknown): Record<string, unknown> {
   if (Array.isArray(value)) return firstObject(value[0]);
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -877,10 +886,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
         return [];
       }
     });
-  const eventJson = jsonLdItems.find((item) => {
-    const type = item["@type"];
-    return type === "Event" || (Array.isArray(type) && type.includes("Event"));
-  });
+  const eventJson = jsonLdItems.find((item) => isJsonLdEventType(item["@type"]));
   const location =
     eventJson?.location && typeof eventJson.location === "object"
       ? (eventJson.location as Record<string, unknown>)
