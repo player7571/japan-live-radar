@@ -119,6 +119,7 @@ APP_BASE_URL
 VITE_USE_SEED_DATA
 TICKETMASTER_PAGE_LIMIT
 ALERT_WEBHOOK_ATTEMPTS
+ALERT_WEBHOOK_TIMEOUT_MS
 SYNC_STALE_AFTER_HOURS
 ```
 
@@ -127,6 +128,7 @@ SYNC_STALE_AFTER_HOURS
 - `VITE_USE_SEED_DATA=true` forces the frontend to use local seed data during development.
 - `TICKETMASTER_PAGE_LIMIT` caps Ticketmaster sync pagination per search profile. It defaults to `2` pages, is clamped from `1` to `5`, and can be set as a GitHub repository variable for the scheduled sync workflow.
 - `ALERT_WEBHOOK_ATTEMPTS` controls retry attempts for transient alert webhook HTTP failures and network exceptions. It defaults to `3`, is clamped from `1` to `5`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
+- `ALERT_WEBHOOK_TIMEOUT_MS` controls each alert webhook request timeout. It defaults to `10000`, is clamped from `1000` to `30000`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `SYNC_STALE_AFTER_HOURS` controls when the admin stats API marks the latest sync run as delayed. It defaults to `30` hours to cover the daily Ticketmaster schedule with slack.
 
 ## Release Operations
