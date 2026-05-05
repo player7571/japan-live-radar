@@ -38,6 +38,21 @@ jobs:
             "$@"
           }
 
+          sync_dev_to_main_after_release() {
+            local attempt
+            for attempt in 1 2 3 4 5 6; do
+              git fetch origin main dev
+              if git merge-base --is-ancestor origin/dev origin/main; then
+                echo "Fast-forwarding dev to the latest main release commit."
+                with_retry git push origin origin/main:dev
+                return 0
+              fi
+              echo "Latest main does not contain dev yet on attempt $attempt; waiting."
+              sleep $((attempt * 5))
+            done
+            echo "Could not fast-forward dev after release merge. The next release run can reconcile it."
+          }
+
           pr_number="$(gh pr list \
             --repo "$GITHUB_REPOSITORY" \
             --base main \
@@ -80,6 +95,7 @@ jobs:
               [ "$failing_check_runs" -eq 0 ] &&
               [ "$failing_statuses" -eq 0 ]; then
               with_retry gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
+              sync_dev_to_main_after_release
               exit 0
             fi
 
@@ -90,6 +106,7 @@ jobs:
               echo "Release PR #$pr_number only has Vercel quota status checks failing."
               echo "Merging so the production retry workflow can deploy the latest main commit after quota resets."
               with_retry gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --merge
+              sync_dev_to_main_after_release
               exit 0
             fi
 
