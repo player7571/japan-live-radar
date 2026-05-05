@@ -5,6 +5,11 @@ import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
 import {
+  validateAdminAlertsHealth,
+  validateAdminStatsHealth,
+  validateProductionHealth,
+} from "../scripts/check-production-health";
+import {
   buildAlertMessage,
   buildAlertWebhookPayload,
   normalizeWebhookAttempts,
@@ -1050,6 +1055,65 @@ test("builds alert snapshots with ticket access and travel context", () => {
     foreignerNote: seedEvents[0].foreignerNote,
     link: seedEvents[0].link,
   });
+});
+
+test("validates production health with admin alert and sync coverage", () => {
+  expect(() =>
+    validateProductionHealth({
+      ok: true,
+      database: "reachable",
+      eventCount: 3,
+    }),
+  ).not.toThrow();
+
+  expect(() => validateProductionHealth({ ok: true, database: "missing", eventCount: 3 })).toThrow(
+    "Database is missing",
+  );
+  expect(() => validateAdminAlertsHealth({ configured: true, alerts: [] })).not.toThrow();
+  expect(() => validateAdminAlertsHealth({ configured: false, alerts: [] })).toThrow(
+    "Admin alerts API is not configured",
+  );
+  expect(() =>
+    validateAdminStatsHealth({
+      alertQueue: {
+        activeDue: 0,
+        activeScheduled: 2,
+        activeNext24h: 1,
+        error: 0,
+        sent: 5,
+        nextReminderAt: "2026-05-05T00:00:00.000Z",
+        lastErrorAt: null,
+      },
+      syncHealth: {
+        status: "healthy",
+        lastFinishedAt: "2026-05-04T10:00:00Z",
+        staleAfterHours: 30,
+        errorSources: [],
+        staleSources: [],
+      },
+    }),
+  ).not.toThrow();
+  expect(() =>
+    validateAdminStatsHealth({
+      alertQueue: {
+        error: 1,
+      },
+      syncHealth: {
+        status: "healthy",
+      },
+    }),
+  ).toThrow("Alert queue has 1 errored alert(s)");
+  expect(() =>
+    validateAdminStatsHealth({
+      alertQueue: {
+        error: 0,
+      },
+      syncHealth: {
+        status: "stale",
+        staleSources: ["ticketmaster"],
+      },
+    }),
+  ).toThrow("Sync health is stale: ticketmaster");
 });
 
 test("summarizes alert dispatch failures for workflow visibility", () => {

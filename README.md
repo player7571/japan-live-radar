@@ -72,7 +72,7 @@ GitHub Actions is the long-running automation layer so Codex heartbeat runs do n
 - `Supabase Migrate`: applies migrations automatically when migration files land on `main`, and can also be run manually.
 - `Sync Ticketmaster Events`: refreshes seed and Ticketmaster data on a daily schedule.
 - `Dispatch Due Alerts`: checks the protected alert queue every 15 minutes and dispatches via `ALERT_WEBHOOK_URL` when configured.
-- `Production Health Check`: checks `/api/health` and the protected alert queue every 30 minutes.
+- `Production Health Check`: checks `/api/health`, the protected alert queue, and admin alert/sync stats every 30 minutes.
 
 Scheduled workflows create one open `automation` issue when they fail, so Codex can pick up the issue/logs and continue without waiting for a local heartbeat to have elevated permissions.
 
@@ -136,7 +136,7 @@ Normal development flow:
 4. Merge to `dev`.
 5. Let `Auto Release PR` update the open `dev` to `main` release PR.
 6. Merge the release PR after its checks pass. If production deploy capacity is exhausted after merge, leave the matching automation issues open and let `Retry Production Deploy` finish the release later. While those blockers are open, automatic `main` push deploys are intentionally skipped to avoid spending more Vercel quota.
-7. Verify production with `npm run health:production` or `https://japan-live-radar.vercel.app/api/health`.
+7. Verify production with `npm run health:production` or `https://japan-live-radar.vercel.app/api/health`. With `ADMIN_API_TOKEN`, the script also verifies that alert queue tables are ready, alert errors are cleared, and sync health is current.
 
 If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, continue feature work on `dev` and avoid manual deploy retries until quota resets. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
 
