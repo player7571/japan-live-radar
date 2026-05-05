@@ -2322,6 +2322,9 @@ test("keeps automatic CI and scheduled operations within Actions minute budget",
   expect(dispatchWorkflow).toContain("No due alerts; skipping Node setup.");
   expect(dispatchWorkflow).toContain("steps.due_alerts.outputs.should_dispatch == 'true'");
   expect(healthWorkflow).toContain('cron: "7 0 * * *"');
+  expect(healthWorkflow.indexOf("Check production health blockers")).toBeLessThan(healthWorkflow.indexOf("Set up Node"));
+  expect(healthWorkflow).toContain("Skip blocked scheduled health check");
+  expect(healthWorkflow).toContain("steps.blockers.outputs.skip_health != 'true'");
   expect(retryWorkflow).toContain('cron: "23 12 * * *"');
   expect(syncWorkflow).toContain('cron: "17 18 * * 1,4"');
 });
