@@ -20,6 +20,7 @@ import {
   buildAppEventUrl,
   buildAlertDeliveryKey,
   buildAlertMessage,
+  buildAlertSubject,
   buildAlertWebhookPayload,
   buildAlertWebhookSignature,
   normalizeWebhookAttempts,
@@ -1667,8 +1668,10 @@ test("builds alert webhook payloads with Korean context and contact email", () =
   expect(buildAppEventUrl(alert, "https://example.com")).toBe(
     "https://example.com/?event=seed-ado-yokohama-2026-07-21",
   );
+  expect(buildAlertSubject(alert)).toBe("[Japan Live Radar] Ado - Blue Flame Tour 예매 알림");
   expect(buildAlertDeliveryKey(alert)).toBe("alert-1:ado-2026:2026-05-10T00:00:00.000Z");
   expect(buildAlertWebhookPayload(alert)).toMatchObject({
+    subject: "[Japan Live Radar] Ado - Blue Flame Tour 예매 알림",
     text: expect.stringContaining("판매 일정: 2026年5月10日 12:00"),
     deliveryKey: "alert-1:ado-2026:2026-05-10T00:00:00.000Z",
     alertId: "alert-1",
@@ -1676,6 +1679,8 @@ test("builds alert webhook payloads with Korean context and contact email", () =
     channel: "email",
     contactEmail: "fan@example.com",
     appUrl: "https://japan-live-radar.vercel.app/?event=seed-ado-yokohama-2026-07-21",
+    eventUrl: "https://japan-live-radar.vercel.app/?event=seed-ado-yokohama-2026-07-21",
+    ticketUrl: "https://t.pia.jp/example",
     source: "Ticket Pia",
     ticketAccess: "일본 번호 필요",
     saleType: "추첨 접수",
@@ -1683,6 +1688,9 @@ test("builds alert webhook payloads with Korean context and contact email", () =
     remindAt: "2026-05-10T00:00:00.000Z",
     remindBeforeHours: 24,
   });
+  expect(buildAlertSubject({ event_key: "missing", id: "alert-2", remind_at: "", event_snapshot: {} })).toBe(
+    "[Japan Live Radar] 일본 콘서트 예매 알림",
+  );
 });
 
 test("builds alert snapshots with ticket access and travel context", () => {
