@@ -665,6 +665,32 @@ test("combines separated sale start and end fields from imported pages", () => {
   expect(draft.saleWindow).toBe("2026/06/02(火) 12:00 - 2026/06/15(月) 23:59");
 });
 
+test("infers sale window years from imported event dates", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head><title>YOASOBI Dome Live｜ticket board</title></head>
+        <body>
+          <h1>YOASOBI Dome Live</h1>
+          <dl>
+            <dt>公演日時</dt><dd>2026年12月12日(土) 開演18:30</dd>
+            <dt>会場</dt><dd>京セラドーム大阪</dd>
+          </dl>
+          <p>抽選受付期間：5/10(土) 12:00～5/20(水) 23:59</p>
+          <p>電子チケットはticket boardでの受取となり、SMS認証が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://ticket.tickebo.jp/show/event.html?info=yoasobi"),
+  );
+
+  expect(draft.city).toBe("오사카");
+  expect(draft.source).toBe("ticket board");
+  expect(draft.saleType).toBe("추첨 접수");
+  expect(draft.saleWindow).toBe("2026/5/10(土) 12:00 - 2026/5/20(水) 23:59");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+});
+
 test("classifies sale status from text-only availability cues", () => {
   expect(currentTokyoDay(new Date("2026-05-04T17:30:00Z")).toISOString()).toBe(
     new Date("2026-05-05T00:00:00+09:00").toISOString(),

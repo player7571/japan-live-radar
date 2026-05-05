@@ -466,11 +466,17 @@ function importForeignerNote(description: string, accessNote: string, pageText: 
     .join(" ");
 }
 
-function saleWindowFromText(text: string) {
+function saleWindowFromText(text: string, fallbackYear = "") {
   const normalized = normalizeFullWidth(text);
   const clockPattern = String.raw`(?:[01]?\d|2[0-3])(?::[0-5]\d|時\s*(?:[0-5]\d)?\s*分?)`;
-  const fullDateTimePattern = String.raw`(\d{4})[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*${clockPattern}`;
+  const fullDateTimePattern = String.raw`\d{4}[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*${clockPattern}`;
   const shortDateTimePattern = String.raw`(?:\d{4}[./年-]\s*)?\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*${clockPattern}`;
+  const startDateTimePattern = fallbackYear ? shortDateTimePattern : fullDateTimePattern;
+  const normalizeStartDate = (start: string) => {
+    const trimmedStart = compactWhitespace(start);
+    if (/^\d{4}/.test(trimmedStart) || !fallbackYear) return trimmedStart;
+    return `${fallbackYear}/${trimmedStart}`;
+  };
   const normalizeEndDate = (start: string, end: string) => {
     const trimmedEnd = compactWhitespace(end);
     if (/^\d{4}/.test(trimmedEnd)) return trimmedEnd;
@@ -480,7 +486,7 @@ function saleWindowFromText(text: string) {
 
   const separateStart = normalized.match(
     new RegExp(
-      `(受付開始日時|受付開始|販売開始|発売開始|発売日時|申込開始|抽選受付開始|先行受付開始)[:：]?\\s*(${fullDateTimePattern})`,
+      `(受付開始日時|受付開始|販売開始|発売開始|発売日時|申込開始|抽選受付開始|先行受付開始)[:：]?\\s*(${startDateTimePattern})`,
     ),
   );
   const separateEnd = normalized.match(
@@ -489,26 +495,27 @@ function saleWindowFromText(text: string) {
     ),
   );
   if (separateStart && separateEnd) {
-    const start = compactWhitespace(separateStart[2]);
+    const start = normalizeStartDate(separateStart[2]);
     return `${start} - ${normalizeEndDate(start, separateEnd[2])}`;
   }
 
   const range = normalized.match(
     new RegExp(
       `(受付期間|販売期間|申込期間|発売期間|抽選受付|先行受付|一般発売|発売日)?[:：]?\\s*` +
-        `(${fullDateTimePattern})\\s*(?:[~〜～\\-]|から|より)\\s*` +
+        `(${startDateTimePattern})\\s*(?:[~〜～\\-]|から|より)\\s*` +
         `(${shortDateTimePattern}|予定枚数終了|売切|売り切れ)`,
     ),
   );
   if (range) {
-    const end = normalizeEndDate(range[2], range[4]);
-    return `${compactWhitespace(range[2])} - ${compactWhitespace(end)}`;
+    const start = normalizeStartDate(range[2]);
+    const end = normalizeEndDate(start, range[3]);
+    return `${start} - ${compactWhitespace(end)}`;
   }
 
   const singleStart = normalized.match(
-    new RegExp(`(受付開始|販売開始|発売開始|発売日時|発売日|一般発売|抽選受付|先行受付)[:：]?\\s*(${fullDateTimePattern})`),
+    new RegExp(`(受付開始|販売開始|発売開始|発売日時|発売日|一般発売|抽選受付|先行受付)[:：]?\\s*(${startDateTimePattern})`),
   );
-  if (singleStart) return compactWhitespace(singleStart[2]);
+  if (singleStart) return normalizeStartDate(singleStart[2]);
 
   const availabilityCue = normalized.match(
     /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|販売中(?!止)|受付中|発売中|申込受付中|チケット発売中|販売予定|受付予定|発売予定|近日発売|準備中|sold\s*out|closed|ended|on\s*sale|available\s*now|now\s*on\s*sale|coming\s*soon)/i,
@@ -765,9 +772,10 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   const textForCity = [venue, address.addressLocality, address.addressRegion, firstString(location.address), pageText].join(" ");
   const access = accessFromText(`${description} ${pageText}`);
   const ticketLink = ticketLinkFromPage($, sourceUrl);
+  const eventDate = normalizeDate(dateSource);
   const saleWindow = firstString(
     saleWindowFromOffers(offerList),
-    saleWindowFromText(pageText),
+    saleWindowFromText(pageText, eventDate.slice(0, 4)),
     labeledValue($, rawBodyText, ["受付期間", "販売期間", "申込期間", "発売期間", "発売日時", "発売日", "一般発売"]),
   );
 
@@ -777,7 +785,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
     title,
     city: cityFromText(textForCity),
     venue,
-    date: normalizeDate(dateSource),
+    date: eventDate,
     time: normalizeTime(dateSource),
     source: sourceFromHostname(ticketLink.hostname),
     ticketAccess: access.ticketAccess,
