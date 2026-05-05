@@ -180,7 +180,23 @@ function ticketPiaSaleWindow(text: string) {
   return `${compacted.split(/[～~]/)[0].trim() || "판매"} 종료: ${year}.${month.padStart(2, "0")}.${day.padStart(2, "0")} ${hour.padStart(2, "0")}:${minute}`;
 }
 
-const nonConcertSignals = ["舞台", "演劇", "ミュージカル", "映画", "スポーツ", "野球", "サッカー", "バスケット", "講演会", "トークショー"];
+const nonConcertSignals = [
+  "舞台",
+  "演劇",
+  "ミュージカル",
+  "映画",
+  "スポーツ",
+  "野球",
+  "サッカー",
+  "バスケット",
+  "講演会",
+  "トークショー",
+  "お笑い",
+  "単独ライブ",
+  "漫才",
+  "落語",
+  "寄席",
+];
 
 function isLikelyTicketPiaConcert(text: string) {
   return !nonConcertSignals.some((signal) => text.includes(signal));
