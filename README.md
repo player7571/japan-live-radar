@@ -45,7 +45,7 @@ npx playwright test
 - Admin event entry, candidate approval, URL import, search candidates, quality stats, and alert subscriptions live under `api/`.
 - Stable fallback data is synced with `npm run sync:seed`.
 - Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
-- e+ public search ingestion runs with `npm run sync:eplus` and maps usable public concert rows into the live catalog.
+- e+ public search ingestion runs with `npm run sync:eplus`, maps usable public concert rows into the live catalog, merges duplicate ticket-phase listings for the same performance, and removes stale e+ rows only after a successful usable sync.
 - Ticketmaster public sale and presale windows are preserved in Korean-facing sale schedule text so reminders can target the earliest available ticket window.
 - Ticketmaster stale cleanup only runs after a sync produces at least one usable concert row, so a temporary empty or misclassified API response does not wipe the existing catalog.
 - Supabase migrations run with `npm run db:migrate` or the manual `Supabase Migrate` workflow.
@@ -143,8 +143,8 @@ SYNC_STALE_AFTER_HOURS
 - `VITE_USE_SEED_DATA=true` forces the frontend to use local seed data during development.
 - `TICKETMASTER_PAGE_LIMIT` caps Ticketmaster sync pagination per search profile. It defaults to `2` pages, is clamped from `1` to `5`, and can be set as a GitHub repository variable for the scheduled sync workflow.
 - `TICKETMASTER_FETCH_TIMEOUT_MS` controls each Ticketmaster API request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable for the scheduled sync workflow.
-- `EPLUS_SYNC_KEYWORDS` controls public e+ search keywords for the scheduled sync. It defaults to `J-POP,K-POP`.
-- `EPLUS_ROW_LIMIT` caps e+ rows inserted per run. It defaults to `40`, is clamped from `1` to `120`, and can be set as a GitHub repository variable.
+- `EPLUS_SYNC_KEYWORDS` controls public e+ search keywords for the scheduled sync. It defaults to `J-POP,K-POP,ライブ,コンサート,フェス,ROCK`.
+- `EPLUS_ROW_LIMIT` caps e+ rows inserted per run. It defaults to `80`, is clamped from `1` to `120`, and can be set as a GitHub repository variable.
 - `EPLUS_FETCH_TIMEOUT_MS` controls each e+ page request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable.
 - `ALERT_WEBHOOK_ATTEMPTS` controls retry attempts for transient alert webhook HTTP failures and network exceptions. It defaults to `3`, is clamped from `1` to `5`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `ALERT_WEBHOOK_TIMEOUT_MS` controls each alert webhook request timeout. It defaults to `10000`, is clamped from `1000` to `30000`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.

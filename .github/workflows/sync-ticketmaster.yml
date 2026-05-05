@@ -50,8 +50,8 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          EPLUS_SYNC_KEYWORDS: ${{ vars.EPLUS_SYNC_KEYWORDS || 'J-POP,K-POP' }}
-          EPLUS_ROW_LIMIT: ${{ vars.EPLUS_ROW_LIMIT || '40' }}
+          EPLUS_SYNC_KEYWORDS: ${{ vars.EPLUS_SYNC_KEYWORDS || 'J-POP,K-POP,ライブ,コンサート,フェス,ROCK' }}
+          EPLUS_ROW_LIMIT: ${{ vars.EPLUS_ROW_LIMIT || '80' }}
           EPLUS_FETCH_TIMEOUT_MS: ${{ vars.EPLUS_FETCH_TIMEOUT_MS || '12000' }}
 
       - name: Create issue on failure
