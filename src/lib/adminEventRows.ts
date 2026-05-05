@@ -61,6 +61,10 @@ function toSaleType(value: unknown): SaleType {
   return "일반 판매";
 }
 
+function toPhoneRequired(value: unknown) {
+  return typeof value === "boolean" ? value : true;
+}
+
 function slugify(value: string) {
   return value
     .normalize("NFKD")
@@ -121,7 +125,7 @@ export function toEventRow(input: AdminEventInput, rawMeta: Record<string, unkno
     sale_type: toSaleType(input.saleType),
     sale_window: optionalString(input.saleWindow),
     price: optionalString(input.price),
-    phone_required: Boolean(input.phoneRequired),
+    phone_required: toPhoneRequired(input.phoneRequired),
     foreigner_note:
       optionalString(input.foreignerNote) ?? "원본 티켓 페이지에서 해외 결제와 수령 조건을 확인하세요.",
     link: optionalString(input.link),

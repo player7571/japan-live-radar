@@ -268,25 +268,40 @@ function labeledValue($: cheerio.CheerioAPI, text: string, labels: string[]) {
   return firstString(labeledElementValue($, labels), labeledTextValue(text, labels));
 }
 
+function formatYenAmounts(amounts: number[]) {
+  const validAmounts = Array.from(new Set(amounts.filter((amount) => Number.isFinite(amount) && amount >= 1000))).sort(
+    (left, right) => left - right,
+  );
+  if (validAmounts.length === 0) return "";
+
+  const lowest = validAmounts[0];
+  const highest = validAmounts[validAmounts.length - 1];
+  if (lowest === highest) return `¥${lowest.toLocaleString("ja-JP")}`;
+  return `¥${lowest.toLocaleString("ja-JP")} - ¥${highest.toLocaleString("ja-JP")}`;
+}
+
 function normalizePriceText(value: string) {
   const normalized = normalizeFullWidth(value);
   const bareStructuredPrice = normalized.match(/^\s*([0-9,]{3,})\s*$/);
   if (bareStructuredPrice) {
     const amount = Number(bareStructuredPrice[1].replaceAll(",", ""));
-    return Number.isFinite(amount) ? `¥${amount.toLocaleString("ja-JP")}` : "";
+    return formatYenAmounts([amount]);
   }
 
-  const price = normalized.match(/[¥￥]\s?([0-9,]{3,})(?:\s?[~〜-]\s?[¥￥]?\s?([0-9,]{3,}))?/) ??
-    normalized.match(/([0-9,]{3,})\s?円(?:\s?[~〜-]\s?([0-9,]{3,})\s?円)?/);
-
-  if (!price) return "";
-  const first = Number(price[1].replaceAll(",", ""));
-  const second = price[2] ? Number(price[2].replaceAll(",", "")) : null;
-  if (!Number.isFinite(first)) return "";
-  if (second && Number.isFinite(second)) {
-    return `¥${first.toLocaleString("ja-JP")} - ¥${second.toLocaleString("ja-JP")}`;
+  const explicitRange = normalized.match(
+    /[¥￥]\s?([0-9,]{3,})\s?[~〜-]\s?[¥￥]?\s?([0-9,]{3,})|([0-9,]{3,})\s?円\s?[~〜-]\s?([0-9,]{3,})\s?円?/,
+  );
+  if (explicitRange) {
+    return formatYenAmounts([
+      Number((explicitRange[1] ?? explicitRange[3]).replaceAll(",", "")),
+      Number((explicitRange[2] ?? explicitRange[4]).replaceAll(",", "")),
+    ]);
   }
-  return `¥${first.toLocaleString("ja-JP")}`;
+
+  const amounts = [...normalized.matchAll(/[¥￥]\s?([0-9,]{3,})|([0-9,]{3,})\s?円/g)].map((match) =>
+    Number((match[1] ?? match[2]).replaceAll(",", "")),
+  );
+  return formatYenAmounts(amounts);
 }
 
 function saleTypeFromText(text: string): ImportedDraft["saleType"] {
@@ -384,6 +399,12 @@ function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ti
 
 function paymentPickupNoteFromText(text: string) {
   const notes: string[] = [];
+  const domesticCardOnly =
+    /(日本国内発行|国内発行|日本発行).{0,24}(クレジットカード|credit card|カード決済|クレカ)/i.test(text) ||
+    /(クレジットカード|credit card|カード決済|クレカ).{0,24}(日本国内発行|国内発行|日本発行)/i.test(text) ||
+    /(海外発行|国外発行).{0,24}(クレジットカード|credit card|カード).{0,24}(不可|利用不可|ご利用いただけません|使用できません)/i.test(
+      text,
+    );
   const creditCardOnly =
     /(クレジットカード|credit card|カード決済|クレカ).{0,20}(のみ|限定|only|必須|決済)/i.test(text) ||
     /(のみ|限定|only|必須).{0,20}(クレジットカード|credit card|カード決済|クレカ)/i.test(text);
@@ -393,7 +414,9 @@ function paymentPickupNoteFromText(text: string) {
     /(支払|決済|入金|発券|受取|引取).{0,24}(コンビニ|セブン-?イレブン|ファミリーマート|ローソン)/i.test(text);
   const paperTicket = /(紙チケット|店頭発券|配送|郵送|チケットぴあ店舗|Cloak)/i.test(text);
 
-  if (creditCardOnly) {
+  if (domesticCardOnly) {
+    notes.push("일본 국내 발행 카드 한정 신호가 있어 한국 발행 카드 결제가 어려울 수 있습니다.");
+  } else if (creditCardOnly) {
     notes.push("신용카드 결제 전용 신호가 있습니다.");
   } else if (creditCardAvailable) {
     notes.push("신용카드 결제 가능 신호가 있습니다.");
@@ -617,8 +640,7 @@ function normalizeSchemaPriceRange(lowPrice: unknown, highPrice: unknown) {
   if (!low || !high || low === high) return "";
   const lowAmount = Number(low.replaceAll(",", ""));
   const highAmount = Number(high.replaceAll(",", ""));
-  if (!Number.isFinite(lowAmount) || !Number.isFinite(highAmount)) return "";
-  return `¥${lowAmount.toLocaleString("ja-JP")} - ¥${highAmount.toLocaleString("ja-JP")}`;
+  return formatYenAmounts([lowAmount, highAmount]);
 }
 
 function schemaOfferPrice(offer: Record<string, unknown>) {
@@ -630,7 +652,7 @@ function schemaOfferPrice(offer: Record<string, unknown>) {
 }
 
 function priceFromOffers(offers: Array<Record<string, unknown>>) {
-  return firstString(...offers.map(schemaOfferPrice));
+  return normalizePriceText(offers.map(schemaOfferPrice).filter(Boolean).join(" "));
 }
 
 function schemaAvailabilityCue(value: unknown) {
