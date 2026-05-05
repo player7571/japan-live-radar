@@ -43,6 +43,15 @@ import {
   ticketPiaSearchUrls,
 } from "../scripts/sync-ticket-pia";
 import {
+  extractRakutenTicketDetailUrls,
+  normalizeRakutenTicketCategoryLimit,
+  normalizeRakutenTicketFetchTimeoutMs,
+  normalizeRakutenTicketRowLimit,
+  rakutenTicketCategoryUrls,
+  rakutenTicketLogicalEventKey,
+  toRakutenTicketEventRow,
+} from "../scripts/sync-rakuten-ticket";
+import {
   buildAppEventUrl,
   buildAlertDeliveryKey,
   buildAlertMessage,
@@ -2199,6 +2208,71 @@ test("maps Ticket Pia rlsInfo search HTML to Korea-friendly event rows", () => {
     expect.arrayContaining([
       "https://t.pia.jp/pia/rlsInfo.do?kw=J-POP&cAsgnFlg=false&bAsgnFlg=false&includeSaleEnd=false&page=1&responsive=true&noConvert=true&searchMode=1&mode=2&dispMode=1",
       "https://t.pia.jp/pia/rlsInfo.do?kw=K-POP&cAsgnFlg=false&bAsgnFlg=false&includeSaleEnd=false&page=1&responsive=true&noConvert=true&searchMode=1&mode=2&dispMode=1",
+    ]),
+  );
+});
+
+test("maps Rakuten Ticket category pages and detail drafts to event rows", () => {
+  const categoryHtml = `
+    <a href="https://ticket.rakuten.co.jp/music/jpop/rtiz516/">さだまさし</a>
+    <a href="/music/kpop/rtxrsr6/">K-POP live</a>
+    <a href="/music/jpop/">J-pop category</a>
+    <a href="/sports/baseball/rtbaseball/">Baseball</a>
+    <a href="https://example.com/music/jpop/rtexternal/">external</a>
+  `;
+  const detailHtml = `
+    <html>
+      <head>
+        <title>[市川公演]さだまさし コンサートツアー2026</title>
+        <meta property="og:title" content="[市川公演]さだまさし コンサートツアー2026｜楽天チケット">
+        <meta property="og:description" content="チケット販売ページです。クレジットカード決済が利用できます。">
+      </head>
+      <body>
+        <div class='performance active' data-date='{"min_start_on":"2026-02-04T12:00:00","max_end_on":"2026-05-07T09:59:59"}'>
+          <div class='column-1'>＜先行＞[市川公演]さだまさし コンサートツアー2026</div>
+          <div class='column-6'>2026年 05月 16日 (土)</div>
+          <div class='column-2'>開場 16:00 / 開演 17:00</div>
+          <div class='column-3'>千葉県</div>
+          <div class='column-4'>市川市文化会館 大ホール</div>
+        </div>
+        <a href="https://ticket.rakuten.co.jp/">楽天チケット</a>
+      </body>
+    </html>
+  `;
+  const detailUrl = "https://ticket.rakuten.co.jp/music/jpop/rtiz516/";
+  const row = toRakutenTicketEventRow(
+    extractDraft(detailHtml, new URL(detailUrl)),
+    detailUrl,
+    new Date("2026-05-05T00:00:00+09:00"),
+  );
+
+  expect(extractRakutenTicketDetailUrls(categoryHtml)).toEqual([
+    "https://ticket.rakuten.co.jp/music/jpop/rtiz516/",
+    "https://ticket.rakuten.co.jp/music/kpop/rtxrsr6/",
+  ]);
+  expect(row).toMatchObject({
+    source: "Rakuten Ticket",
+    source_event_id: detailUrl,
+    artist: "さだまさし",
+    city: "치바",
+    venue: "市川市文化会館 大ホール",
+    date: "2026-05-16",
+    time: "17:00",
+    sale_window: "2026-02-04T12:00:00 - 2026-05-07T09:59:59",
+    link: detailUrl,
+    country_code: "JP",
+  });
+  expect(rakutenTicketLogicalEventKey(row!)).toBe("さだまさし コンサートツアー2026|2026-05-16|17:00|市川市文化会館 大ホール|치바");
+  expect(normalizeRakutenTicketRowLimit(undefined)).toBe(60);
+  expect(normalizeRakutenTicketRowLimit("200")).toBe(100);
+  expect(normalizeRakutenTicketCategoryLimit(undefined)).toBe(4);
+  expect(normalizeRakutenTicketCategoryLimit("12")).toBe(8);
+  expect(normalizeRakutenTicketFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeRakutenTicketFetchTimeoutMs("1000")).toBe(3000);
+  expect(rakutenTicketCategoryUrls()).toEqual(
+    expect.arrayContaining([
+      "https://ticket.rakuten.co.jp/area/all/genre/jpop",
+      "https://ticket.rakuten.co.jp/area/all/genre/kpop",
     ]),
   );
 });
