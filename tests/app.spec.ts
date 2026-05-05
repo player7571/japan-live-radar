@@ -1840,6 +1840,20 @@ test("persists local alert selections", async ({ page }) => {
   await expect(page.getByRole("button", { name: "알림 설정됨" })).toBeVisible();
 });
 
+test("shows alert subscription sync feedback in the detail panel", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await page.getByRole("button", { name: "일정 알림" }).click();
+
+  const detail = page.getByLabel("공연 상세");
+  await expect(detail.getByRole("status")).toHaveText("서버 알림까지 저장됐어요.");
+
+  await page.getByRole("button", { name: "알림 설정됨" }).click();
+  await expect(detail.getByRole("status")).toHaveText("서버 알림도 해제됐어요.");
+  await expect(page.getByRole("button", { name: "일정 알림" })).toBeVisible();
+});
+
 test("opens saved alerts and jumps back to a saved concert", async ({ page }) => {
   await page.goto("/");
 
