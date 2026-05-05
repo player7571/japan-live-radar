@@ -22,6 +22,14 @@ Local app: <http://localhost:5173>
 
 The Vite dev server uses local seed data. In Vercel, `/api/events` reads from Supabase and falls back to seed data if the database is not configured yet.
 
+## App Install
+
+The web MVP is also an installable PWA. Mobile users can add the production URL to their home screen, and supported desktop browsers can install it from the address bar.
+
+- `public/manifest.webmanifest` defines the app name, Korean description, standalone display mode, theme color, and maskable icons.
+- `public/sw.js` caches the app shell and static assets for faster repeat launches. It intentionally leaves `/api/*` uncached so concert data, alert subscriptions, and admin operations stay fresh.
+- `src/registerServiceWorker.ts` registers the service worker only for production builds.
+
 ## Checks
 
 ```bash
