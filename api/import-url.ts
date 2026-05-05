@@ -252,11 +252,29 @@ function residencyRestrictionNoteFromText(text: string) {
 function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ticketAccess" | "foreignerNote"> {
   const residencyRestrictionNote = residencyRestrictionNoteFromText(text);
   const overseasSignal = /(海外|international|overseas|foreign|外国|訪日|インバウンド).{0,28}(受付|販売|ticket|購入|カード)/i.test(text);
+  const foreignPhoneSignal =
+    /(海外|国外|外国).{0,24}(電話番号|携帯電話番号|SMS|ショートメッセージ).{0,24}(利用|登録|認証|可能|対応|使えます|受信)/i.test(
+      text,
+    ) ||
+    /(電話番号|携帯電話番号|SMS|ショートメッセージ).{0,24}(国番号|country code|海外番号|国外番号|外国番号)/i.test(text);
   const noPhoneSignal =
     /(日本|国内|携帯|電話番号|SMS|SMS認証|認証).{0,18}(不要|なし|無し|必要ありません|必要なし|不要です)/i.test(text) ||
     /(不要|なし|無し|必要ありません|必要なし|不要です).{0,18}(日本|国内|携帯|電話番号|SMS|SMS認証|認証)/i.test(text);
+  const japanPhoneOnlySignal =
+    /(日本国内|国内|日本).{0,12}(携帯電話番号|電話番号|SMS|ショートメッセージ).{0,24}(のみ|限定|必要|必須|登録|認証|受信)/i.test(
+      text,
+    ) ||
+    /(携帯電話番号|電話番号|SMS|ショートメッセージ).{0,24}(日本国内|国内|日本).{0,12}(のみ|限定|必要|必須|登録|認証|受信)/i.test(
+      text,
+    );
+  const electronicTicketAppSignal =
+    /(電子チケット|電子チケットアプリ|スマチケ|MOALA|MOALA Pocket|AnyPASS|チケプラ|Tixplus|Bitfan Pass|ticket board|チケットボード|ローチケ電子チケット|ローチケアプリ|EMTG|Plus member ID)/i.test(
+      text,
+    );
   const phoneSignal =
-    /(電話番号|携帯電話|SMS|SMS認証|電話番号認証|携帯認証|電子チケット|スマチケ|MOALA|AnyPASS|チケプラ|Plus member ID|ローチケ電子チケット)/i.test(
+    japanPhoneOnlySignal ||
+    electronicTicketAppSignal ||
+    /(電話番号|携帯電話|SMS|SMS認証|電話番号認証|携帯認証)/i.test(
       text,
     );
 
@@ -268,11 +286,13 @@ function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ti
     };
   }
 
-  if ((overseasSignal && !phoneSignal) || (overseasSignal && noPhoneSignal)) {
+  if ((overseasSignal && !phoneSignal) || (overseasSignal && (noPhoneSignal || foreignPhoneSignal))) {
     return {
       phoneRequired: false,
       ticketAccess: "한국 구매 가능",
-      foreignerNote: noPhoneSignal
+      foreignerNote: foreignPhoneSignal
+        ? "해외 판매와 해외 전화번호/SMS 인증 가능 신호가 있어 한국에서 예매 가능성이 높습니다."
+        : noPhoneSignal
         ? "해외 판매와 일본 전화번호/SMS 인증 불필요 신호가 있어 한국에서 예매 가능성이 높습니다."
         : "해외/외국인 판매 신호가 있어 한국에서 예매 가능성이 있습니다. 결제와 수령 조건은 원본에서 확인하세요.",
     };
@@ -282,7 +302,11 @@ function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ti
     return {
       phoneRequired: true,
       ticketAccess: "일본 번호 필요",
-      foreignerNote: "전화번호/SMS/전자티켓 인증 신호가 있어 일본 번호 또는 앱 조건 확인이 필요합니다.",
+      foreignerNote: japanPhoneOnlySignal
+        ? "일본 국내 휴대전화번호/SMS 한정 신호가 있어 한국 번호로 예매가 어려울 수 있습니다."
+        : electronicTicketAppSignal
+        ? "전자티켓 인증 앱 신호가 있어 일본 번호 또는 앱 계정 조건 확인이 필요합니다."
+        : "전화번호/SMS/전자티켓 인증 신호가 있어 일본 번호 또는 앱 조건 확인이 필요합니다.",
     };
   }
 
