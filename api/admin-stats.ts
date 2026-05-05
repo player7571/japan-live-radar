@@ -78,6 +78,7 @@ function missingSyncRunTable(error: { code?: string; message?: string } | null) 
 
 export function summarizeAlertQueue(rows: AlertStatsRow[], now = new Date()) {
   const nowTime = now.getTime();
+  const nextDayTime = nowTime + 24 * 60 * 60 * 1000;
   return rows.reduce(
     (summary, row) => {
       if (row.status === "active") {
@@ -86,6 +87,14 @@ export function summarizeAlertQueue(rows: AlertStatsRow[], now = new Date()) {
           summary.activeDue += 1;
         } else {
           summary.activeScheduled += 1;
+          if (Number.isFinite(remindTime)) {
+            if (remindTime <= nextDayTime) {
+              summary.activeNext24h += 1;
+            }
+            if (!summary.nextReminderAt || remindTime < new Date(summary.nextReminderAt).getTime()) {
+              summary.nextReminderAt = row.remind_at;
+            }
+          }
         }
       }
       if (row.status === "error") {
@@ -102,8 +111,10 @@ export function summarizeAlertQueue(rows: AlertStatsRow[], now = new Date()) {
     {
       activeDue: 0,
       activeScheduled: 0,
+      activeNext24h: 0,
       error: 0,
       sent: 0,
+      nextReminderAt: null as string | null,
       lastErrorAt: null as string | null,
     },
   );

@@ -1163,6 +1163,8 @@ test("summarizes alert queue health for admin stats", () => {
       [
         { status: "active", remind_at: "2026-05-04T11:59:00.000Z", updated_at: "2026-05-04T11:00:00.000Z" },
         { status: "active", remind_at: "2026-05-05T11:59:00.000Z", updated_at: "2026-05-04T11:00:00.000Z" },
+        { status: "active", remind_at: "2026-05-04T18:00:00.000Z", updated_at: "2026-05-04T11:00:00.000Z" },
+        { status: "active", remind_at: null, updated_at: "2026-05-04T11:00:00.000Z" },
         { status: "error", remind_at: "2026-05-04T10:00:00.000Z", updated_at: "2026-05-04T12:00:00.000Z" },
         { status: "sent", remind_at: "2026-05-04T09:00:00.000Z", updated_at: "2026-05-04T09:30:00.000Z" },
       ],
@@ -1170,9 +1172,11 @@ test("summarizes alert queue health for admin stats", () => {
     ),
   ).toEqual({
     activeDue: 1,
-    activeScheduled: 1,
+    activeScheduled: 3,
+    activeNext24h: 2,
     error: 1,
     sent: 1,
+    nextReminderAt: "2026-05-04T18:00:00.000Z",
     lastErrorAt: "2026-05-04T12:00:00.000Z",
   });
 });
@@ -1583,8 +1587,10 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
         alertQueue: {
           activeDue: 2,
           activeScheduled: 5,
+          activeNext24h: 3,
           error: 1,
           sent: 3,
+          nextReminderAt: "2026-05-04T18:00:00.000Z",
           lastErrorAt: "2026-05-04T00:00:00Z",
         },
         syncRuns: [
@@ -1622,6 +1628,9 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
   await expect(page.getByLabel("데이터 품질").getByText("판매 일정 누락")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("가격 누락")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("알림 대기")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("24시간 내 알림")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").locator(".admin-stat").filter({ hasText: "24시간 내 알림" }).getByText("3개")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("다음 알림")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("알림 오류")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("동기화 상태")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("정상")).toBeVisible();
