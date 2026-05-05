@@ -54,6 +54,7 @@ import { seedEvents } from "../src/data/seedEvents";
 import { buildAlertEventSnapshot } from "../src/lib/alertSnapshot";
 import { splitCandidateRowsByExistingStatus } from "../src/lib/candidateDedupe";
 import { currentTokyoDay, getSaleStatus } from "../src/lib/saleStatus";
+import { eventSearchText, searchVariants } from "../src/lib/searchAliases";
 
 test("extracts Japanese ticket page sales cues", () => {
   const draft = extractDraft(
@@ -2710,6 +2711,32 @@ test("creates ticket source search URLs including additional Japanese sources", 
     "Rakuten Ticket",
     "LiveFans",
   ]);
+});
+
+test("expands regional Japanese city aliases for Korean search", () => {
+  const shizuokaEvent = {
+    ...seedEvents[0],
+    id: "regional-shizuoka",
+    city: "시즈오카",
+    venue: "エコパアリーナ",
+  };
+  const okinawaEvent = {
+    ...seedEvents[0],
+    id: "regional-okinawa",
+    city: "오키나와",
+    venue: "沖縄アリーナ",
+  };
+
+  const matches = (event: typeof seedEvents[number], query: string) => {
+    const text = eventSearchText(event);
+    return searchVariants(query).some((variant) => text.includes(variant));
+  };
+
+  expect(matches(shizuokaEvent, "静岡")).toBe(true);
+  expect(matches(shizuokaEvent, "에코파")).toBe(true);
+  expect(matches(shizuokaEvent, "shizuoka")).toBe(true);
+  expect(matches(okinawaEvent, "那覇")).toBe(true);
+  expect(matches(okinawaEvent, "naha")).toBe(true);
 });
 
 test("searches concerts and opens the detail panel", async ({ page }) => {
