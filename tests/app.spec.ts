@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
 import { summarizeAlertQueue, summarizeQualityBySource, summarizeSyncHealth, summarizeSyncRunsAt } from "../api/admin-stats";
-import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
+import { buildAlertUpsertRow, calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
 import {
@@ -1233,6 +1233,51 @@ test("normalizes alert contact emails", () => {
   expect(normalizeAlertContactEmail(" Fan@Example.COM ")).toBe("fan@example.com");
   expect(normalizeAlertContactEmail("")).toBeNull();
   expect(() => normalizeAlertContactEmail("not-an-email")).toThrow("contactEmail must be a valid email address");
+});
+
+test("builds alert subscription upsert rows with email and cancellation state", () => {
+  const snapshot = {
+    id: "seed-ado-yokohama-2026-07-21",
+    artist: "Ado",
+    title: "Blue Flame Tour",
+    date: "2026-11-12",
+    saleWindow: "2026年5月10日 12:00～2026年5月20日 23:59",
+  };
+  const now = new Date("2026-05-01T00:00:00+09:00");
+
+  expect(
+    buildAlertUpsertRow({
+      clientId: "client-1",
+      snapshot,
+      active: true,
+      contactEmail: "fan@example.com",
+      now,
+    }),
+  ).toMatchObject({
+    client_id: "client-1",
+    event_key: "seed-ado-yokohama-2026-07-21",
+    event_snapshot: snapshot,
+    status: "active",
+    channel: "email",
+    contact_email: "fan@example.com",
+    remind_at: new Date("2026-05-10T09:00:00+09:00").toISOString(),
+    updated_at: now.toISOString(),
+  });
+
+  expect(
+    buildAlertUpsertRow({
+      clientId: "client-1",
+      snapshot,
+      active: false,
+      contactEmail: null,
+      now,
+    }),
+  ).toMatchObject({
+    status: "cancelled",
+    channel: "browser",
+    contact_email: null,
+    remind_at: null,
+  });
 });
 
 test("builds alert webhook payloads with Korean context and contact email", () => {
