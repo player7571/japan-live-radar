@@ -474,6 +474,31 @@ test("prefers ticket application links from official imported pages", () => {
   expect(draft.link).toBe("https://eplus.jp/sf/detail/higedan-tour-2026");
 });
 
+test("recognizes additional Japanese ticket platform links from official pages", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head><title>IVE JAPAN TOUR｜Official Site</title></head>
+        <body>
+          <h1>IVE JAPAN TOUR</h1>
+          <p>公演日: 2026年10月10日(土) 開演 18:00</p>
+          <p>会場: Kアリーナ横浜</p>
+          <p>チケット料金 ¥12,800</p>
+          <p>電子チケットはチケプラアプリでの受取となります。SMS認証が必要です。</p>
+          <a href="https://tixplus.jp/feature/ive_2026_dticket/">チケプラ電子チケットガイド</a>
+          <a href="https://ticket.rakuten.co.jp/music/kpop/ive2026/">楽天チケットでチケット申込</a>
+        </body>
+      </html>
+    `,
+    new URL("https://artist.example.com/live/ive-2026"),
+  );
+
+  expect(draft.source).toBe("Rakuten Ticket");
+  expect(draft.link).toBe("https://ticket.rakuten.co.jp/music/kpop/ive2026/");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+  expect(draft.foreignerNote).toContain("전자티켓 인증");
+});
+
 test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
   const draft = extractDraft(
     `
@@ -2219,12 +2244,20 @@ test("keeps approved or rejected candidate URLs out of pending upserts", () => {
   expect(result.skippedRows.map((row) => row.status)).toEqual(["approved", "rejected"]);
 });
 
-test("creates ticket source search URLs including Ticketmaster", () => {
+test("creates ticket source search URLs including additional Japanese sources", () => {
   expect(searchSources("Ado 東京")).toEqual(
     expect.arrayContaining([
       {
         source: "Ticketmaster",
         url: "https://www.ticketmaster.com/search?q=Ado%20%E6%9D%B1%E4%BA%AC&sort=date%2Casc&country=jp",
+      },
+      {
+        source: "Rakuten Ticket",
+        url: "https://ticket.rakuten.co.jp/?q=Ado%20%E6%9D%B1%E4%BA%AC",
+      },
+      {
+        source: "LiveFans",
+        url: "https://www.livefans.jp/search?option=3&keyword=Ado%20%E6%9D%B1%E4%BA%AC",
       },
     ]),
   );
@@ -2233,6 +2266,8 @@ test("creates ticket source search URLs including Ticketmaster", () => {
     "e+",
     "Lawson Ticket",
     "Ticketmaster",
+    "Rakuten Ticket",
+    "LiveFans",
   ]);
 });
 
