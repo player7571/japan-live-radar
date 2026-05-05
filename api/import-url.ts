@@ -593,6 +593,10 @@ function objectList(value: unknown): Array<Record<string, unknown>> {
   return typeof value === "object" ? [value as Record<string, unknown>] : [];
 }
 
+function offerObjectList(value: unknown): Array<Record<string, unknown>> {
+  return objectList(value).flatMap((offer) => [offer, ...offerObjectList(offer.offers)]);
+}
+
 function firstJsonString(value: unknown) {
   if (Array.isArray(value)) return firstString(...value);
   return firstString(value);
@@ -835,7 +839,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   const address =
     location.address && typeof location.address === "object" ? (location.address as Record<string, unknown>) : {};
   const offers = firstObject(eventJson?.offers);
-  const offerList = objectList(eventJson?.offers);
+  const offerList = offerObjectList(eventJson?.offers);
   const performer = firstObject(eventJson?.performer);
   const rawTitle = firstString(
     eventJson?.name,
