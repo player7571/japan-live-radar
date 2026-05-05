@@ -1,3 +1,4 @@
+import { readdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
 import { summarizeAlertQueue, summarizeQualityBySource, summarizeSyncHealth, summarizeSyncRunsAt } from "../api/admin-stats";
@@ -9,6 +10,7 @@ import {
 } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft, safeUrl } from "../api/import-url";
+import { migrationFiles } from "../scripts/apply-migrations";
 import {
   validateAdminAlertsHealth,
   validateAdminStatsHealth,
@@ -1552,6 +1554,14 @@ test("validates production health with admin alert and sync coverage", () => {
       },
     }),
   ).toThrow("Sync health is stale: ticketmaster");
+});
+
+test("applies every checked-in Supabase migration", () => {
+  const checkedInMigrations = readdirSync("supabase/migrations")
+    .filter((file) => file.endsWith(".sql"))
+    .sort();
+
+  expect([...migrationFiles].sort()).toEqual(checkedInMigrations);
 });
 
 test("summarizes alert dispatch failures for workflow visibility", () => {
