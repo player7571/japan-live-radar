@@ -64,6 +64,10 @@ function countBy(rows: EventQualityRow[], key: "source" | "city") {
     .slice(0, 8);
 }
 
+function needsAccessReviewRow(row: EventQualityRow) {
+  return row.ticket_access === "확인 필요" || row.phone_required === null;
+}
+
 export function summarizeQualityBySource(rows: EventQualityRow[]) {
   return Object.values(
     rows.reduce<
@@ -95,7 +99,7 @@ export function summarizeQualityBySource(rows: EventQualityRow[]) {
       if (!row.link || row.link === "#") item.missingLink += 1;
       if (!row.sale_window) item.missingSaleWindow += 1;
       if (!row.price) item.missingPrice += 1;
-      if (row.ticket_access === "확인 필요") item.needsAccessReview += 1;
+      if (needsAccessReviewRow(row)) item.needsAccessReview += 1;
       return summary;
     }, {}),
   )
@@ -322,7 +326,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const missingLink = rows.filter((row) => !row.link || row.link === "#").length;
   const missingSaleWindow = rows.filter((row) => !row.sale_window).length;
   const missingPrice = rows.filter((row) => !row.price).length;
-  const needsAccessReview = rows.filter((row) => row.ticket_access === "확인 필요").length;
+  const needsAccessReview = rows.filter(needsAccessReviewRow).length;
   const phoneRequired = rows.filter((row) => row.phone_required).length;
   const koreaFriendly = rows.filter((row) => row.ticket_access === "한국 구매 가능" && !row.phone_required).length;
 
