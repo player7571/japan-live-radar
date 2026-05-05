@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
-import { summarizeAlertQueue, summarizeSyncHealth, summarizeSyncRunsAt } from "../api/admin-stats";
+import { summarizeAlertQueue, summarizeQualityBySource, summarizeSyncHealth, summarizeSyncRunsAt } from "../api/admin-stats";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
@@ -957,6 +957,63 @@ test("summarizes latest sync run per source for admin quality checks", () => {
       message: null,
       finishedAt: "2026-05-04T09:00:00Z",
       ageHours: 27,
+    },
+  ]);
+});
+
+test("summarizes source-specific event quality gaps", () => {
+  expect(
+    summarizeQualityBySource([
+      {
+        id: "tm-1",
+        source: "Ticketmaster",
+        city: "도쿄",
+        date: "2026-08-01",
+        ticket_access: "확인 필요",
+        phone_required: null,
+        link: null,
+        sale_window: null,
+        price: null,
+      },
+      {
+        id: "tm-2",
+        source: "Ticketmaster",
+        city: "오사카",
+        date: "2026-08-02",
+        ticket_access: "한국 구매 가능",
+        phone_required: false,
+        link: "https://www.ticketmaster.com/event/tm-2",
+        sale_window: "판매 중",
+        price: "¥9,000",
+      },
+      {
+        id: "pia-1",
+        source: "Ticket Pia",
+        city: "요코하마",
+        date: "2026-08-03",
+        ticket_access: "확인 필요",
+        phone_required: true,
+        link: "https://t.pia.jp/example",
+        sale_window: "2026年5月10日 12:00",
+        price: null,
+      },
+    ]),
+  ).toEqual([
+    {
+      source: "Ticketmaster",
+      total: 2,
+      missingLink: 1,
+      missingSaleWindow: 1,
+      missingPrice: 1,
+      needsAccessReview: 1,
+    },
+    {
+      source: "Ticket Pia",
+      total: 1,
+      missingLink: 0,
+      missingSaleWindow: 0,
+      missingPrice: 1,
+      needsAccessReview: 1,
     },
   ]);
 });
@@ -1996,6 +2053,16 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
           staleSources: [],
         },
         bySource: [{ label: "Ticket Pia", count: 3 }],
+        qualityBySource: [
+          {
+            source: "Ticket Pia",
+            total: 3,
+            missingLink: 1,
+            missingSaleWindow: 2,
+            missingPrice: 1,
+            needsAccessReview: 2,
+          },
+        ],
         byCity: [{ label: "도쿄", count: 2 }],
         generatedAt: "2026-05-04T00:00:00Z",
       }),
@@ -2019,6 +2086,8 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
   await expect(page.getByLabel("데이터 품질").getByText("동기화 상태")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("정상")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("동기화", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("출처별 품질")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText(/Ticket Pia · 3개 · 일정 2 · 가격 1 · 조건 2 · 링크 1/)).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText(/ticketmaster · 성공 · 390\/420/)).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("26시간 전")).toBeVisible();
 

@@ -64,6 +64,54 @@ function countBy(rows: EventQualityRow[], key: "source" | "city") {
     .slice(0, 8);
 }
 
+export function summarizeQualityBySource(rows: EventQualityRow[]) {
+  return Object.values(
+    rows.reduce<
+      Record<
+        string,
+        {
+          source: string;
+          total: number;
+          missingLink: number;
+          missingSaleWindow: number;
+          missingPrice: number;
+          needsAccessReview: number;
+        }
+      >
+    >((summary, row) => {
+      const source = row.source?.trim() || "미정";
+      const item =
+        summary[source] ??
+        (summary[source] = {
+          source,
+          total: 0,
+          missingLink: 0,
+          missingSaleWindow: 0,
+          missingPrice: 0,
+          needsAccessReview: 0,
+        });
+
+      item.total += 1;
+      if (!row.link || row.link === "#") item.missingLink += 1;
+      if (!row.sale_window) item.missingSaleWindow += 1;
+      if (!row.price) item.missingPrice += 1;
+      if (row.ticket_access === "확인 필요") item.needsAccessReview += 1;
+      return summary;
+    }, {}),
+  )
+    .sort(
+      (left, right) =>
+        right.missingSaleWindow +
+          right.missingPrice +
+          right.needsAccessReview +
+          right.missingLink -
+          (left.missingSaleWindow + left.missingPrice + left.needsAccessReview + left.missingLink) ||
+        right.total - left.total ||
+        left.source.localeCompare(right.source, "ko"),
+    )
+    .slice(0, 6);
+}
+
 function missingCandidateTable(error: { code?: string; message?: string } | null) {
   return Boolean(error && (error.code === "42P01" || error.message?.includes("event_candidates")));
 }
@@ -286,6 +334,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       koreaFriendly,
     },
     bySource: countBy(rows, "source"),
+    qualityBySource: summarizeQualityBySource(rows),
     byCity: countBy(rows, "city"),
     generatedAt: new Date().toISOString(),
   });
