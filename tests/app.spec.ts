@@ -196,6 +196,31 @@ test("adds payment and pickup cues to imported foreigner notes", () => {
   expect(draft.foreignerNote).toContain("편의점 결제/발권");
 });
 
+test("adds lottery result announcements to imported foreigner notes", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>Mrs. GREEN APPLE DOME LIVE｜チケットぴあ</title>
+        </head>
+        <body>
+          <h1>Mrs. GREEN APPLE DOME LIVE</h1>
+          <p>会場：京セラドーム大阪</p>
+          <p>公演日：2026年10月10日 18:00</p>
+          <p>抽選受付：2026年6月1日 12:00～2026年6月10日 23:59</p>
+          <p>抽選結果発表：2026年6月15日(月) 18:00頃</p>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600015"),
+  );
+
+  expect(draft.city).toBe("오사카");
+  expect(draft.saleType).toBe("추첨 접수");
+  expect(draft.saleWindow).toContain("2026年6月1日 12:00");
+  expect(draft.foreignerNote).toContain("추첨 결과 발표: 2026年6月15日(月) 18:00頃");
+});
+
 test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
   const draft = extractDraft(
     `
