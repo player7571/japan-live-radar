@@ -321,6 +321,27 @@ test("adds payment and pickup cues to imported foreigner notes", () => {
   expect(draft.foreignerNote).toContain("편의점 결제/발권");
 });
 
+test("flags domestic-issued card restrictions on imported ticket pages", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head><title>Vaundy Arena｜e+</title></head>
+        <body>
+          <h1>Vaundy Arena</h1>
+          <p>会場：大阪城ホール</p>
+          <p>公演日：2026年10月02日 19:00</p>
+          <p>お支払いは日本国内発行のクレジットカードのみご利用いただけます。</p>
+          <p>海外発行カードはご利用いただけません。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/vaundy-arena"),
+  );
+
+  expect(draft.foreignerNote).toContain("일본 국내 발행 카드 한정");
+  expect(draft.foreignerNote).not.toContain("신용카드 결제 가능 신호");
+});
+
 test("adds lottery result announcements to imported foreigner notes", () => {
   const draft = extractDraft(
     `
@@ -474,6 +495,31 @@ test("prefers ticket application links from official imported pages", () => {
   expect(draft.link).toBe("https://eplus.jp/sf/detail/higedan-tour-2026");
 });
 
+test("recognizes additional Japanese ticket platform links from official pages", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head><title>IVE JAPAN TOUR｜Official Site</title></head>
+        <body>
+          <h1>IVE JAPAN TOUR</h1>
+          <p>公演日: 2026年10月10日(土) 開演 18:00</p>
+          <p>会場: Kアリーナ横浜</p>
+          <p>チケット料金 ¥12,800</p>
+          <p>電子チケットはチケプラアプリでの受取となります。SMS認証が必要です。</p>
+          <a href="https://tixplus.jp/feature/ive_2026_dticket/">チケプラ電子チケットガイド</a>
+          <a href="https://ticket.rakuten.co.jp/music/kpop/ive2026/">楽天チケットでチケット申込</a>
+        </body>
+      </html>
+    `,
+    new URL("https://artist.example.com/live/ive-2026"),
+  );
+
+  expect(draft.source).toBe("Rakuten Ticket");
+  expect(draft.link).toBe("https://ticket.rakuten.co.jp/music/kpop/ive2026/");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+  expect(draft.foreignerNote).toContain("전자티켓 인증");
+});
+
 test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
   const draft = extractDraft(
     `
@@ -505,6 +551,27 @@ test("extracts Lawson table fields and prefers showtime over doors-open time", (
   expect(draft.saleWindow).toBe("2026/06/01(月) 10:00");
   expect(draft.price).toBe("¥11,000");
   expect(draft.ticketAccess).toBe("일본 번호 필요");
+});
+
+test("aggregates multiple imported ticket prices into a range", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head><title>YOASOBI Hall Tour｜チケットぴあ</title></head>
+        <body>
+          <h1>YOASOBI Hall Tour</h1>
+          <table>
+            <tr><th>公演日時</th><td>2026/12/10(木) 開演18:30</td></tr>
+            <tr><th>会場</th><td>東京ガーデンシアター</td></tr>
+            <tr><th>席種・料金</th><td>指定席 12,800円 / 注釈付き指定席 9,800円 / VIP 22,000円</td></tr>
+          </table>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600100"),
+  );
+
+  expect(draft.price).toBe("¥9,800 - ¥22,000");
 });
 
 test("normalizes full-width unlabeled OPEN/START showtimes", () => {
@@ -585,6 +652,45 @@ test("detects additional Japanese concert cities from imported pages", () => {
       new URL("https://l-tike.com/concert/mevent/?mid=654321"),
     ).city,
   ).toBe("히로시마");
+});
+
+test("detects imported cities from prefecture-only structured addresses", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>SEKAI NO OWARI ARENA</title>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Event",
+              "name": "SEKAI NO OWARI ARENA",
+              "startDate": "2026-11-03T18:00:00+09:00",
+              "location": {
+                "@type": "Place",
+                "name": "Aichi Sky Expo",
+                "address": {
+                  "@type": "PostalAddress",
+                  "addressRegion": "Aichi"
+                }
+              },
+              "offers": {
+                "@type": "Offer",
+                "url": "https://ticket.rakuten.co.jp/music/jpop/sekainoowari2026/"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <p>楽天チケットで販売。電子チケットはSMS認証が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://artist.example.com/live/sekainoowari"),
+  );
+
+  expect(draft.city).toBe("나고야");
+  expect(draft.source).toBe("Rakuten Ticket");
 });
 
 test("detects city from major venue aliases when city text is absent", () => {
@@ -769,6 +875,52 @@ test("classifies sale status from text-only availability cues", () => {
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "" })).toBe("확인 필요");
 });
 
+test("classifies sale status from Japanese hour-minute sale windows", () => {
+  const event = {
+    ...seedEvents[0],
+    date: "2026-06-20",
+    saleWindow: "受付期間：2026年6月1日(月) 12時00分 - 2026年6月10日(水) 23時59分",
+  };
+
+  expect(getSaleStatus(event, new Date("2026-06-01T02:59:00.000Z"))).toBe("오픈 예정");
+  expect(getSaleStatus(event, new Date("2026-06-01T03:00:00.000Z"))).toBe("판매 중");
+  expect(getSaleStatus(event, new Date("2026-06-10T15:01:00.000Z"))).toBe("판매 종료");
+});
+
+test("classifies sale status from short Japanese hour-minute sale windows", () => {
+  const event = {
+    ...seedEvents[0],
+    date: "2026-11-23",
+    saleWindow: "抽選申込期間：6/1(月) 12時 - 6/10(水) 23時59分",
+  };
+
+  expect(getSaleStatus(event, new Date("2026-06-01T02:59:00.000Z"))).toBe("오픈 예정");
+  expect(getSaleStatus(event, new Date("2026-06-01T03:00:00.000Z"))).toBe("판매 중");
+});
+
+test("classifies sale status from full-width Japanese sale windows", () => {
+  const event = {
+    ...seedEvents[0],
+    date: "2026-06-20",
+    saleWindow: "受付期間：２０２６年６月１日（月）１２時００分 - ２０２６年６月１０日（水）２３時５９分",
+  };
+
+  expect(getSaleStatus(event, new Date("2026-06-01T02:59:00.000Z"))).toBe("오픈 예정");
+  expect(getSaleStatus(event, new Date("2026-06-01T03:00:00.000Z"))).toBe("판매 중");
+});
+
+test("classifies sale status from ISO sale windows", () => {
+  const event = {
+    ...seedEvents[0],
+    date: "2026-06-20",
+    saleWindow: "2026-06-01T12:00:00+09:00 - 2026-06-10T23:59:00+09:00",
+  };
+
+  expect(getSaleStatus(event, new Date("2026-06-01T02:59:00.000Z"))).toBe("오픈 예정");
+  expect(getSaleStatus(event, new Date("2026-06-01T03:00:00.000Z"))).toBe("판매 중");
+  expect(getSaleStatus(event, new Date("2026-06-10T15:01:00.000Z"))).toBe("판매 종료");
+});
+
 test("extracts array-based JSON-LD event data", () => {
   const draft = extractDraft(
     `
@@ -933,6 +1085,39 @@ test("extracts JSON-LD aggregate and fallback offers", () => {
 
   expect(draft.price).toBe("¥9,800 - ¥14,800");
   expect(draft.saleWindow).toBe("2026-06-01T12:00:00+09:00");
+});
+
+test("aggregates multiple JSON-LD offer prices into a range", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Event",
+              "name": "King Gnu Dome Live",
+              "startDate": "2026-10-20T18:00:00+09:00",
+              "location": {
+                "@type": "Place",
+                "name": "東京ドーム",
+                "address": "東京都文京区"
+              },
+              "offers": [
+                { "@type": "Offer", "price": "9800" },
+                { "@type": "Offer", "price": "14800" },
+                { "@type": "Offer", "price": "22000" }
+              ]
+            }
+          </script>
+        </head>
+        <body></body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/king-gnu-dome-live"),
+  );
+
+  expect(draft.price).toBe("¥9,800 - ¥22,000");
 });
 
 test("prefers JSON-LD offer ticket URLs when source pages have no ticket links", () => {
@@ -1235,6 +1420,18 @@ test("queries Ticketmaster by music classification as well as keywords", () => {
         label: "music-classification",
         params: { classificationName: "music" },
       }),
+      expect.objectContaining({
+        label: "japanese-live-keyword",
+        params: { keyword: "ライブ" },
+      }),
+      expect.objectContaining({
+        label: "japanese-concert-keyword",
+        params: { keyword: "コンサート" },
+      }),
+      expect.objectContaining({
+        label: "kpop-keyword",
+        params: { keyword: "K-POP" },
+      }),
     ]),
   );
 });
@@ -1403,6 +1600,28 @@ test("flags stale and errored sync runs for admin stats", () => {
     lastFinishedAt: "2026-05-04T10:00:00Z",
     staleSources: [],
     errorSources: [],
+    emptySources: [],
+  });
+
+  expect(
+    summarizeSyncHealth(
+      [
+        {
+          source: "ticketmaster",
+          status: "success",
+          fetched_count: 400,
+          upserted_count: 0,
+          skipped_count: 400,
+          message: "No concert-like Ticketmaster JP events were found.",
+          finished_at: "2026-05-05T08:10:00Z",
+        },
+      ],
+      new Date("2026-05-05T12:00:00Z"),
+      30,
+    ),
+  ).toMatchObject({
+    status: "empty",
+    emptySources: ["ticketmaster"],
   });
 
   expect(
@@ -1796,6 +2015,7 @@ test("validates production health with admin alert and sync coverage", () => {
         staleAfterHours: 30,
         errorSources: [],
         staleSources: [],
+        emptySources: [],
       },
     }),
   ).not.toThrow();
@@ -1820,6 +2040,17 @@ test("validates production health with admin alert and sync coverage", () => {
       },
     }),
   ).toThrow("Sync health is stale: ticketmaster");
+  expect(() =>
+    validateAdminStatsHealth({
+      alertQueue: {
+        error: 0,
+      },
+      syncHealth: {
+        status: "empty",
+        emptySources: ["ticketmaster"],
+      },
+    }),
+  ).toThrow("Sync health produced no usable rows: ticketmaster");
 });
 
 test("applies every checked-in Supabase migration", () => {
@@ -2196,6 +2427,20 @@ test("uses source URLs for imported admin event ids", () => {
   expect(row.source_event_id).toContain("t-pia-jp");
 });
 
+test("defaults admin event phone requirements to required unless explicitly false", () => {
+  const baseInput = {
+    artist: "Ado",
+    title: "Blue Flame Tour",
+    city: "요코하마",
+    venue: "K-Arena Yokohama",
+    date: "2026-11-12",
+  };
+
+  expect(toEventRow(baseInput).phone_required).toBe(true);
+  expect(toEventRow({ ...baseInput, phoneRequired: false }).phone_required).toBe(false);
+  expect(toEventRow({ ...baseInput, phoneRequired: 0 }).phone_required).toBe(true);
+});
+
 test("keeps approved or rejected candidate URLs out of pending upserts", () => {
   const rows = [
     { source_url: "https://t.pia.jp/new", status: "pending" as const },
@@ -2219,12 +2464,20 @@ test("keeps approved or rejected candidate URLs out of pending upserts", () => {
   expect(result.skippedRows.map((row) => row.status)).toEqual(["approved", "rejected"]);
 });
 
-test("creates ticket source search URLs including Ticketmaster", () => {
+test("creates ticket source search URLs including additional Japanese sources", () => {
   expect(searchSources("Ado 東京")).toEqual(
     expect.arrayContaining([
       {
         source: "Ticketmaster",
         url: "https://www.ticketmaster.com/search?q=Ado%20%E6%9D%B1%E4%BA%AC&sort=date%2Casc&country=jp",
+      },
+      {
+        source: "Rakuten Ticket",
+        url: "https://ticket.rakuten.co.jp/?q=Ado%20%E6%9D%B1%E4%BA%AC",
+      },
+      {
+        source: "LiveFans",
+        url: "https://www.livefans.jp/search?option=3&keyword=Ado%20%E6%9D%B1%E4%BA%AC",
       },
     ]),
   );
@@ -2233,6 +2486,8 @@ test("creates ticket source search URLs including Ticketmaster", () => {
     "e+",
     "Lawson Ticket",
     "Ticketmaster",
+    "Rakuten Ticket",
+    "LiveFans",
   ]);
 });
 

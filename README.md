@@ -53,8 +53,8 @@ npx playwright test
 
 Open `/#admin` and enter `ADMIN_API_TOKEN`.
 
-- Use `URL로 초안 가져오기` for Ticket Pia, e+, Lawson Ticket, LiveFans, official artist pages, or other ticket pages. When an official page links to a known ticket platform, the imported draft prefers that application link as the source ticket URL. Imported drafts are stored as pending candidates when Supabase is configured, and fall back to local browser storage when the candidate table is not ready.
-- Use `검색어 후보 만들기` to create source search links for an artist keyword across Ticket Pia, e+, Lawson Ticket, and Ticketmaster. These are review candidates, not confirmed events.
+- Use `URL로 초안 가져오기` for Ticket Pia, e+, Lawson Ticket, Rakuten Ticket, Tixplus, ticket board, LiveFans, official artist pages, or other ticket pages. When an official page links to a known ticket platform, the imported draft prefers that application link as the source ticket URL. Imported drafts are stored as pending candidates when Supabase is configured, and fall back to local browser storage when the candidate table is not ready.
+- Use `검색어 후보 만들기` to create source search links for an artist keyword across Ticket Pia, e+, Lawson Ticket, Ticketmaster, Rakuten Ticket, and LiveFans. These are review candidates, not confirmed events.
 - Review `URL 후보`, open the original source link when needed, then choose `초안 적용` to inspect the fields or `승인 저장` to write a complete candidate into the `events` table.
 - Use `데이터 품질` before releases to find missing links, missing sale windows, missing prices, ticket-access items that still need review, and alert queue errors.
 - Use `알림 큐` to inspect failed, due, or sent alerts. Failed alerts can be returned to the active queue with `재시도`.
@@ -80,7 +80,7 @@ Users can save interest alerts from the public detail panel. The browser stores 
 GitHub Actions is the long-running automation layer so Codex heartbeat runs do not need to rely on local full-disk or network permissions.
 
 - `CI`: typecheck, build, and desktop Playwright smoke tests for PRs. Manual `workflow_dispatch` runs the full desktop/mobile Playwright suite when deeper validation is worth spending Actions minutes.
-- `Deploy to Vercel`: deploys `main` as production, then verifies production health. It also supports manual `workflow_dispatch` preview validation when needed, but does not run automatically for every `dev` push so the Vercel free daily quota is preserved. Automatic `main` deploys are skipped before Node setup while open production deploy/health automation blockers exist so quota is preserved for the retry workflow.
+- `Deploy to Vercel`: deploys `main` as production with the Vercel CLI, then verifies production health. Vercel Git auto-deployments are disabled in `vercel.json` so PRs and branch pushes do not spend Vercel build quota. Manual `workflow_dispatch` preview validation is still available when a real Vercel preview is worth spending quota. Automatic `main` deploys are skipped before Node setup while open production deploy/health automation blockers exist so quota is preserved for the retry workflow.
 - `Auto Release PR`: opens or updates a `dev` to `main` release PR whenever `dev` changes. The PR is a release candidate and can remain open while development continues.
 - `Merge Release PR`: merges the open `dev` to `main` release PR after all PR checks finish successfully during the 09:00 and 21:00 KST release windows. It can also be run manually with `workflow_dispatch` when an immediate production release is desired.
 - `Retry Production Deploy`: when production deploy or health automation issues are open, retries the main production deploy once daily and closes the blockers after health passes.
@@ -161,7 +161,7 @@ Normal development flow:
 
 If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, continue feature work on `dev` and avoid manual deploy retries until quota resets. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
 
-Vercel Git preview builds are skipped by `scripts/vercel-ignore-build.sh` so duplicate Vercel builds do not consume quota. GitHub Actions `CI` remains the source of truth for PR checks, with push-only duplicate CI intentionally avoided to preserve Actions minutes. Use the `Deploy to Vercel` manual workflow only when a real Vercel preview validation is worth spending quota; production deploys happen from `main` or the retry workflow after quota resets.
+Vercel Git auto-deployments are disabled by `git.deploymentEnabled: false` in `vercel.json`, and `scripts/vercel-ignore-build.sh` is kept as a fallback guard for any legacy ignored-build path. GitHub Actions `CI` remains the source of truth for PR checks, with push-only duplicate CI intentionally avoided to preserve Actions minutes. Use the `Deploy to Vercel` manual workflow only when a real Vercel preview validation is worth spending quota; production deploys happen from `main` or the retry workflow after quota resets.
 
 ## Branch Rules
 

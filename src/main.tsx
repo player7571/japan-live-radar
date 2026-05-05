@@ -106,11 +106,12 @@ type AdminStats = {
     ageHours: number | null;
   }> | null;
   syncHealth?: {
-    status: "healthy" | "stale" | "error" | "missing";
+    status: "healthy" | "stale" | "error" | "missing" | "empty";
     lastFinishedAt: string | null;
     staleAfterHours: number;
     errorSources: string[];
     staleSources: string[];
+    emptySources?: string[];
   } | null;
   quality: {
     missingLink: number;
@@ -185,6 +186,9 @@ function formatAdminSyncHealth(syncHealth: AdminStats["syncHealth"]) {
   }
   if (syncHealth.status === "stale") {
     return `지연 · ${syncHealth.staleSources.join(", ") || `${syncHealth.staleAfterHours}시간 초과`}`;
+  }
+  if (syncHealth.status === "empty") {
+    return `빈 결과 · ${syncHealth.emptySources?.join(", ") || "출처 미정"}`;
   }
   return "정상";
 }
@@ -280,6 +284,10 @@ const koreanSearchAliases: Array<[string, string[]]> = [
   ["e+", ["이플러스", "이 플러스", "eplus"]],
   ["lawson ticket", ["로치케", "로손", "로손티켓", "로손 티켓", "로치케전자티켓"]],
   ["ticketmaster", ["티켓마스터"]],
+  ["ticket board", ["티켓보드", "티켓 보드", "치케보"]],
+  ["rakuten ticket", ["라쿠텐티켓", "라쿠텐 티켓", "라쿠텐"]],
+  ["tixplus", ["티쿠플라", "치케플라", "티켓플러스", "치케프라"]],
+  ["livefans", ["라이브팬즈", "라이브팬스", "라이브팬"]],
   ["도쿄", ["tokyo", "東京", "동경"]],
   ["오사카", ["osaka", "大阪"]],
   ["요코하마", ["yokohama", "横浜"]],

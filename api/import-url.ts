@@ -185,8 +185,8 @@ function escapePattern(value: string) {
 
 function cleanTitle(value: string, hostname: string) {
   return compactWhitespace(value)
-    .replace(/\s*[|｜]\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|ticket board|チケットボード|Ticketmaster|LiveFans).*$/i, "")
-    .replace(/\s*-\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|ticket board|チケットボード|Ticketmaster|LiveFans).*$/i, "")
+    .replace(/\s*[|｜]\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|ticket board|チケットボード|楽天チケット|Rakuten Ticket|チケプラ|Tixplus|AnyPASS|Ticketmaster|LiveFans).*$/i, "")
+    .replace(/\s*-\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|ticket board|チケットボード|楽天チケット|Rakuten Ticket|チケプラ|Tixplus|AnyPASS|Ticketmaster|LiveFans).*$/i, "")
     .replace(new RegExp(`\\s*[|｜-]\\s*${hostname.replace(/^www\\./, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*$`, "i"), "")
     .trim();
 }
@@ -268,25 +268,40 @@ function labeledValue($: cheerio.CheerioAPI, text: string, labels: string[]) {
   return firstString(labeledElementValue($, labels), labeledTextValue(text, labels));
 }
 
+function formatYenAmounts(amounts: number[]) {
+  const validAmounts = Array.from(new Set(amounts.filter((amount) => Number.isFinite(amount) && amount >= 1000))).sort(
+    (left, right) => left - right,
+  );
+  if (validAmounts.length === 0) return "";
+
+  const lowest = validAmounts[0];
+  const highest = validAmounts[validAmounts.length - 1];
+  if (lowest === highest) return `¥${lowest.toLocaleString("ja-JP")}`;
+  return `¥${lowest.toLocaleString("ja-JP")} - ¥${highest.toLocaleString("ja-JP")}`;
+}
+
 function normalizePriceText(value: string) {
   const normalized = normalizeFullWidth(value);
   const bareStructuredPrice = normalized.match(/^\s*([0-9,]{3,})\s*$/);
   if (bareStructuredPrice) {
     const amount = Number(bareStructuredPrice[1].replaceAll(",", ""));
-    return Number.isFinite(amount) ? `¥${amount.toLocaleString("ja-JP")}` : "";
+    return formatYenAmounts([amount]);
   }
 
-  const price = normalized.match(/[¥￥]\s?([0-9,]{3,})(?:\s?[~〜-]\s?[¥￥]?\s?([0-9,]{3,}))?/) ??
-    normalized.match(/([0-9,]{3,})\s?円(?:\s?[~〜-]\s?([0-9,]{3,})\s?円)?/);
-
-  if (!price) return "";
-  const first = Number(price[1].replaceAll(",", ""));
-  const second = price[2] ? Number(price[2].replaceAll(",", "")) : null;
-  if (!Number.isFinite(first)) return "";
-  if (second && Number.isFinite(second)) {
-    return `¥${first.toLocaleString("ja-JP")} - ¥${second.toLocaleString("ja-JP")}`;
+  const explicitRange = normalized.match(
+    /[¥￥]\s?([0-9,]{3,})\s?[~〜-]\s?[¥￥]?\s?([0-9,]{3,})|([0-9,]{3,})\s?円\s?[~〜-]\s?([0-9,]{3,})\s?円?/,
+  );
+  if (explicitRange) {
+    return formatYenAmounts([
+      Number((explicitRange[1] ?? explicitRange[3]).replaceAll(",", "")),
+      Number((explicitRange[2] ?? explicitRange[4]).replaceAll(",", "")),
+    ]);
   }
-  return `¥${first.toLocaleString("ja-JP")}`;
+
+  const amounts = [...normalized.matchAll(/[¥￥]\s?([0-9,]{3,})|([0-9,]{3,})\s?円/g)].map((match) =>
+    Number((match[1] ?? match[2]).replaceAll(",", "")),
+  );
+  return formatYenAmounts(amounts);
 }
 
 function saleTypeFromText(text: string): ImportedDraft["saleType"] {
@@ -384,6 +399,12 @@ function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ti
 
 function paymentPickupNoteFromText(text: string) {
   const notes: string[] = [];
+  const domesticCardOnly =
+    /(日本国内発行|国内発行|日本発行).{0,24}(クレジットカード|credit card|カード決済|クレカ)/i.test(text) ||
+    /(クレジットカード|credit card|カード決済|クレカ).{0,24}(日本国内発行|国内発行|日本発行)/i.test(text) ||
+    /(海外発行|国外発行).{0,24}(クレジットカード|credit card|カード).{0,24}(不可|利用不可|ご利用いただけません|使用できません)/i.test(
+      text,
+    );
   const creditCardOnly =
     /(クレジットカード|credit card|カード決済|クレカ).{0,20}(のみ|限定|only|必須|決済)/i.test(text) ||
     /(のみ|限定|only|必須).{0,20}(クレジットカード|credit card|カード決済|クレカ)/i.test(text);
@@ -393,7 +414,9 @@ function paymentPickupNoteFromText(text: string) {
     /(支払|決済|入金|発券|受取|引取).{0,24}(コンビニ|セブン-?イレブン|ファミリーマート|ローソン)/i.test(text);
   const paperTicket = /(紙チケット|店頭発券|配送|郵送|チケットぴあ店舗|Cloak)/i.test(text);
 
-  if (creditCardOnly) {
+  if (domesticCardOnly) {
+    notes.push("일본 국내 발행 카드 한정 신호가 있어 한국 발행 카드 결제가 어려울 수 있습니다.");
+  } else if (creditCardOnly) {
     notes.push("신용카드 결제 전용 신호가 있습니다.");
   } else if (creditCardAvailable) {
     notes.push("신용카드 결제 가능 신호가 있습니다.");
@@ -617,8 +640,7 @@ function normalizeSchemaPriceRange(lowPrice: unknown, highPrice: unknown) {
   if (!low || !high || low === high) return "";
   const lowAmount = Number(low.replaceAll(",", ""));
   const highAmount = Number(high.replaceAll(",", ""));
-  if (!Number.isFinite(lowAmount) || !Number.isFinite(highAmount)) return "";
-  return `¥${lowAmount.toLocaleString("ja-JP")} - ¥${highAmount.toLocaleString("ja-JP")}`;
+  return formatYenAmounts([lowAmount, highAmount]);
 }
 
 function schemaOfferPrice(offer: Record<string, unknown>) {
@@ -630,7 +652,7 @@ function schemaOfferPrice(offer: Record<string, unknown>) {
 }
 
 function priceFromOffers(offers: Array<Record<string, unknown>>) {
-  return firstString(...offers.map(schemaOfferPrice));
+  return normalizePriceText(offers.map(schemaOfferPrice).filter(Boolean).join(" "));
 }
 
 function schemaAvailabilityCue(value: unknown) {
@@ -660,8 +682,12 @@ function sourceFromHostname(hostname: string) {
   if (hostname.includes("pia.jp")) return "Ticket Pia";
   if (hostname.includes("eplus.jp")) return "e+";
   if (hostname.includes("l-tike.com")) return "Lawson Ticket";
+  if (hostname.includes("ticket.rakuten.co.jp")) return "Rakuten Ticket";
   if (hostname.includes("ticketmaster.")) return "Ticketmaster";
   if (hostname.includes("ticketboard.jp") || hostname.includes("tickebo.jp")) return "ticket board";
+  if (hostname.includes("tixplus.jp") || hostname.includes("emtg.jp")) return "Tixplus";
+  if (hostname.includes("anypass.jp")) return "AnyPASS";
+  if (hostname.includes("bitfan.id") || hostname.includes("bitfan.live") || hostname.includes("bitfan.link")) return "Bitfan";
   if (hostname.includes("livefans.jp")) return "LiveFans";
   return hostname.replace(/^www\./, "");
 }
@@ -671,13 +697,13 @@ function ticketLinkScore(url: URL, label: string) {
   const text = normalizeFullWidth(`${label} ${url.pathname} ${url.search}`);
   let score = 0;
 
-  if (/(pia\.jp|eplus\.jp|l-tike\.com|ticketmaster\.|ticketboard\.jp|tickebo\.jp)/i.test(hostname)) {
+  if (/(pia\.jp|eplus\.jp|l-tike\.com|ticket\.rakuten\.co\.jp|ticketmaster\.|ticketboard\.jp|tickebo\.jp|tixplus\.jp|emtg\.jp|anypass\.jp|bitfan\.(id|live|link)|livefans\.jp)/i.test(hostname)) {
     score += 50;
   }
   if (/(申込|申し込み|購入|受付|販売|発売|抽選|先行|一般発売|リセール|resale)/i.test(text)) {
     score += 20;
   }
-  if (/(チケット|ticket|ローチケ|ローソンチケット|イープラス|チケットぴあ|ticketmaster|ticket board)/i.test(text)) {
+  if (/(チケット|ticket|ローチケ|ローソンチケット|イープラス|チケットぴあ|楽天チケット|ticketmaster|ticket board|チケプラ|tixplus|anypass|bitfan|livefans)/i.test(text)) {
     score += 15;
   }
   if (/(twitter|x\.com|instagram|youtube|line\.me|facebook|tiktok)/i.test(hostname)) {
@@ -752,12 +778,16 @@ function cityFromText(text: string) {
     ["大阪城ホール", "오사카"],
     ["横浜", "요코하마"],
     ["Yokohama", "요코하마"],
+    ["神奈川", "요코하마"],
+    ["Kanagawa", "요코하마"],
     ["K-Arena", "요코하마"],
     ["Kアリーナ", "요코하마"],
     ["ぴあアリーナMM", "요코하마"],
     ["日産スタジアム", "요코하마"],
     ["名古屋", "나고야"],
     ["Nagoya", "나고야"],
+    ["愛知", "나고야"],
+    ["Aichi", "나고야"],
     ["Nippon Gaishi Hall", "나고야"],
     ["日本ガイシホール", "나고야"],
     ["福岡", "후쿠오카"],
@@ -766,9 +796,13 @@ function cityFromText(text: string) {
     ["PayPayドーム", "후쿠오카"],
     ["札幌", "삿포로"],
     ["Sapporo", "삿포로"],
+    ["北海道", "삿포로"],
+    ["Hokkaido", "삿포로"],
     ["真駒内セキスイハイムアイスアリーナ", "삿포로"],
     ["仙台", "센다이"],
     ["Sendai", "센다이"],
+    ["宮城", "센다이"],
+    ["Miyagi", "센다이"],
     ["広島", "히로시마"],
     ["Hiroshima", "히로시마"],
     ["埼玉", "사이타마"],
@@ -782,6 +816,8 @@ function cityFromText(text: string) {
     ["Kyoto", "교토"],
     ["神戸", "고베"],
     ["Kobe", "고베"],
+    ["兵庫", "고베"],
+    ["Hyogo", "고베"],
     ["新潟", "니가타"],
     ["Niigata", "니가타"],
     ["朱鷺メッセ", "니가타"],
@@ -817,6 +853,10 @@ function cityFromText(text: string) {
     ["水戸", "미토"],
     ["茨城", "미토"],
     ["Ibaraki", "미토"],
+    ["沖縄", "오키나와"],
+    ["Okinawa", "오키나와"],
+    ["那覇", "오키나와"],
+    ["Naha", "오키나와"],
   ];
   return citySignals.find(([signal]) => text.includes(signal))?.[1] ?? "도쿄";
 }

@@ -29,21 +29,33 @@ function parseSaleWindowDateParts(year: number, month: string, day: string, hour
   );
 }
 
+function normalizeFullWidth(value: string) {
+  return value.replace(/[！-～]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0));
+}
+
+const saleWindowDatePattern = String.raw`(\d{4})\s*[年/.-]\s*(\d{1,2})\s*[月/.-]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*(?:(\d{1,2})(?::(\d{2})|時\s*(\d{2})?\s*分?))?`;
+const shortSaleWindowDatePattern = String.raw`(^|[^\d])(\d{1,2})[./月]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*(?:(\d{1,2})(?::(\d{2})|時\s*(\d{2})?\s*分?))?`;
+const isoSaleWindowDateTimePattern = /\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?/g;
+
 function getSaleWindowDates(saleWindow: string, eventDate: string, referenceDate = currentTokyoDay()) {
+  const normalizedSaleWindow = normalizeFullWidth(saleWindow);
+  const isoDateTimeMatches = Array.from(normalizedSaleWindow.matchAll(isoSaleWindowDateTimePattern))
+    .map((match) => new Date(match[0]))
+    .filter((date) => !Number.isNaN(date.getTime()));
+  if (isoDateTimeMatches.length > 0) return isoDateTimeMatches;
+
   const eventYear = Number(eventDate.slice(0, 4)) || referenceDate.getFullYear();
-  const explicitYearMatches = Array.from(
-    saleWindow.matchAll(/(\d{4})\s*[年/.-]\s*(\d{1,2})\s*[月/.-]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*(?:(\d{1,2}):(\d{2}))?/g),
-  );
+  const explicitYearMatches = Array.from(normalizedSaleWindow.matchAll(new RegExp(saleWindowDatePattern, "g")));
 
   if (explicitYearMatches.length > 0) {
     return explicitYearMatches.map((match) =>
-      parseSaleWindowDateParts(Number(match[1]), match[2], match[3], match[4], match[5]),
+      parseSaleWindowDateParts(Number(match[1]), match[2], match[3], match[4], match[5] ?? match[6]),
     );
   }
 
-  return Array.from(
-    saleWindow.matchAll(/(^|[^\d])(\d{1,2})[./月]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*(?:(\d{1,2}):(\d{2}))?/g),
-  ).map((match) => parseSaleWindowDateParts(eventYear, match[2], match[3], match[4], match[5]));
+  return Array.from(normalizedSaleWindow.matchAll(new RegExp(shortSaleWindowDatePattern, "g"))).map((match) =>
+    parseSaleWindowDateParts(eventYear, match[2], match[3], match[4], match[5] ?? match[6]),
+  );
 }
 
 function getSaleWindowCueStatus(saleWindow: string): Exclude<SaleStatus, "전체"> | null {
