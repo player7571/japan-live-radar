@@ -85,6 +85,11 @@ function eventLabel(event: EventSnapshot) {
   return [event.artist, event.title].filter(Boolean).join(" - ") || "일본 콘서트";
 }
 
+export function buildAlertSubject(alert: DueAlert) {
+  const event = alert.event_snapshot ?? {};
+  return `[Japan Live Radar] ${eventLabel(event)} 예매 알림`;
+}
+
 export function buildAppEventUrl(alert: DueAlert, baseUrl = appBaseUrl) {
   const eventId = alert.event_snapshot?.id;
   if (!eventId) return baseUrl;
@@ -117,14 +122,18 @@ export function buildAlertMessage(alert: DueAlert) {
 }
 
 export function buildAlertWebhookPayload(alert: DueAlert) {
+  const appEventUrl = buildAppEventUrl(alert);
   return {
+    subject: buildAlertSubject(alert),
     text: buildAlertMessage(alert),
     deliveryKey: buildAlertDeliveryKey(alert),
     alertId: alert.id,
     eventKey: alert.event_key,
     channel: alert.channel ?? null,
     contactEmail: alert.contact_email ?? null,
-    appUrl: buildAppEventUrl(alert),
+    appUrl: appEventUrl,
+    eventUrl: appEventUrl,
+    ticketUrl: alert.event_snapshot?.link ?? null,
     event: alert.event_snapshot,
     source: alert.event_snapshot?.source ?? null,
     ticketAccess: alert.event_snapshot?.ticketAccess ?? null,
