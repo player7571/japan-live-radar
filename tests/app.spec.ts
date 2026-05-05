@@ -9,7 +9,7 @@ import {
   normalizeAlertLeadTimeHours,
 } from "../api/alerts";
 import { seedResponse } from "../api/events";
-import { extractDraft, safeUrl } from "../api/import-url";
+import { assertPublicResolvedAddresses, extractDraft, safeUrl } from "../api/import-url";
 import { migrationFiles } from "../scripts/apply-migrations";
 import {
   validateAdminAlertsHealth,
@@ -102,6 +102,30 @@ test("rejects private or local admin import URLs", () => {
     "http://[fe80::1]/ticket",
   ]) {
     expect(() => safeUrl(url), url).toThrow("private or local URLs are not allowed");
+  }
+});
+
+test("rejects admin import URLs that resolve to private or local addresses", () => {
+  expect(() => assertPublicResolvedAddresses([{ address: "93.184.216.34" }])).not.toThrow();
+  expect(() => assertPublicResolvedAddresses([{ address: "2001:4860:4860::8888" }])).not.toThrow();
+
+  for (const address of [
+    "0.0.0.0",
+    "10.0.0.8",
+    "127.0.0.1",
+    "169.254.169.254",
+    "172.16.0.8",
+    "192.168.1.8",
+    "::",
+    "::1",
+    "::ffff:7f00:1",
+    "64:ff9b::c0a8:101",
+    "fc00::1",
+    "fe80::1",
+  ]) {
+    expect(() => assertPublicResolvedAddresses([{ address }]), address).toThrow(
+      "private or local URLs are not allowed",
+    );
   }
 });
 

@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { lookup } from "node:dns/promises";
 
 type VercelRequest = {
   method?: string;
@@ -76,12 +77,8 @@ function normalizedHostname(value: string) {
 }
 
 function isPrivateIpv4(hostname: string) {
-  const parts = hostname.split(".");
-  if (parts.length !== 4) return false;
-  const octets = parts.map((part) => Number(part));
-  if (octets.some((octet, index) => !Number.isInteger(octet) || octet < 0 || octet > 255 || String(octet) !== parts[index])) {
-    return false;
-  }
+  if (!isIpv4Literal(hostname)) return false;
+  const octets = hostname.split(".").map((part) => Number(part));
   const [first, second] = octets;
   return first === 0 ||
     first === 10 ||
@@ -90,6 +87,15 @@ function isPrivateIpv4(hostname: string) {
     (first === 169 && second === 254) ||
     (first === 172 && second >= 16 && second <= 31) ||
     (first === 192 && second === 168);
+}
+
+function isIpv4Literal(hostname: string) {
+  const parts = hostname.split(".");
+  if (parts.length !== 4) return false;
+  const octets = parts.map((part) => Number(part));
+  return !octets.some(
+    (octet, index) => !Number.isInteger(octet) || octet < 0 || octet > 255 || String(octet) !== parts[index],
+  );
 }
 
 function isPrivateMappedIpv6(hostname: string) {
@@ -137,6 +143,18 @@ export function safeUrl(value: unknown) {
   }
 
   return url;
+}
+
+export function assertPublicResolvedAddresses(addresses: Array<{ address: string }>) {
+  if (addresses.some((record) => isPrivateHostname(record.address))) {
+    throw new Error("private or local URLs are not allowed");
+  }
+}
+
+async function assertPublicDnsTarget(url: URL) {
+  const hostname = normalizedHostname(url.hostname);
+  if (isIpv4Literal(hostname) || hostname.includes(":")) return;
+  assertPublicResolvedAddresses(await lookup(hostname, { all: true, verbatim: true }));
 }
 
 function requestedUrls(payload: ImportPayload) {
@@ -877,6 +895,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     for (const url of urls) {
       try {
+        await assertPublicDnsTarget(url);
         const response = await fetch(url, {
           headers: {
             "user-agent": "JapanLiveRadarBot/0.1 (+https://japan-live-radar.vercel.app)",
