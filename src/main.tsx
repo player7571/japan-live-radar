@@ -660,15 +660,24 @@ function App() {
         status: "saving",
         message: nextActive ? "서버 알림을 저장하는 중" : "서버 알림을 해제하는 중",
       });
+      setAlertEmailFeedback({
+        status: "saving",
+        message: nextActive ? "서버 알림을 저장하는 중" : "서버 알림을 해제하는 중",
+      });
       void syncAlertSubscription(event, nextActive).then((synced) => {
+        const message = synced
+          ? nextActive
+            ? "서버 알림까지 저장됐어요."
+            : "서버 알림도 해제됐어요."
+          : "브라우저에는 반영했고 서버 동기화는 다시 시도할 수 있어요.";
         setAlertSyncFeedback({
           eventId: id,
           status: synced ? "saved" : "error",
-          message: synced
-            ? nextActive
-              ? "서버 알림까지 저장됐어요."
-              : "서버 알림도 해제됐어요."
-            : "브라우저에는 반영했고 서버 동기화는 다시 시도할 수 있어요.",
+          message,
+        });
+        setAlertEmailFeedback({
+          status: synced ? "saved" : "error",
+          message,
         });
       });
     }

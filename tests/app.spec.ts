@@ -2017,6 +2017,7 @@ test("opens saved alerts and jumps back to a saved concert", async ({ page }) =>
   await page.getByRole("button", { name: "알림 2개" }).click();
   await page.getByRole("button", { name: "NewJeans 알림 해제" }).click();
   await expect(page.getByRole("button", { name: "알림 1개" })).toBeVisible();
+  await expect(page.getByLabel("저장한 알림").getByRole("status")).toHaveText("서버 알림도 해제됐어요.");
   await expect(page.getByLabel("저장한 알림").getByText("NewJeans")).toHaveCount(0);
 });
 
