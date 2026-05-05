@@ -1589,6 +1589,17 @@ test("summarizes source-specific event quality gaps", () => {
         price: "¥9,000",
       },
       {
+        id: "tm-3",
+        source: "Ticketmaster",
+        city: "후쿠오카",
+        date: "2026-08-04",
+        ticket_access: "한국 구매 가능",
+        phone_required: null,
+        link: "https://www.ticketmaster.com/event/tm-3",
+        sale_window: "판매 중",
+        price: "¥11,000",
+      },
+      {
         id: "pia-1",
         source: "Ticket Pia",
         city: "요코하마",
@@ -1603,11 +1614,11 @@ test("summarizes source-specific event quality gaps", () => {
   ).toEqual([
     {
       source: "Ticketmaster",
-      total: 2,
+      total: 3,
       missingLink: 1,
       missingSaleWindow: 1,
       missingPrice: 1,
-      needsAccessReview: 1,
+      needsAccessReview: 2,
     },
     {
       source: "Ticket Pia",
