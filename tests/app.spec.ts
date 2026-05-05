@@ -1,7 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
 import { summarizeAlertQueue, summarizeQualityBySource, summarizeSyncHealth, summarizeSyncRunsAt } from "../api/admin-stats";
-import { buildAlertUpsertRow, calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
+import {
+  buildAlertUpsertRow,
+  calculateReminderAt,
+  normalizeAlertContactEmail,
+  normalizeAlertLeadTimeHours,
+} from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
 import {
@@ -832,6 +837,18 @@ test("calculates alert reminders from sale windows and event dates", () => {
   expect(
     calculateReminderAt(
       {
+        id: "ado-2026",
+        date: "2026-11-12",
+        saleWindow: "2026年5月10日 12:00～2026年5月20日 23:59",
+      },
+      now,
+      24,
+    ),
+  ).toBe(new Date("2026-05-09T12:00:00+09:00").toISOString());
+
+  expect(
+    calculateReminderAt(
+      {
         id: "newjeans-2026",
         date: "2026-06-01",
       },
@@ -1331,6 +1348,10 @@ test("normalizes alert contact emails", () => {
   expect(normalizeAlertContactEmail(" Fan@Example.COM ")).toBe("fan@example.com");
   expect(normalizeAlertContactEmail("")).toBeNull();
   expect(() => normalizeAlertContactEmail("not-an-email")).toThrow("contactEmail must be a valid email address");
+  expect(normalizeAlertLeadTimeHours(undefined)).toBe(3);
+  expect(normalizeAlertLeadTimeHours("24")).toBe(24);
+  expect(normalizeAlertLeadTimeHours(72)).toBe(72);
+  expect(normalizeAlertLeadTimeHours(99)).toBe(3);
 });
 
 test("builds alert subscription upsert rows with email and cancellation state", () => {
@@ -1349,6 +1370,7 @@ test("builds alert subscription upsert rows with email and cancellation state", 
       snapshot,
       active: true,
       contactEmail: "fan@example.com",
+      remindBeforeHours: 24,
       now,
     }),
   ).toMatchObject({
@@ -1358,7 +1380,8 @@ test("builds alert subscription upsert rows with email and cancellation state", 
     status: "active",
     channel: "email",
     contact_email: "fan@example.com",
-    remind_at: new Date("2026-05-10T09:00:00+09:00").toISOString(),
+    remind_before_hours: 24,
+    remind_at: new Date("2026-05-09T12:00:00+09:00").toISOString(),
     updated_at: now.toISOString(),
   });
 
@@ -1384,6 +1407,7 @@ test("builds alert webhook payloads with Korean context and contact email", () =
     event_key: "ado-2026",
     contact_email: "fan@example.com",
     remind_at: "2026-05-10T00:00:00.000Z",
+    remind_before_hours: 24,
     event_snapshot: {
       id: "seed-ado-yokohama-2026-07-21",
       artist: "Ado",
@@ -1404,6 +1428,7 @@ test("builds alert webhook payloads with Korean context and contact email", () =
   };
 
   expect(buildAlertMessage(alert)).toContain("수신처: fan@example.com");
+  expect(buildAlertMessage(alert)).toContain("알림 기준: 예매 시작 24시간 전");
   expect(buildAlertMessage(alert)).toContain("공연: Ado - Blue Flame Tour");
   expect(buildAlertMessage(alert)).toContain("구매 조건: 일본 번호 필요 / 일본 번호 확인 필요");
   expect(buildAlertMessage(alert)).toContain("티켓: 추첨 접수 / ¥9,800");
@@ -1427,6 +1452,7 @@ test("builds alert webhook payloads with Korean context and contact email", () =
     saleType: "추첨 접수",
     phoneRequired: true,
     remindAt: "2026-05-10T00:00:00.000Z",
+    remindBeforeHours: 24,
   });
 });
 
@@ -1970,6 +1996,23 @@ test("persists an alert contact email in the saved alerts panel", async ({ page 
   await page.reload();
   await page.getByRole("button", { name: "알림 2개" }).click();
   await expect(page.getByPlaceholder("알림 받을 이메일")).toHaveValue("fan@example.com");
+});
+
+test("persists an alert lead time in the saved alerts panel", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await page.getByRole("button", { name: "일정 알림" }).click();
+  await page.getByRole("button", { name: "알림 2개" }).click();
+
+  await page.getByLabel("알림 시점").selectOption("24");
+  await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
+  await expect(page.getByLabel("저장한 알림").getByRole("status")).toHaveText("알림 시점을 저장했어요.");
+  await expect(page.getByLabel("저장한 알림").getByText(/알림 예정 ·/).first()).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: "알림 2개" }).click();
+  await expect(page.getByLabel("알림 시점")).toHaveValue("24");
 });
 
 test("shows alert contact email save feedback", async ({ page }) => {

@@ -125,7 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const listOptions = normalizeAdminAlertListOptions(req.query);
     let alertQuery = supabase
       .from("event_alerts")
-      .select("id,client_id,event_key,event_snapshot,channel,contact_email,status,remind_at,last_sent_at,last_error,send_count,created_at,updated_at")
+      .select("id,client_id,event_key,event_snapshot,channel,contact_email,status,remind_at,remind_before_hours,last_sent_at,last_error,send_count,created_at,updated_at")
       .limit(50);
 
     if (listOptions.status !== "all") {

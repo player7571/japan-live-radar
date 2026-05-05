@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { seedEvents } from "./data/seedEvents";
 import { buildAlertEventSnapshot } from "./lib/alertSnapshot";
-import { calculateReminderAt } from "./lib/alertSchedule";
+import { calculateReminderAt, normalizeAlertLeadTimeHours } from "./lib/alertSchedule";
 import { currentTokyoDay, getSaleStatus, type SaleStatus } from "./lib/saleStatus";
 import type { Event, EventApiResponse, TicketAccess } from "./types/events";
 import "./styles.css";
@@ -149,6 +149,7 @@ type AdminAlertItem = {
   contact_email: string | null;
   status: AlertQueueStatus;
   remind_at: string | null;
+  remind_before_hours?: number | null;
   last_sent_at: string | null;
   last_error: string | null;
   send_count: number;
@@ -202,8 +203,8 @@ function formatAdminNextReminder(alertQueue: AdminStats["alertQueue"]) {
   });
 }
 
-function formatAlertReminder(event: Event) {
-  const remindAt = calculateReminderAt(event, today);
+function formatAlertReminder(event: Event, leadTimeHours = 3) {
+  const remindAt = calculateReminderAt(event, today, leadTimeHours);
   if (!remindAt) {
     return "판매 일정 확인 후 알림";
   }
@@ -234,8 +235,14 @@ const useSeedData = import.meta.env.VITE_USE_SEED_DATA === "true";
 const savedEventsStorageKey = "japan-live-radar.saved-events";
 const alertClientStorageKey = "japan-live-radar.alert-client";
 const alertEmailStorageKey = "japan-live-radar.alert-email";
+const alertLeadTimeStorageKey = "japan-live-radar.alert-lead-time";
 const adminTokenStorageKey = "japan-live-radar.admin-token";
 const importCandidatesStorageKey = "japan-live-radar.import-candidates";
+const alertLeadTimeOptions = [
+  { label: "예매 3시간 전", value: 3 },
+  { label: "예매 1일 전", value: 24 },
+  { label: "예매 3일 전", value: 72 },
+];
 const blankAdminEvent: AdminEventDraft = {
   artist: "",
   title: "",
@@ -345,6 +352,11 @@ function loadAlertClientId() {
   } catch {
     return "local-alert-client";
   }
+}
+
+function loadAlertLeadTimeHours() {
+  if (typeof window === "undefined") return 3;
+  return normalizeAlertLeadTimeHours(window.localStorage.getItem(alertLeadTimeStorageKey));
 }
 
 function loadAlertEmail() {
@@ -483,6 +495,7 @@ function App() {
   const [saved, setSaved] = useState<string[]>(loadSavedEventIds);
   const [alertClientId] = useState(loadAlertClientId);
   const [alertEmail, setAlertEmail] = useState(loadAlertEmail);
+  const [alertLeadTimeHours, setAlertLeadTimeHours] = useState(loadAlertLeadTimeHours);
   const [alertEmailFeedback, setAlertEmailFeedback] = useState<AlertEmailFeedback>({
     status: "idle",
     message: "",
@@ -560,6 +573,10 @@ function App() {
     window.localStorage.setItem(alertEmailStorageKey, alertEmail.trim());
   }, [alertEmail]);
 
+  useEffect(() => {
+    window.localStorage.setItem(alertLeadTimeStorageKey, String(alertLeadTimeHours));
+  }, [alertLeadTimeHours]);
+
   const filteredEvents = useMemo(() => {
     const queryVariants = searchVariants(query);
     return events.filter((event) => {
@@ -609,6 +626,7 @@ function App() {
           clientId: alertClientId,
           active,
           contactEmail: alertEmail.trim(),
+          remindBeforeHours: alertLeadTimeHours,
           event: buildAlertEventSnapshot(event),
         }),
       });
@@ -652,8 +670,14 @@ function App() {
     setAlertEmailFeedback({ status: "idle", message: "" });
   };
 
+  const updateAlertLeadTime = (leadTimeHours: number) => {
+    setAlertLeadTimeHours(normalizeAlertLeadTimeHours(leadTimeHours));
+    setAlertEmailFeedback({ status: "idle", message: "" });
+  };
+
   const saveAlertEmail = async () => {
-    if (!validAlertEmail(alertEmail)) {
+    const trimmedEmail = alertEmail.trim();
+    if (trimmedEmail && !validAlertEmail(trimmedEmail)) {
       setAlertEmailFeedback({ status: "error", message: "이메일 형식을 확인해 주세요." });
       return;
     }
@@ -662,7 +686,10 @@ function App() {
     setAlertEmailFeedback({ status: "saving", message: "알림 정보를 저장하는 중" });
     const results = await Promise.all(savedEventItems.map((event) => syncAlertSubscription(event, true)));
     if (results.every(Boolean)) {
-      setAlertEmailFeedback({ status: "saved", message: "알림 이메일을 저장했어요." });
+      setAlertEmailFeedback({
+        status: "saved",
+        message: trimmedEmail ? "알림 이메일을 저장했어요." : "알림 시점을 저장했어요.",
+      });
     } else {
       setAlertEmailFeedback({
         status: "error",
@@ -703,9 +730,11 @@ function App() {
           <SavedAlertsPanel
             events={savedEventItems}
             email={alertEmail}
+            leadTimeHours={alertLeadTimeHours}
             feedback={alertEmailFeedback}
             onClose={() => setAlertsOpen(false)}
             onEmailChange={updateAlertEmail}
+            onLeadTimeChange={updateAlertLeadTime}
             onSaveEmail={saveAlertEmail}
             onRemove={toggleSaved}
             onSelect={(id) => {
@@ -922,6 +951,7 @@ function App() {
               event={selectedEvent}
               saved={saved.includes(selectedEvent.id)}
               copied={copiedEventId === selectedEvent.id}
+              alertLeadTimeHours={alertLeadTimeHours}
               alertFeedback={alertSyncFeedback?.eventId === selectedEvent.id ? alertSyncFeedback : null}
               onSave={toggleSaved}
               onCopyLink={copyEventLink}
@@ -942,18 +972,22 @@ function App() {
 function SavedAlertsPanel({
   events,
   email,
+  leadTimeHours,
   feedback,
   onClose,
   onEmailChange,
+  onLeadTimeChange,
   onSaveEmail,
   onRemove,
   onSelect,
 }: {
   events: Event[];
   email: string;
+  leadTimeHours: number;
   feedback: AlertEmailFeedback;
   onClose: () => void;
   onEmailChange: (email: string) => void;
+  onLeadTimeChange: (leadTimeHours: number) => void;
   onSaveEmail: () => void | Promise<void>;
   onRemove: (id: string) => void;
   onSelect: (id: string) => void;
@@ -993,6 +1027,20 @@ function SavedAlertsPanel({
               {savingEmail ? "저장 중" : "저장"}
             </button>
           </label>
+          <label className="alert-lead-field">
+            <Clock3 size={16} />
+            <span>알림 시점</span>
+            <select
+              value={leadTimeHours}
+              onChange={(event) => onLeadTimeChange(Number(event.target.value))}
+            >
+              {alertLeadTimeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           {feedback.message ? (
             <span className={`alert-email-feedback ${feedback.status}`} role="status">
               {feedback.message}
@@ -1009,7 +1057,7 @@ function SavedAlertsPanel({
                   <span>{event.date.replaceAll("-", ".")} · {event.city}</span>
                   <strong>{event.artist}</strong>
                   <small>{event.saleWindow}</small>
-                  <small>알림 예정 · {formatAlertReminder(event)}</small>
+                  <small>알림 예정 · {formatAlertReminder(event, leadTimeHours)}</small>
                 </button>
                 <button
                   className="icon-button"
@@ -1558,6 +1606,7 @@ function AdminPage() {
                   <div>
                     <span>
                       {alert.remind_at ? new Date(alert.remind_at).toLocaleString("ko-KR") : "알림 시간 미정"}
+                      {alert.remind_before_hours ? ` · ${alert.remind_before_hours}시간 전` : ""}
                       {alert.contact_email ? ` · ${alert.contact_email}` : ""}
                     </span>
                     <strong>{[alert.event_snapshot.artist, alert.event_snapshot.title].filter(Boolean).join(" · ") || alert.event_key}</strong>
@@ -1837,6 +1886,7 @@ function EventDetail({
   event,
   saved,
   copied,
+  alertLeadTimeHours,
   alertFeedback,
   onSave,
   onCopyLink,
@@ -1844,6 +1894,7 @@ function EventDetail({
   event: Event;
   saved: boolean;
   copied: boolean;
+  alertLeadTimeHours: number;
   alertFeedback: AlertSyncFeedback;
   onSave: (id: string) => void;
   onCopyLink: (id: string) => void | Promise<void>;
@@ -1873,7 +1924,7 @@ function EventDetail({
           <Fact icon={<Ticket size={18} />} label="티켓" value={`${event.saleType} · ${event.price}`} />
           <Fact icon={<Clock3 size={18} />} label="예매 상태" value={getSaleStatus(event, today)} />
           <Fact icon={<Clock3 size={18} />} label="판매 기간" value={event.saleWindow} />
-          <Fact icon={<Bell size={18} />} label="알림 예정" value={formatAlertReminder(event)} />
+          <Fact icon={<Bell size={18} />} label="알림 예정" value={formatAlertReminder(event, alertLeadTimeHours)} />
         </div>
 
         <div className="travel-check">

@@ -312,6 +312,36 @@ h1 {
   padding: 0 10px;
 }
 
+.alert-lead-field {
+  display: grid;
+  grid-template-columns: 18px auto minmax(120px, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 9px 10px;
+  background: #f8faf7;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  border-radius: 8px;
+}
+
+.alert-lead-field span {
+  color: #526158;
+  font-size: 0.84rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.alert-lead-field select {
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  font: inherit;
+  color: #172019;
+  background: #ffffff;
+  border: 1px solid rgba(23, 32, 25, 0.12);
+  border-radius: 8px;
+}
+
 .alert-email-feedback {
   margin-top: -2px;
   font-size: 0.82rem;
