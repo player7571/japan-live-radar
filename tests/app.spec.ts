@@ -330,6 +330,33 @@ test("adds identity verification and companion registration cues to imported not
   expect(draft.foreignerNote).toContain("동행자 등록/티켓 분배");
 });
 
+test("adds fan club and companion membership cues to imported notes", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>IVE Japan Tour｜チケットぴあ</title>
+        </head>
+        <body>
+          <h1>IVE Japan Tour</h1>
+          <p>会場：さいたまスーパーアリーナ</p>
+          <p>公演日：2026年9月19日 18:00</p>
+          <p>FC先行抽選受付：2026年6月1日 12:00～2026年6月8日 23:59</p>
+          <p>本受付はファンクラブ有料会員限定です。お申込みには会員認証が必要です。</p>
+          <p>同行者もファンクラブ会員登録が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600100"),
+  );
+
+  expect(draft.city).toBe("사이타마");
+  expect(draft.saleType).toBe("추첨 접수");
+  expect(draft.saleWindow).toContain("2026年6月1日 12:00");
+  expect(draft.foreignerNote).toContain("팬클럽/유료 회원 한정");
+  expect(draft.foreignerNote).toContain("동행자도 회원 등록/인증");
+});
+
 test("adds special sale and restricted-view cues to imported notes", () => {
   const draft = extractDraft(
     `
