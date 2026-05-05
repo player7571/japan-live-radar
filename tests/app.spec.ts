@@ -8,7 +8,7 @@ import {
   normalizeAlertLeadTimeHours,
 } from "../api/alerts";
 import { seedResponse } from "../api/events";
-import { extractDraft } from "../api/import-url";
+import { extractDraft, safeUrl } from "../api/import-url";
 import {
   validateAdminAlertsHealth,
   validateAdminStatsHealth,
@@ -73,6 +73,27 @@ test("extracts Japanese ticket page sales cues", () => {
   expect(draft.price).toBe("¥9,800 - ¥14,800");
   expect(draft.ticketAccess).toBe("일본 번호 필요");
   expect(draft.phoneRequired).toBe(true);
+});
+
+test("rejects private or local admin import URLs", () => {
+  expect(() => safeUrl("https://example.com/ticket")).not.toThrow();
+  expect(() => safeUrl("https://fc2.com/ticket")).not.toThrow();
+  expect(() => safeUrl("ftp://example.com/ticket")).toThrow("url must be http or https");
+
+  for (const url of [
+    "http://localhost/ticket",
+    "http://app.local/ticket",
+    "http://127.0.0.1/ticket",
+    "http://10.0.0.8/ticket",
+    "http://172.16.0.8/ticket",
+    "http://192.168.1.8/ticket",
+    "http://169.254.169.254/latest/meta-data",
+    "http://[::1]/ticket",
+    "http://[fc00::1]/ticket",
+    "http://[fe80::1]/ticket",
+  ]) {
+    expect(() => safeUrl(url), url).toThrow("private or local URLs are not allowed");
+  }
 });
 
 test("extracts eplus-style labeled event fields", () => {
