@@ -232,13 +232,38 @@ function saleTypeFromText(text: string): ImportedDraft["saleType"] {
   return "일반 판매";
 }
 
+function residencyRestrictionNoteFromText(text: string) {
+  const normalized = normalizeFullWidth(text);
+  const residentOnlySignal =
+    /(国内在住者|日本国内在住者|日本在住者|日本居住者).{0,18}(限定|のみ|対象|に限る|限ります|必要|必須)/i.test(
+      normalized,
+    ) ||
+    /(日本国内|国内|日本).{0,18}(住所|在住|居住).{0,18}(限定|のみ|必要|必須|確認|登録)/i.test(normalized) ||
+    /(海外在住|国外在住|日本国外|海外から).{0,24}(不可|対象外|申込不可|購入不可|申し込みできません|お申し込みいただけません|購入できません|ご利用いただけません)/i.test(
+      normalized,
+    );
+
+  return residentOnlySignal
+    ? "일본 국내 거주자/주소 한정 또는 해외 거주자 신청 불가 신호가 있어 한국 거주자는 예매가 어려울 수 있습니다."
+    : "";
+}
+
 function accessFromText(text: string): Pick<ImportedDraft, "phoneRequired" | "ticketAccess" | "foreignerNote"> {
+  const residencyRestrictionNote = residencyRestrictionNoteFromText(text);
   const overseasSignal = /(海外|international|overseas|foreign|外国|訪日|インバウンド).{0,28}(受付|販売|ticket|購入|カード)/i.test(text);
   const noPhoneSignal =
     /(日本|国内|携帯|電話番号|SMS|SMS認証|認証).{0,18}(不要|なし|無し|必要ありません|必要なし|不要です)/i.test(text) ||
     /(不要|なし|無し|必要ありません|必要なし|不要です).{0,18}(日本|国内|携帯|電話番号|SMS|SMS認証|認証)/i.test(text);
   const phoneSignal =
     /(電話番号|携帯電話|SMS|SMS認証|本人確認|電子チケット|スマチケ|MOALA|AnyPASS|チケプラ|Plus member ID|ローチケ電子チケット|認証)/i.test(text);
+
+  if (residencyRestrictionNote) {
+    return {
+      phoneRequired: true,
+      ticketAccess: "확인 필요",
+      foreignerNote: residencyRestrictionNote,
+    };
+  }
 
   if ((overseasSignal && !phoneSignal) || (overseasSignal && noPhoneSignal)) {
     return {
@@ -292,7 +317,7 @@ function paymentPickupNoteFromText(text: string) {
 }
 
 function importForeignerNote(description: string, accessNote: string, pageText: string) {
-  return [description, accessNote, paymentPickupNoteFromText(pageText)]
+  return [description, accessNote, residencyRestrictionNoteFromText(pageText), paymentPickupNoteFromText(pageText)]
     .map(compactWhitespace)
     .filter(Boolean)
     .filter((note, index, notes) => notes.indexOf(note) === index)
