@@ -11,6 +11,7 @@ import {
 import {
   buildAlertUpsertRow,
   calculateReminderAt,
+  canScheduleReminder,
   normalizeAlertContactEmail,
   normalizeAlertLeadTimeHours,
 } from "../api/alerts";
@@ -1447,6 +1448,13 @@ test("schedules immediately for active sale cues and skips ended sales", () => {
       now,
     ),
   ).toBeNull();
+
+  expect(canScheduleReminder({ id: "ticketmaster-active-2026", date: "2026-08-08", saleWindow: "판매 중" }, now)).toBe(
+    true,
+  );
+  expect(canScheduleReminder({ id: "ticketmaster-cancelled-2026", date: "2026-08-08", saleWindow: "공연 취소" }, now)).toBe(
+    false,
+  );
 });
 
 test("formats Ticketmaster sale windows for alert parsing", () => {
@@ -2087,6 +2095,22 @@ test("builds alert subscription upsert rows with email and cancellation state", 
     last_sent_at: null,
     last_error: null,
     send_count: 0,
+  });
+
+  expect(
+    buildAlertUpsertRow({
+      clientId: "client-1",
+      snapshot: { ...snapshot, id: "cancelled-2026", saleWindow: "공연 취소" },
+      active: true,
+      contactEmail: "fan@example.com",
+      now,
+    }),
+  ).toMatchObject({
+    event_key: "cancelled-2026",
+    status: "cancelled",
+    channel: "email",
+    contact_email: "fan@example.com",
+    remind_at: null,
   });
 });
 

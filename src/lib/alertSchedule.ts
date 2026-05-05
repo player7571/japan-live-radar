@@ -151,3 +151,7 @@ export function calculateReminderAt(snapshot: EventSnapshot, now = new Date(), l
 
   return null;
 }
+
+export function canScheduleReminder(snapshot: EventSnapshot, now = new Date(), leadTimeHours = defaultAlertLeadTimeHours) {
+  return Boolean(calculateReminderAt(snapshot, now, leadTimeHours));
+}
