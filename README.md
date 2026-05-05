@@ -55,8 +55,10 @@ Users can save interest alerts from the public detail panel. The browser stores 
 
 - Reminder timing prefers the sale-window start and schedules three hours before sales open. If the sale window is missing, it falls back to seven days before the event date.
 - Users can add an alert email in the saved-alerts panel. The email is stored with each active server-side alert and sent to the delivery webhook as `contactEmail`.
+- Alert messages include an `appUrl` detail link such as `https://japan-live-radar.vercel.app/?event=<event-id>` so recipients can jump back to the matching concert detail.
 - `Dispatch Due Alerts` runs every 15 minutes and reads due rows from `/api/admin-alerts`.
-- `ALERT_WEBHOOK_URL` receives a JSON payload with the Korean message text, alert id, event key, event snapshot, and reminder time.
+- `ALERT_WEBHOOK_URL` receives a JSON payload with `text`, `alertId`, `eventKey`, `contactEmail`, `appUrl`, `event`, `source`, `ticketAccess`, `saleType`, `phoneRequired`, and `remindAt`.
+- Webhook delivery retries transient HTTP statuses (`408`, `429`, and `5xx`) and network exceptions according to `ALERT_WEBHOOK_ATTEMPTS`.
 - Successful deliveries are marked `sent`; delivery failures are marked `error` with `last_error` so they do not silently disappear.
 - Operators can inspect non-due queues with `/api/admin-alerts?status=error` or `/api/admin-alerts?status=sent&due=all`. Retrying an errored alert is a `PATCH /api/admin-alerts` with `status: "active"` and an optional `remindAt`.
 
@@ -123,7 +125,7 @@ SYNC_STALE_AFTER_HOURS
 - `APP_BASE_URL` overrides the production URL used by health checks and alert dispatch scripts.
 - `VITE_USE_SEED_DATA=true` forces the frontend to use local seed data during development.
 - `TICKETMASTER_PAGE_LIMIT` caps Ticketmaster sync pagination per search profile. It defaults to `2` pages, is clamped from `1` to `5`, and can be set as a GitHub repository variable for the scheduled sync workflow.
-- `ALERT_WEBHOOK_ATTEMPTS` controls retry attempts for transient alert webhook failures. It defaults to `3`, is clamped from `1` to `5`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
+- `ALERT_WEBHOOK_ATTEMPTS` controls retry attempts for transient alert webhook HTTP failures and network exceptions. It defaults to `3`, is clamped from `1` to `5`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `SYNC_STALE_AFTER_HOURS` controls when the admin stats API marks the latest sync run as delayed. It defaults to `30` hours to cover the daily Ticketmaster schedule with slack.
 
 ## Release Operations
