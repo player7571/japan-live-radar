@@ -21,6 +21,7 @@ import {
   buildAlertDeliveryKey,
   buildAlertMessage,
   buildAlertWebhookPayload,
+  buildAlertWebhookSignature,
   normalizeWebhookAttempts,
   normalizeWebhookTimeoutMs,
   sendWebhook,
@@ -1692,6 +1693,39 @@ test("classifies retryable alert webhook delivery statuses", () => {
   expect(shouldRetryWebhookStatus(429)).toBe(true);
   expect(shouldRetryWebhookStatus(500)).toBe(true);
   expect(shouldRetryWebhookStatus(400)).toBe(false);
+});
+
+test("signs alert webhook payloads when a webhook secret is configured", async () => {
+  const timestamp = "2026-05-10T00:00:00.000Z";
+  let capturedBody = "";
+
+  await sendWebhook(
+    {
+      id: "alert-signed",
+      event_key: "ado-2026",
+      remind_at: "2026-05-10T00:00:00.000Z",
+      event_snapshot: { artist: "Ado", title: "Blue Flame Tour" },
+    },
+    {
+      webhookUrl: "https://example.com/webhook",
+      attempts: 1,
+      signatureSecret: "webhook-secret",
+      signatureTimestamp: timestamp,
+      fetchImpl: async (_url, init) => {
+        capturedBody = String(init?.body);
+        expect(init?.headers).toMatchObject({
+          "x-japan-live-radar-signature-timestamp": timestamp,
+          "x-japan-live-radar-signature": buildAlertWebhookSignature(capturedBody, "webhook-secret", timestamp),
+        });
+        return new Response("ok", { status: 200 });
+      },
+    },
+  );
+
+  expect(JSON.parse(capturedBody)).toMatchObject({
+    alertId: "alert-signed",
+    deliveryKey: "alert-signed:ado-2026:2026-05-10T00:00:00.000Z",
+  });
 });
 
 test("retries transient alert webhook failures before marking delivery failed", async () => {
