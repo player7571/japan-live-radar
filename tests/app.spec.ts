@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
-import { summarizeAlertQueue, summarizeSyncHealth, summarizeSyncRuns } from "../api/admin-stats";
+import { summarizeAlertQueue, summarizeSyncHealth, summarizeSyncRunsAt } from "../api/admin-stats";
 import { calculateReminderAt, normalizeAlertContactEmail } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { extractDraft } from "../api/import-url";
@@ -905,35 +905,38 @@ test("limits Ticketmaster pagination while following available pages", () => {
 
 test("summarizes latest sync run per source for admin quality checks", () => {
   expect(
-    summarizeSyncRuns([
-      {
-        source: "ticketmaster",
-        status: "success",
-        fetched_count: 420,
-        upserted_count: 390,
-        skipped_count: 30,
-        message: null,
-        finished_at: "2026-05-04T10:00:00Z",
-      },
-      {
-        source: "ticketmaster",
-        status: "error",
-        fetched_count: 0,
-        upserted_count: 0,
-        skipped_count: 0,
-        message: "older failure",
-        finished_at: "2026-05-03T10:00:00Z",
-      },
-      {
-        source: "seed",
-        status: "success",
-        fetched_count: null,
-        upserted_count: 8,
-        skipped_count: null,
-        message: null,
-        finished_at: "2026-05-04T09:00:00Z",
-      },
-    ]),
+    summarizeSyncRunsAt(
+      [
+        {
+          source: "ticketmaster",
+          status: "success",
+          fetched_count: 420,
+          upserted_count: 390,
+          skipped_count: 30,
+          message: null,
+          finished_at: "2026-05-04T10:00:00Z",
+        },
+        {
+          source: "ticketmaster",
+          status: "error",
+          fetched_count: 0,
+          upserted_count: 0,
+          skipped_count: 0,
+          message: "older failure",
+          finished_at: "2026-05-03T10:00:00Z",
+        },
+        {
+          source: "seed",
+          status: "success",
+          fetched_count: null,
+          upserted_count: 8,
+          skipped_count: null,
+          message: null,
+          finished_at: "2026-05-04T09:00:00Z",
+        },
+      ],
+      new Date("2026-05-05T12:00:00Z"),
+    ),
   ).toEqual([
     {
       source: "ticketmaster",
@@ -943,6 +946,7 @@ test("summarizes latest sync run per source for admin quality checks", () => {
       skippedCount: 30,
       message: null,
       finishedAt: "2026-05-04T10:00:00Z",
+      ageHours: 26,
     },
     {
       source: "seed",
@@ -952,6 +956,7 @@ test("summarizes latest sync run per source for admin quality checks", () => {
       skippedCount: 0,
       message: null,
       finishedAt: "2026-05-04T09:00:00Z",
+      ageHours: 27,
     },
   ]);
 });
@@ -1980,6 +1985,7 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
             skippedCount: 30,
             message: null,
             finishedAt: "2026-05-04T10:00:00Z",
+            ageHours: 26,
           },
         ],
         syncHealth: {
@@ -2014,6 +2020,7 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
   await expect(page.getByLabel("데이터 품질").getByText("정상")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("동기화", { exact: true })).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText(/ticketmaster · 성공 · 390\/420/)).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("26시간 전")).toBeVisible();
 
   await page.getByLabel("검색어 후보 수집").fill("Ado");
   await page.getByRole("button", { name: "후보 만들기" }).click();

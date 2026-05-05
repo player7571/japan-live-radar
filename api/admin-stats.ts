@@ -121,6 +121,10 @@ export function summarizeAlertQueue(rows: AlertStatsRow[], now = new Date()) {
 }
 
 export function summarizeSyncRuns(rows: SyncRunStatsRow[]) {
+  return summarizeSyncRunsAt(rows);
+}
+
+export function summarizeSyncRunsAt(rows: SyncRunStatsRow[], now = new Date()) {
   const seen = new Set<string>();
   return rows
     .filter((row) => {
@@ -136,8 +140,15 @@ export function summarizeSyncRuns(rows: SyncRunStatsRow[]) {
       skippedCount: row.skipped_count ?? 0,
       message: row.message,
       finishedAt: row.finished_at,
+      ageHours: syncRunAgeHours(row.finished_at, now),
     }))
     .slice(0, 6);
+}
+
+function syncRunAgeHours(finishedAt: string | null, now = new Date()) {
+  const finishedTime = syncFinishedTime(finishedAt);
+  if (!Number.isFinite(finishedTime)) return null;
+  return Math.max(0, Math.floor((now.getTime() - finishedTime) / (60 * 60 * 1000)));
 }
 
 function syncFinishedTime(finishedAt: string | null) {
@@ -150,7 +161,7 @@ export function summarizeSyncHealth(
   now = new Date(),
   staleAfterHours = Number.isFinite(syncStaleAfterHours) && syncStaleAfterHours > 0 ? syncStaleAfterHours : 30,
 ) {
-  const latestRuns = summarizeSyncRuns(rows);
+  const latestRuns = summarizeSyncRunsAt(rows, now);
   const nowTime = now.getTime();
   const staleAfterMs = staleAfterHours * 60 * 60 * 1000;
 
