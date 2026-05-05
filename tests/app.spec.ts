@@ -1158,6 +1158,7 @@ test("searches concerts and opens the detail panel", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "NewJeans" })).toBeVisible();
   await expect(page.getByText("한국 구매 가능").last()).toBeVisible();
+  await expect(page.getByLabel("공연 상세").getByText("알림 예정")).toBeVisible();
   await expect(page.getByRole("link", { name: /원본 링크 열기/ })).toHaveAttribute(
     "href",
     "https://www.ticketmaster.com/",
@@ -1265,6 +1266,7 @@ test("opens saved alerts and jumps back to a saved concert", async ({ page }) =>
   const alertsPanel = page.getByLabel("저장한 알림");
   await expect(alertsPanel.getByText("NewJeans")).toBeVisible();
   await expect(alertsPanel.getByText("ONE OK ROCK")).toBeVisible();
+  await expect(alertsPanel.getByText(/알림 예정 ·/).first()).toBeVisible();
 
   await alertsPanel.getByRole("button", { name: "NewJeans 알림 공연 열기" }).click();
   await expect(page.getByRole("heading", { name: "NewJeans" })).toBeVisible();
