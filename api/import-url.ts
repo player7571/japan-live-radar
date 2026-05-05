@@ -92,14 +92,34 @@ function isPrivateIpv4(hostname: string) {
     (first === 192 && second === 168);
 }
 
+function isPrivateMappedIpv6(hostname: string) {
+  const mapped = hostname.match(/^(?:::ffff:|64:ff9b::|::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+  if (!mapped) return false;
+
+  const high = Number.parseInt(mapped[1], 16);
+  const low = Number.parseInt(mapped[2], 16);
+  if (!Number.isFinite(high) || !Number.isFinite(low)) return false;
+
+  return isPrivateIpv4(
+    [
+      String((high >> 8) & 255),
+      String(high & 255),
+      String((low >> 8) & 255),
+      String(low & 255),
+    ].join("."),
+  );
+}
+
 function isPrivateHostname(hostname: string) {
   const normalized = normalizedHostname(hostname);
   return normalized === "localhost" ||
     normalized.endsWith(".localhost") ||
     normalized.endsWith(".local") ||
+    normalized === "::" ||
     normalized === "::1" ||
     (normalized.includes(":") && (normalized.startsWith("fc") || normalized.startsWith("fd"))) ||
     normalized.startsWith("fe80:") ||
+    isPrivateMappedIpv6(normalized) ||
     isPrivateIpv4(normalized);
 }
 
