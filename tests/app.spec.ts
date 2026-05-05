@@ -80,6 +80,7 @@ test("extracts Japanese ticket page sales cues", () => {
 test("rejects private or local admin import URLs", () => {
   expect(() => safeUrl("https://example.com/ticket")).not.toThrow();
   expect(() => safeUrl("https://fc2.com/ticket")).not.toThrow();
+  expect(() => safeUrl("https://[2001:4860:4860::8888]/ticket")).not.toThrow();
   expect(() => safeUrl("ftp://example.com/ticket")).toThrow("url must be http or https");
 
   for (const url of [
@@ -90,7 +91,12 @@ test("rejects private or local admin import URLs", () => {
     "http://172.16.0.8/ticket",
     "http://192.168.1.8/ticket",
     "http://169.254.169.254/latest/meta-data",
+    "http://[::]/ticket",
     "http://[::1]/ticket",
+    "http://[::ffff:127.0.0.1]/ticket",
+    "http://[::ffff:10.0.0.1]/ticket",
+    "http://[::ffff:ac10:1]/ticket",
+    "http://[64:ff9b::c0a8:101]/ticket",
     "http://[fc00::1]/ticket",
     "http://[fe80::1]/ticket",
   ]) {
