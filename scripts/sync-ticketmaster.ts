@@ -233,31 +233,46 @@ function formatPrice(event: TicketmasterEvent) {
   return null;
 }
 
+const cityAliases: Array<[string[], string]> = [
+  [["tokyo", "東京"], "도쿄"],
+  [["osaka", "大阪"], "오사카"],
+  [["yokohama", "横浜", "kanagawa", "神奈川"], "요코하마"],
+  [["nagoya", "名古屋", "aichi", "愛知"], "나고야"],
+  [["fukuoka", "福岡"], "후쿠오카"],
+  [["saitama", "埼玉"], "사이타마"],
+  [["chiba", "千葉", "makuhari", "幕張"], "치바"],
+  [["kyoto", "京都"], "교토"],
+  [["kobe", "神戸", "hyogo", "兵庫"], "고베"],
+  [["hiroshima", "広島"], "히로시마"],
+  [["sendai", "仙台", "miyagi", "宮城"], "센다이"],
+  [["sapporo", "札幌", "hokkaido", "北海道"], "삿포로"],
+  [["naha", "那覇", "okinawa", "沖縄"], "오키나와"],
+  [["shizuoka", "静岡"], "시즈오카"],
+  [["niigata", "新潟"], "니가타"],
+  [["kanazawa", "金沢", "ishikawa", "石川"], "가나자와"],
+  [["okayama", "岡山"], "오카야마"],
+  [["kumamoto", "熊本"], "구마모토"],
+  [["kagoshima", "鹿児島"], "가고시마"],
+  [["matsuyama", "松山", "ehime", "愛媛"], "마쓰야마"],
+  [["takamatsu", "高松", "kagawa", "香川"], "다카마쓰"],
+  [["oita", "大分"], "오이타"],
+  [["nagano", "長野"], "나가노"],
+  [["takasaki", "高崎", "gunma", "群馬"], "다카사키"],
+  [["utsunomiya", "宇都宮", "tochigi", "栃木"], "우쓰노미야"],
+  [["mito", "水戸", "ibaraki", "茨城"], "미토"],
+];
+
 function mapCity(value?: string) {
   if (!value) return null;
   const city = value.trim();
   if (!city || /^\d+$/.test(city)) return null;
   const normalized = city.toLowerCase();
 
-  if (normalized.includes("tokyo") || city.includes("東京")) return "도쿄";
-  if (normalized.includes("osaka") || city.includes("大阪")) return "오사카";
-  if (normalized.includes("yokohama") || city.includes("横浜")) return "요코하마";
-  if (normalized.includes("nagoya") || city.includes("名古屋")) return "나고야";
-  if (normalized.includes("fukuoka") || city.includes("福岡")) return "후쿠오카";
-  if (normalized.includes("saitama") || city.includes("埼玉")) return "사이타마";
-  if (normalized.includes("chiba") || city.includes("千葉")) return "치바";
-  if (normalized.includes("kyoto") || city.includes("京都")) return "교토";
-  if (normalized.includes("kobe") || city.includes("神戸")) return "고베";
-  if (normalized.includes("hiroshima") || city.includes("広島")) return "히로시마";
-  if (normalized.includes("sendai") || city.includes("仙台")) return "센다이";
-  if (normalized.includes("sapporo") || city.includes("札幌")) return "삿포로";
-  if (normalized.includes("naha") || city.includes("那覇")) return "나하";
-  if (normalized.includes("okinawa") || city.includes("沖縄")) return "오키나와";
-  if (normalized.includes("aichi") || city.includes("愛知")) return "나고야";
-  if (normalized.includes("kanagawa") || city.includes("神奈川")) return "요코하마";
-  if (normalized.includes("hyogo") || city.includes("兵庫")) return "고베";
-  if (normalized.includes("miyagi") || city.includes("宮城")) return "센다이";
-  if (normalized.includes("hokkaido") || city.includes("北海道")) return "삿포로";
+  for (const [signals, mappedCity] of cityAliases) {
+    if (signals.some((signal) => normalized.includes(signal.toLowerCase()) || city.includes(signal))) {
+      return mappedCity;
+    }
+  }
 
   return city;
 }

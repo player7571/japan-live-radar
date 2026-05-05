@@ -965,6 +965,44 @@ test("maps Ticketmaster UTC datetimes to Tokyo local event dates and times", () 
   });
 });
 
+test("normalizes more Ticketmaster venue city aliases for Korean filters", () => {
+  expect(
+    toTicketmasterEventRow({
+      id: "tm-shizuoka-prefecture",
+      name: "Fuji Rock Side Show",
+      dates: { start: { localDate: "2026-08-12" } },
+      classifications: [{ segment: { name: "Music" } }],
+      _embedded: {
+        venues: [{ name: "Venue TBA", city: { name: "4100" }, state: { name: "Shizuoka" } }],
+      },
+    })?.city,
+  ).toBe("시즈오카");
+
+  expect(
+    toTicketmasterEventRow({
+      id: "tm-kanazawa-venue",
+      name: "King Gnu Hall Tour",
+      dates: { start: { localDate: "2026-09-21" } },
+      classifications: [{ segment: { name: "Music" } }],
+      _embedded: {
+        venues: [{ name: "Honda no Mori Hall Kanazawa", city: { name: "1000" }, state: { name: "Ishikawa" } }],
+      },
+    })?.city,
+  ).toBe("가나자와");
+
+  expect(
+    toTicketmasterEventRow({
+      id: "tm-ehime-japanese",
+      name: "Aimer Acoustic Night",
+      dates: { start: { localDate: "2026-10-05" } },
+      classifications: [{ segment: { name: "Music" } }],
+      _embedded: {
+        venues: [{ name: "愛媛県県民文化会館", city: { name: "松山市" } }],
+      },
+    })?.city,
+  ).toBe("마쓰야마");
+});
+
 test("keeps resale sale types when mapping database rows", () => {
   expect(
     rowToEvent({
