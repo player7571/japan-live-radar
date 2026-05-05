@@ -529,6 +529,10 @@ function importForeignerNote(description: string, accessNote: string, pageText: 
 
 function saleWindowFromText(text: string, fallbackYear = "") {
   const normalized = normalizeFullWidth(text);
+  if (/(公演中止|開催中止|中止となりました|中止いたします|cancelled|canceled|취소|공연\s*취소)/i.test(normalized)) {
+    return "공연 취소";
+  }
+
   const clockPattern = String.raw`(?:[01]?\d|2[0-3])(?::[0-5]\d|時\s*(?:[0-5]\d)?\s*分?)`;
   const fullDateTimePattern = String.raw`\d{4}[./年-]\s*\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*${clockPattern}`;
   const shortDateTimePattern = String.raw`(?:\d{4}[./年-]\s*)?\d{1,2}[./月-]\s*\d{1,2}(?:日)?(?:\([^)]*\))?\s*${clockPattern}`;
@@ -670,6 +674,13 @@ function schemaAvailabilityCue(value: unknown) {
   if (/(soldout|outofstock)/.test(availability)) return "予定枚数終了";
   if (/discontinued/.test(availability)) return "販売終了";
   if (/(instock|limitedavailability|preorder|presale)/.test(availability)) return "販売中";
+  return "";
+}
+
+function schemaEventStatusCue(value: unknown) {
+  const status = firstJsonString(value).toLowerCase();
+  if (!status) return "";
+  if (/(eventcancelled|cancelled|canceled)/.test(status)) return "공연 취소";
   return "";
 }
 
@@ -933,6 +944,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   const ticketLink = ticketLinkFromStructuredData(eventJson, offerList, sourceUrl) ?? ticketLinkFromPage($, sourceUrl);
   const eventDate = normalizeDate(dateSource);
   const saleWindow = firstString(
+    schemaEventStatusCue(eventJson?.eventStatus),
     saleWindowFromOffers(offerList),
     saleWindowFromText(pageText, eventDate.slice(0, 4)),
     labeledValue($, rawBodyText, ["受付期間", "販売期間", "申込期間", "発売期間", "発売日時", "発売日", "一般発売"]),
