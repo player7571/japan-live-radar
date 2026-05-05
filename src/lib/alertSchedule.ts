@@ -8,7 +8,7 @@ const allowedAlertLeadTimeHours = [3, 24, 72] as const;
 const activeSaleCue =
   /(販売中(?!止)|受付中|発売中|申込受付中|チケット発売中|판매\s*중|on\s*sale|available\s*now|now\s*on\s*sale)/i;
 const endedSaleCue =
-  /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|판매\s*종료|sold\s*out|closed|ended)/i;
+  /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|公演中止|開催中止|中止|취소|공연\s*취소|판매\s*종료|sold\s*out|cancelled|canceled|closed|ended)/i;
 
 export function normalizeAlertLeadTimeHours(value: unknown) {
   const parsed = typeof value === "string" || typeof value === "number" ? Number(value) : Number.NaN;

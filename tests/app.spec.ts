@@ -1378,6 +1378,17 @@ test("schedules immediately for active sale cues and skips ended sales", () => {
       now,
     ),
   ).toBeNull();
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "ticketmaster-cancelled-2026",
+        date: "2026-08-08",
+        saleWindow: "공연 취소",
+      },
+      now,
+    ),
+  ).toBeNull();
 });
 
 test("formats Ticketmaster sale windows for alert parsing", () => {
