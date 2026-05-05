@@ -686,6 +686,14 @@ h1 {
   color: #bb2d4a;
 }
 
+.save-button:disabled,
+.secondary-button:disabled {
+  cursor: not-allowed;
+  color: #7a847e;
+  background: #e6ebe7;
+  opacity: 0.78;
+}
+
 .detail-body {
   padding: 22px;
 }

@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { seedEvents } from "./data/seedEvents";
 import { buildAlertEventSnapshot } from "./lib/alertSnapshot";
-import { calculateReminderAt, normalizeAlertLeadTimeHours } from "./lib/alertSchedule";
+import { calculateReminderAt, canScheduleReminder, normalizeAlertLeadTimeHours } from "./lib/alertSchedule";
 import { currentTokyoDay, getSaleStatus, type SaleStatus } from "./lib/saleStatus";
 import { registerServiceWorker } from "./registerServiceWorker";
 import type { Event, EventApiResponse, TicketAccess } from "./types/events";
@@ -211,12 +211,12 @@ function formatAdminNextReminder(alertQueue: AdminStats["alertQueue"]) {
 function formatAlertReminder(event: Event, leadTimeHours = 3) {
   const remindAt = calculateReminderAt(event, today, leadTimeHours);
   if (!remindAt) {
-    return "판매 일정 확인 후 알림";
+    return "알림 불가";
   }
 
   const reminder = new Date(remindAt);
   if (Number.isNaN(reminder.getTime())) {
-    return "판매 일정 확인 후 알림";
+    return "알림 불가";
   }
 
   return reminder.toLocaleString("ko-KR", {
@@ -1980,11 +1980,19 @@ function EventDetail({
   onSave: (id: string) => void;
   onCopyLink: (id: string) => void | Promise<void>;
 }) {
+  const alertSchedulable = canScheduleReminder(event, today, alertLeadTimeHours);
+  const alertDisabled = !saved && !alertSchedulable;
+
   return (
     <aside className="detail-panel" aria-label="공연 상세">
       <div className="detail-media">
         <img src={event.image} alt="" />
-        <button className={`save-button ${saved ? "saved" : ""}`} onClick={() => onSave(event.id)}>
+        <button
+          className={`save-button ${saved ? "saved" : ""}`}
+          disabled={alertDisabled}
+          onClick={() => onSave(event.id)}
+          type="button"
+        >
           <Heart size={17} fill={saved ? "currentColor" : "none"} />
           저장
         </button>
@@ -2032,11 +2040,12 @@ function EventDetail({
           </a>
           <button
             className={`secondary-button ${saved ? "active" : ""}`}
+            disabled={alertDisabled}
             onClick={() => onSave(event.id)}
             type="button"
           >
             {saved ? <Check size={17} /> : <Bell size={17} />}
-            {saved ? "알림 설정됨" : "일정 알림"}
+            {saved ? "알림 설정됨" : alertSchedulable ? "일정 알림" : "알림 불가"}
           </button>
           <button
             className={`secondary-button ${copied ? "active" : ""}`}

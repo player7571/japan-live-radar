@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { calculateReminderAt, normalizeAlertLeadTimeHours } from "../src/lib/alertSchedule.js";
+import { calculateReminderAt, canScheduleReminder, normalizeAlertLeadTimeHours } from "../src/lib/alertSchedule.js";
 
 type VercelRequest = {
   method?: string;
@@ -76,7 +76,7 @@ export function normalizeAlertContactEmail(value: unknown) {
   return email.slice(0, 254);
 }
 
-export { calculateReminderAt, normalizeAlertLeadTimeHours };
+export { calculateReminderAt, canScheduleReminder, normalizeAlertLeadTimeHours };
 
 export function buildAlertUpsertRow(input: {
   clientId: string;
@@ -87,15 +87,16 @@ export function buildAlertUpsertRow(input: {
   now?: Date;
 }) {
   const remindBeforeHours = normalizeAlertLeadTimeHours(input.remindBeforeHours);
+  const remindAt = input.active ? calculateReminderAt(input.snapshot, input.now, remindBeforeHours) : null;
   return {
     client_id: input.clientId,
     event_key: eventKey(input.snapshot),
     event_snapshot: input.snapshot,
-    status: input.active ? "active" : "cancelled",
+    status: input.active && remindAt ? "active" : "cancelled",
     channel: input.contactEmail ? "email" : "browser",
     contact_email: input.contactEmail,
     remind_before_hours: remindBeforeHours,
-    remind_at: input.active ? calculateReminderAt(input.snapshot, input.now, remindBeforeHours) : null,
+    remind_at: remindAt,
     last_sent_at: null,
     last_error: null,
     send_count: 0,
