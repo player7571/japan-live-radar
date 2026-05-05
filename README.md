@@ -55,10 +55,11 @@ Open `/#admin` and enter `ADMIN_API_TOKEN`.
 Users can save interest alerts from the public detail panel. The browser stores the local selection immediately, and `/api/alerts` upserts the server-side reminder when Supabase is configured.
 
 - Reminder timing prefers the first sale-window start, including Ticketmaster presales, and schedules three hours before sales open. If the sale window is missing, it falls back to seven days before the event date.
+- Users can choose the alert lead time in the saved-alerts panel: three hours, one day, or three days before the ticket window opens. The selected lead time is stored on the server alert row as `remind_before_hours`.
 - Users can add an alert email in the saved-alerts panel. The email is stored with each active server-side alert and sent to the delivery webhook as `contactEmail`.
 - Alert messages include an `appUrl` detail link such as `https://japan-live-radar.vercel.app/?event=<event-id>` so recipients can jump back to the matching concert detail.
 - `Dispatch Due Alerts` runs every 15 minutes and reads due rows from `/api/admin-alerts`.
-- `ALERT_WEBHOOK_URL` receives a JSON payload with `text`, `deliveryKey`, `alertId`, `eventKey`, `contactEmail`, `appUrl`, `event`, `source`, `ticketAccess`, `saleType`, `phoneRequired`, and `remindAt`. `deliveryKey` is stable across retries for the same alert reminder.
+- `ALERT_WEBHOOK_URL` receives a JSON payload with `text`, `deliveryKey`, `alertId`, `eventKey`, `contactEmail`, `appUrl`, `event`, `source`, `ticketAccess`, `saleType`, `phoneRequired`, `remindAt`, and `remindBeforeHours`. `deliveryKey` is stable across retries for the same alert reminder.
 - Webhook delivery retries transient HTTP statuses (`408`, `429`, and `5xx`) and network exceptions according to `ALERT_WEBHOOK_ATTEMPTS`.
 - Successful deliveries are marked `sent`; delivery failures are marked `error` with `last_error` so they do not silently disappear.
 - Operators can inspect non-due queues with `/api/admin-alerts?status=error` or `/api/admin-alerts?status=sent&due=all`. Retrying an errored alert is a `PATCH /api/admin-alerts` with `status: "active"` and an optional `remindAt`.

@@ -3,6 +3,16 @@ type EventSnapshot = {
   saleWindow?: unknown;
 };
 
+export const defaultAlertLeadTimeHours = 3;
+const allowedAlertLeadTimeHours = [3, 24, 72] as const;
+
+export function normalizeAlertLeadTimeHours(value: unknown) {
+  const parsed = typeof value === "string" || typeof value === "number" ? Number(value) : Number.NaN;
+  if (!Number.isFinite(parsed)) return defaultAlertLeadTimeHours;
+  const normalized = Math.trunc(parsed);
+  return allowedAlertLeadTimeHours.find((hours) => hours === normalized) ?? defaultAlertLeadTimeHours;
+}
+
 function parseDate(value: string) {
   const isoDate = value.match(/\d{4}-\d{2}-\d{2}/)?.[0];
   if (isoDate) return new Date(`${isoDate}T09:00:00+09:00`);
@@ -71,11 +81,11 @@ function parseSaleWindowStart(value: unknown, fallbackYear?: string) {
   return null;
 }
 
-export function calculateReminderAt(snapshot: EventSnapshot, now = new Date()) {
+export function calculateReminderAt(snapshot: EventSnapshot, now = new Date(), leadTimeHours = defaultAlertLeadTimeHours) {
   const saleStart = parseSaleWindowStart(snapshot.saleWindow, eventYearFromSnapshot(snapshot));
   if (saleStart && saleStart > now) {
     const reminder = new Date(saleStart);
-    reminder.setHours(reminder.getHours() - 3);
+    reminder.setHours(reminder.getHours() - normalizeAlertLeadTimeHours(leadTimeHours));
     return (reminder > now ? reminder : saleStart).toISOString();
   }
 
