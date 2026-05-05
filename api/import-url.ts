@@ -167,8 +167,8 @@ function escapePattern(value: string) {
 
 function cleanTitle(value: string, hostname: string) {
   return compactWhitespace(value)
-    .replace(/\s*[|｜]\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|LiveFans).*$/i, "")
-    .replace(/\s*-\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|LiveFans).*$/i, "")
+    .replace(/\s*[|｜]\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|ticket board|チケットボード|Ticketmaster|LiveFans).*$/i, "")
+    .replace(/\s*-\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|ticket board|チケットボード|Ticketmaster|LiveFans).*$/i, "")
     .replace(new RegExp(`\\s*[|｜-]\\s*${hostname.replace(/^www\\./, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*$`, "i"), "")
     .trim();
 }
@@ -274,9 +274,9 @@ function normalizePriceText(value: string) {
 function saleTypeFromText(text: string): ImportedDraft["saleType"] {
   if (/(リセール|再販売|公式トレード|チケットトレード|ticket\s*resale|resale)/i.test(text)) return "리세일";
   if (/(海外|international|overseas).{0,16}(受付|販売|ticket)/i.test(text)) return "해외 판매";
-  if (/(抽選|プレリザーブ|先行受付|先行抽選|lottery|抽せん)/i.test(text)) return "추첨 접수";
-  if (/(先着|先着順|first[- ]come|先行先着)/i.test(text)) return "선착 판매";
-  if (/(一般発売|一般販売|general sale|発売日)/i.test(text)) return "일반 판매";
+  if (/(抽選|抽せん|プレリザーブ|先行受付|先行抽選|抽選申込|応募期間|エントリー受付|lottery)/i.test(text)) return "추첨 접수";
+  if (/(先着|先着順|先着販売|first[- ]come|先行先着)/i.test(text)) return "선착 판매";
+  if (/(一般発売|一般販売|通常販売|general sale|発売日)/i.test(text)) return "일반 판매";
   return "일반 판매";
 }
 
@@ -506,12 +506,12 @@ function saleWindowFromText(text: string, fallbackYear = "") {
 
   const separateStart = normalized.match(
     new RegExp(
-      `(受付開始日時|受付開始|販売開始|発売開始|発売日時|申込開始|抽選受付開始|先行受付開始)[:：]?\\s*(${startDateTimePattern})`,
+      `(受付開始日時|受付開始|販売開始日時|販売開始|発売開始日時|発売開始|発売日時|申込開始|応募開始|エントリー開始|抽選受付開始|抽選申込開始|先行受付開始)[:：]?\\s*(${startDateTimePattern})`,
     ),
   );
   const separateEnd = normalized.match(
     new RegExp(
-      `(受付終了日時|受付終了|販売終了|発売終了|申込締切|申込終了|抽選受付終了|先行受付終了)[:：]?\\s*(${shortDateTimePattern})`,
+      `(受付終了日時|受付終了|販売終了日時|販売終了|発売終了日時|発売終了|申込締切|申込終了|応募締切|応募終了|エントリー締切|エントリー終了|抽選受付終了|抽選申込終了|先行受付終了)[:：]?\\s*(${shortDateTimePattern})`,
     ),
   );
   if (separateStart && separateEnd) {
@@ -521,7 +521,7 @@ function saleWindowFromText(text: string, fallbackYear = "") {
 
   const range = normalized.match(
     new RegExp(
-      `(受付期間|販売期間|申込期間|発売期間|抽選受付|先行受付|一般発売|発売日)?[:：]?\\s*` +
+      `(受付期間|販売期間|申込期間|申込み期間|応募期間|エントリー期間|チケット受付期間|発売期間|抽選受付期間|抽選受付|抽選申込期間|抽選販売|先行受付期間|先行受付|一般発売|発売日)?[:：]?\\s*` +
         `(${startDateTimePattern})\\s*(?:[~〜～\\-]|から|より)\\s*` +
         `(${shortDateTimePattern}|予定枚数終了|売切|売り切れ)`,
     ),
@@ -533,7 +533,7 @@ function saleWindowFromText(text: string, fallbackYear = "") {
   }
 
   const singleStart = normalized.match(
-    new RegExp(`(受付開始|販売開始|発売開始|発売日時|発売日|一般発売|抽選受付|先行受付)[:：]?\\s*(${startDateTimePattern})`),
+    new RegExp(`(受付開始|販売開始日時|販売開始|発売開始日時|発売開始|発売日時|発売日|一般発売|抽選受付|抽選申込|応募開始|エントリー開始|先行受付)[:：]?\\s*(${startDateTimePattern})`),
   );
   if (singleStart) return normalizeStartDate(singleStart[2]);
 
@@ -723,6 +723,41 @@ function cityFromText(text: string) {
     ["Kyoto", "교토"],
     ["神戸", "고베"],
     ["Kobe", "고베"],
+    ["新潟", "니가타"],
+    ["Niigata", "니가타"],
+    ["朱鷺メッセ", "니가타"],
+    ["静岡", "시즈오카"],
+    ["Shizuoka", "시즈오카"],
+    ["エコパアリーナ", "시즈오카"],
+    ["金沢", "가나자와"],
+    ["石川", "가나자와"],
+    ["Ishikawa", "가나자와"],
+    ["本多の森北電ホール", "가나자와"],
+    ["岡山", "오카야마"],
+    ["Okayama", "오카야마"],
+    ["熊本", "구마모토"],
+    ["Kumamoto", "구마모토"],
+    ["鹿児島", "가고시마"],
+    ["Kagoshima", "가고시마"],
+    ["松山", "마쓰야마"],
+    ["愛媛", "마쓰야마"],
+    ["Ehime", "마쓰야마"],
+    ["高松", "다카마쓰"],
+    ["香川", "다카마쓰"],
+    ["Kagawa", "다카마쓰"],
+    ["大分", "오이타"],
+    ["Oita", "오이타"],
+    ["長野", "나가노"],
+    ["Nagano", "나가노"],
+    ["高崎", "다카사키"],
+    ["群馬", "다카사키"],
+    ["Gunma", "다카사키"],
+    ["宇都宮", "우쓰노미야"],
+    ["栃木", "우쓰노미야"],
+    ["Tochigi", "우쓰노미야"],
+    ["水戸", "미토"],
+    ["茨城", "미토"],
+    ["Ibaraki", "미토"],
   ];
   return citySignals.find(([signal]) => text.includes(signal))?.[1] ?? "도쿄";
 }

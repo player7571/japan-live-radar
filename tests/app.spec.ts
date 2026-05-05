@@ -698,6 +698,36 @@ test("infers sale window years from imported event dates", () => {
   expect(draft.ticketAccess).toBe("일본 번호 필요");
 });
 
+test("extracts ticket board lottery application windows and regional cities", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head><title>BE:FIRST ARENA TOUR 2026｜ticket board</title></head>
+        <body>
+          <h1>BE:FIRST ARENA TOUR 2026｜ticket board</h1>
+          <dl>
+            <dt>公演日時</dt><dd>2026年11月23日(月・祝) 開場17:00 / 開演18:00</dd>
+            <dt>会場</dt><dd>朱鷺メッセ 新潟コンベンションセンター</dd>
+          </dl>
+          <p>抽選申込期間：6/1(月) 12:00～6/10(水) 23:59</p>
+          <p>電子チケットはticket boardアプリでの受取となります。SMS認証が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://ticket.tickebo.jp/show/event.html?info=befirst-niigata"),
+  );
+
+  expect(draft.title).toBe("BE:FIRST ARENA TOUR 2026");
+  expect(draft.city).toBe("니가타");
+  expect(draft.venue).toBe("朱鷺メッセ 新潟コンベンションセンター");
+  expect(draft.date).toBe("2026-11-23");
+  expect(draft.time).toBe("18:00");
+  expect(draft.source).toBe("ticket board");
+  expect(draft.saleType).toBe("추첨 접수");
+  expect(draft.saleWindow).toBe("2026/6/1(月) 12:00 - 2026/6/10(水) 23:59");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+});
+
 test("classifies sale status from text-only availability cues", () => {
   expect(currentTokyoDay(new Date("2026-05-04T17:30:00Z")).toISOString()).toBe(
     new Date("2026-05-05T00:00:00+09:00").toISOString(),
