@@ -30,6 +30,7 @@ import { seedEvents } from "./data/seedEvents";
 import { buildAlertEventSnapshot } from "./lib/alertSnapshot";
 import { calculateReminderAt, normalizeAlertLeadTimeHours } from "./lib/alertSchedule";
 import { currentTokyoDay, getSaleStatus, type SaleStatus } from "./lib/saleStatus";
+import { registerServiceWorker } from "./registerServiceWorker";
 import type { Event, EventApiResponse, TicketAccess } from "./types/events";
 import "./styles.css";
 
@@ -2061,3 +2062,4 @@ function Fact({ icon, label, value }: { icon: React.ReactNode; label: string; va
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
+registerServiceWorker();
