@@ -1200,6 +1200,34 @@ test("preserves Ticketmaster presale windows before public sale windows", () => 
   ).toBe(new Date("2026-05-20T07:00:00+09:00").toISOString());
 });
 
+test("schedules alerts from the earliest future sale window", () => {
+  const saleWindow =
+    "일반 판매: 2026.07.01 10:00 - 2026.09.19 18:00 / 선예매: 2026.05.20 10:00 - 2026.05.22 23:59";
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "unsorted-sale-windows",
+        date: "2026-09-20",
+        saleWindow,
+      },
+      new Date("2026-05-01T00:00:00+09:00"),
+    ),
+  ).toBe(new Date("2026-05-20T07:00:00+09:00").toISOString());
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "expired-presale",
+        date: "2026-09-20",
+        saleWindow:
+          "선예매: 2026.05.20 10:00 - 2026.05.22 23:59 / 일반 판매: 2026.07.01 10:00 - 2026.09.19 18:00",
+      },
+      new Date("2026-06-01T00:00:00+09:00"),
+    ),
+  ).toBe(new Date("2026-07-01T07:00:00+09:00").toISOString());
+});
+
 test("queries Ticketmaster by music classification as well as keywords", () => {
   expect(searchProfiles).toEqual(
     expect.arrayContaining([
