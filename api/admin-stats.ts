@@ -39,7 +39,7 @@ type SyncRunStatsRow = {
   finished_at: string | null;
 };
 
-type SyncHealthStatus = "healthy" | "stale" | "error" | "missing";
+type SyncHealthStatus = "healthy" | "stale" | "error" | "missing" | "empty";
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -220,6 +220,7 @@ export function summarizeSyncHealth(
       staleAfterHours,
       errorSources: [] as string[],
       staleSources: [] as string[],
+      emptySources: [] as string[],
     };
   }
 
@@ -230,6 +231,9 @@ export function summarizeSyncHealth(
       .sort()
       .pop() ?? null;
   const errorSources = latestRuns.filter((row) => row.status === "error").map((row) => row.source);
+  const emptySources = latestRuns
+    .filter((row) => row.status === "success" && row.fetchedCount > 0 && row.upsertedCount === 0)
+    .map((row) => row.source);
   const staleSources = latestRuns
     .filter((row) => {
       const finishedTime = syncFinishedTime(row.finishedAt);
@@ -237,7 +241,13 @@ export function summarizeSyncHealth(
     })
     .map((row) => row.source);
   const status: SyncHealthStatus =
-    errorSources.length > 0 ? "error" : staleSources.length > 0 ? "stale" : "healthy";
+    errorSources.length > 0
+      ? "error"
+      : staleSources.length > 0
+      ? "stale"
+      : emptySources.length > 0
+      ? "empty"
+      : "healthy";
 
   return {
     status,
@@ -245,6 +255,7 @@ export function summarizeSyncHealth(
     staleAfterHours,
     errorSources,
     staleSources,
+    emptySources,
   };
 }
 

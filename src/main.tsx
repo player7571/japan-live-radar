@@ -106,11 +106,12 @@ type AdminStats = {
     ageHours: number | null;
   }> | null;
   syncHealth?: {
-    status: "healthy" | "stale" | "error" | "missing";
+    status: "healthy" | "stale" | "error" | "missing" | "empty";
     lastFinishedAt: string | null;
     staleAfterHours: number;
     errorSources: string[];
     staleSources: string[];
+    emptySources?: string[];
   } | null;
   quality: {
     missingLink: number;
@@ -185,6 +186,9 @@ function formatAdminSyncHealth(syncHealth: AdminStats["syncHealth"]) {
   }
   if (syncHealth.status === "stale") {
     return `지연 · ${syncHealth.staleSources.join(", ") || `${syncHealth.staleAfterHours}시간 초과`}`;
+  }
+  if (syncHealth.status === "empty") {
+    return `빈 결과 · ${syncHealth.emptySources?.join(", ") || "출처 미정"}`;
   }
   return "정상";
 }

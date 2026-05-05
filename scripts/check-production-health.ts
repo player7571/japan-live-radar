@@ -18,11 +18,12 @@ type AdminStatsResponse = {
     lastErrorAt?: string | null;
   } | null;
   syncHealth?: {
-    status?: "healthy" | "stale" | "error" | "missing";
+    status?: "healthy" | "stale" | "error" | "missing" | "empty";
     lastFinishedAt?: string | null;
     staleAfterHours?: number;
     errorSources?: string[];
     staleSources?: string[];
+    emptySources?: string[];
   } | null;
 };
 
@@ -82,6 +83,9 @@ export function validateAdminStatsHealth(stats: AdminStatsResponse) {
   }
   if (syncHealth.status === "stale") {
     throw new Error(`Sync health is stale: ${syncHealth.staleSources?.join(", ") || "source unknown"}`);
+  }
+  if (syncHealth.status === "empty") {
+    throw new Error(`Sync health produced no usable rows: ${syncHealth.emptySources?.join(", ") || "source unknown"}`);
   }
   if (syncHealth.status !== "healthy") {
     throw new Error(`Sync health status is ${syncHealth.status ?? "unknown"}`);

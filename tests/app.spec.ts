@@ -1479,6 +1479,28 @@ test("flags stale and errored sync runs for admin stats", () => {
     lastFinishedAt: "2026-05-04T10:00:00Z",
     staleSources: [],
     errorSources: [],
+    emptySources: [],
+  });
+
+  expect(
+    summarizeSyncHealth(
+      [
+        {
+          source: "ticketmaster",
+          status: "success",
+          fetched_count: 400,
+          upserted_count: 0,
+          skipped_count: 400,
+          message: "No concert-like Ticketmaster JP events were found.",
+          finished_at: "2026-05-05T08:10:00Z",
+        },
+      ],
+      new Date("2026-05-05T12:00:00Z"),
+      30,
+    ),
+  ).toMatchObject({
+    status: "empty",
+    emptySources: ["ticketmaster"],
   });
 
   expect(
@@ -1872,6 +1894,7 @@ test("validates production health with admin alert and sync coverage", () => {
         staleAfterHours: 30,
         errorSources: [],
         staleSources: [],
+        emptySources: [],
       },
     }),
   ).not.toThrow();
@@ -1896,6 +1919,17 @@ test("validates production health with admin alert and sync coverage", () => {
       },
     }),
   ).toThrow("Sync health is stale: ticketmaster");
+  expect(() =>
+    validateAdminStatsHealth({
+      alertQueue: {
+        error: 0,
+      },
+      syncHealth: {
+        status: "empty",
+        emptySources: ["ticketmaster"],
+      },
+    }),
+  ).toThrow("Sync health produced no usable rows: ticketmaster");
 });
 
 test("applies every checked-in Supabase migration", () => {
