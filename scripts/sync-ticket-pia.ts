@@ -175,9 +175,21 @@ function ticketPiaSaleType(text: string) {
 function ticketPiaSaleWindow(text: string) {
   const compacted = compactText(text);
   const end = compacted.match(/[～~]\s*(\d{4})\/(\d{1,2})\/(\d{1,2}).*?(\d{1,2}):(\d{2})/);
-  if (!end) return compacted || null;
+  if (!end) return ticketPiaSaleStatusLabel(compacted) || null;
   const [, year, month, day, hour, minute] = end;
-  return `${compacted.split(/[～~]/)[0].trim() || "판매"} 종료: ${year}.${month.padStart(2, "0")}.${day.padStart(2, "0")} ${hour.padStart(2, "0")}:${minute}`;
+  const status = ticketPiaSaleStatusLabel(compacted.split(/[～~]/)[0]);
+  const suffix = status.endsWith("종료") ? "" : " 종료";
+  return `${status || "판매"}${suffix}: ${year}.${month.padStart(2, "0")}.${day.padStart(2, "0")} ${hour.padStart(2, "0")}:${minute}`;
+}
+
+function ticketPiaSaleStatusLabel(value: string) {
+  const text = compactText(value);
+  if (text.includes("予定枚数終了")) return "예정 수량 종료";
+  if (text.includes("販売期間中")) return "판매 중";
+  if (text.includes("受付中")) return "접수 중";
+  if (text.includes("発売前")) return "판매 전";
+  if (text.includes("販売終了")) return "판매 종료";
+  return text;
 }
 
 const nonConcertSignals = [

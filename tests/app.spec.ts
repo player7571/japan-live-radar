@@ -2138,10 +2138,11 @@ test("maps Ticket Pia rlsInfo search HTML to Korea-friendly event rows", () => {
     sale_type: "선착 판매",
     phone_required: true,
   });
-  expect(rows[0].sale_window).toBe("販売期間中 종료: 2026.05.05 23:59");
+  expect(rows[0].sale_window).toBe("판매 중 종료: 2026.05.05 23:59");
   expect(rows[1]).toMatchObject({
     title: "access",
     venue: "なんばHatch",
+    sale_window: "예정 수량 종료: 2026.05.07 23:59",
   });
   expect(ticketPiaLogicalEventKey(rows[1])).toBe(ticketPiaLogicalEventKey(rows[2]));
   expect(normalizeTicketPiaRowLimit(undefined)).toBe(80);
