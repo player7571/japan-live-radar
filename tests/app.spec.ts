@@ -1859,7 +1859,7 @@ test("filters by city and ticket access without horizontal overflow", async ({ p
   await page.goto("/");
 
   await page.getByLabel("도시").selectOption("오사카");
-  await page.locator("select").nth(2).selectOption("일본 번호 필요");
+  await page.getByLabel("구매 조건").selectOption("일본 번호 필요");
 
   await expect(page.getByText("1개 공연")).toHaveCount(1);
   await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toHaveCount(1);
@@ -1889,10 +1889,24 @@ test("filters concerts by artist", async ({ page }) => {
   await expect(page.getByText("5개 공연")).toBeVisible();
 });
 
+test("filters concerts by ticket source", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByLabel("출처").selectOption("Lawson Ticket");
+
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Ado/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /YOASOBI/ })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "초기화" }).click();
+  await expect(page.getByLabel("출처")).toHaveValue("전체");
+  await expect(page.getByText("5개 공연")).toBeVisible();
+});
+
 test("combines travel date and Korea-friendly filters", async ({ page }) => {
   await page.goto("/");
 
-  await page.locator("select").nth(3).selectOption("여름 원정");
+  await page.getByLabel("기간").selectOption("여름 원정");
   await page.getByRole("button", { name: /한국에서 예매 쉬운 공연/ }).click();
 
   await expect(page.getByText("1개 공연")).toBeVisible();

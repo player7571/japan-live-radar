@@ -485,6 +485,7 @@ function App() {
   const [query, setQuery] = useState("");
   const [artist, setArtist] = useState<Event["artist"] | "전체">("전체");
   const [city, setCity] = useState<Event["city"] | "전체">("전체");
+  const [source, setSource] = useState<Event["source"] | "전체">("전체");
   const [access, setAccess] = useState<TicketAccess | "전체">("전체");
   const [dateWindow, setDateWindow] = useState<DateWindow>("전체");
   const [dateFrom, setDateFrom] = useState("");
@@ -510,6 +511,10 @@ function App() {
   );
   const artistOptions = useMemo(
     () => ["전체", ...Array.from(new Set(events.map((event) => event.artist))).sort((a, b) => a.localeCompare(b, "ko"))],
+    [events],
+  );
+  const sourceOptions = useMemo(
+    () => ["전체", ...Array.from(new Set(events.map((event) => event.source))).sort((a, b) => a.localeCompare(b, "ko"))],
     [events],
   );
 
@@ -563,7 +568,10 @@ function App() {
     if (city !== "전체" && !events.some((event) => event.city === city)) {
       setCity("전체");
     }
-  }, [artist, city, events]);
+    if (source !== "전체" && !events.some((event) => event.source === source)) {
+      setSource("전체");
+    }
+  }, [artist, city, events, source]);
 
   useEffect(() => {
     window.localStorage.setItem(savedEventsStorageKey, JSON.stringify(saved));
@@ -584,14 +592,15 @@ function App() {
       const queryMatch = queryVariants.length === 0 || queryVariants.some((variant) => text.includes(variant));
       const artistMatch = artist === "전체" || event.artist === artist;
       const cityMatch = city === "전체" || event.city === city;
+      const sourceMatch = source === "전체" || event.source === source;
       const accessMatch = access === "전체" || event.ticketAccess === access;
       const dateMatch = isInSelectedDateRange(event.date, dateWindow, dateFrom, dateTo);
       const saleStatusMatch = saleStatus === "전체" || getSaleStatus(event, today) === saleStatus;
       const koreaFriendlyMatch =
         !koreaFriendlyOnly || (event.ticketAccess === "한국 구매 가능" && !event.phoneRequired);
-      return queryMatch && artistMatch && cityMatch && accessMatch && dateMatch && saleStatusMatch && koreaFriendlyMatch;
+      return queryMatch && artistMatch && cityMatch && sourceMatch && accessMatch && dateMatch && saleStatusMatch && koreaFriendlyMatch;
     });
-  }, [access, artist, city, dateFrom, dateTo, dateWindow, events, koreaFriendlyOnly, query, saleStatus]);
+  }, [access, artist, city, dateFrom, dateTo, dateWindow, events, koreaFriendlyOnly, query, saleStatus, source]);
 
   const savedEventItems = useMemo(
     () => saved
@@ -794,10 +803,23 @@ function App() {
               </select>
             </label>
             <label>
+              <Database size={15} />
+              <select
+                value={source}
+                onChange={(event) => setSource(event.target.value as Event["source"] | "전체")}
+                aria-label="출처"
+              >
+                {sourceOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+            <label>
               <Ticket size={15} />
               <select
                 value={access}
                 onChange={(event) => setAccess(event.target.value as TicketAccess | "전체")}
+                aria-label="구매 조건"
               >
                 {accessOptions.map((option) => (
                   <option key={option}>{option}</option>
@@ -813,6 +835,7 @@ function App() {
                   setDateFrom("");
                   setDateTo("");
                 }}
+                aria-label="기간"
               >
                 {dateWindowOptions.map((option) => (
                   <option key={option}>{option}</option>
@@ -886,6 +909,7 @@ function App() {
               setQuery("");
               setArtist("전체");
               setCity("전체");
+              setSource("전체");
               setAccess("전체");
               setDateWindow("전체");
               setDateFrom("");
