@@ -25,9 +25,11 @@ import {
   validateProductionHealth,
 } from "../scripts/check-production-health";
 import {
+  eplusLogicalEventKey,
   eplusSearchUrls,
   extractEplusPayload,
   isLikelyEplusConcert,
+  mergeEplusEventRows,
   normalizeEplusFetchTimeoutMs,
   normalizeEplusRowLimit,
   toEplusEventRow,
@@ -1913,6 +1915,54 @@ test("maps eplus public search JSON to Korea-friendly event rows", () => {
               },
               "koen_detail_url_pc": "/sf/detail/talk001-P0030001P021001",
               "kanren_uketsuke_koen_list": []
+            },
+            {
+              "koenbi_term": "20260719",
+              "kaien_time": "1200",
+              "kanren_venue": {
+                "venue_name": "沖縄コンベンションセンター 展示場",
+                "todofuken_name": "沖縄県"
+              },
+              "kanren_kogyo_sub": {
+                "kogyo_code": "festival-001",
+                "kogyo_sub_code": "0001",
+                "kogyo_name_1": "【3次先行】MasterPeace 2026",
+                "kogyo_name_2": "OKINAWA MUSIC & ART FESTIVAL"
+              },
+              "koen_detail_url_pc": "/sf/detail/festival001-P0030001P021001",
+              "kanren_uketsuke_koen_list": [
+                {
+                  "hambai_hoho_label": "抽選",
+                  "uketsuke_name_pc": "3次先行",
+                  "uketsuke_start_datetime": "20260510100000",
+                  "uketsuke_end_datetime": "20260520235900",
+                  "uketsuke_status": "0"
+                }
+              ]
+            },
+            {
+              "koenbi_term": "20260719",
+              "kaien_time": "1200",
+              "kanren_venue": {
+                "venue_name": "沖縄コンベンションセンター 展示場",
+                "todofuken_name": "沖縄県"
+              },
+              "kanren_kogyo_sub": {
+                "kogyo_code": "festival-001",
+                "kogyo_sub_code": "0002",
+                "kogyo_name_1": "【早割】MasterPeace 2026",
+                "kogyo_name_2": "OKINAWA MUSIC & ART FESTIVAL"
+              },
+              "koen_detail_url_pc": "/sf/detail/festival001-P0030001P021002",
+              "kanren_uketsuke_koen_list": [
+                {
+                  "hambai_hoho_label": "先着",
+                  "uketsuke_name_pc": "早割",
+                  "uketsuke_start_datetime": "20260521000000",
+                  "uketsuke_end_datetime": "20260630235900",
+                  "uketsuke_status": "0"
+                }
+              ]
             }
           ]
         }
@@ -1920,8 +1970,10 @@ test("maps eplus public search JSON to Korea-friendly event rows", () => {
     </script>
   `;
   const records = extractEplusPayload(html)?.data?.record_list ?? [];
+  const festivalLottery = toEplusEventRow(records[2], new Date("2026-05-05T00:00:00+09:00"));
+  const festivalEarlyBird = toEplusEventRow(records[3], new Date("2026-05-05T00:00:00+09:00"));
 
-  expect(records).toHaveLength(2);
+  expect(records).toHaveLength(4);
   expect(isLikelyEplusConcert(records[0])).toBe(true);
   expect(isLikelyEplusConcert(records[1])).toBe(false);
   expect(toEplusEventRow(records[0], new Date("2026-05-05T00:00:00+09:00"))).toMatchObject({
@@ -1939,7 +1991,25 @@ test("maps eplus public search JSON to Korea-friendly event rows", () => {
     link: "https://eplus.jp/sf/detail/live001-P0030001P021001",
   });
   expect(toEplusEventRow(records[1], new Date("2026-05-05T00:00:00+09:00"))).toBeNull();
-  expect(normalizeEplusRowLimit(undefined)).toBe(40);
+  expect(festivalLottery).toMatchObject({
+    title: "MasterPeace 2026 OKINAWA MUSIC & ART FESTIVAL",
+    city: "오키나와",
+    sale_type: "추첨 접수",
+  });
+  expect(festivalEarlyBird).toMatchObject({
+    title: "MasterPeace 2026 OKINAWA MUSIC & ART FESTIVAL",
+    city: "오키나와",
+    sale_type: "선착 판매",
+  });
+  expect(eplusLogicalEventKey(festivalLottery!)).toBe(eplusLogicalEventKey(festivalEarlyBird!));
+  expect(mergeEplusEventRows(festivalLottery!, festivalEarlyBird!)).toMatchObject({
+    sale_type: "추첨/선착 판매",
+    sale_window: expect.stringContaining("3次先行: 2026.05.10 10:00 - 2026.05.20 23:59"),
+  });
+  expect(mergeEplusEventRows(festivalLottery!, festivalEarlyBird!).sale_window).toContain(
+    "早割: 2026.05.21 00:00 - 2026.06.30 23:59",
+  );
+  expect(normalizeEplusRowLimit(undefined)).toBe(80);
   expect(normalizeEplusRowLimit("200")).toBe(120);
   expect(normalizeEplusFetchTimeoutMs(undefined)).toBe(12000);
   expect(normalizeEplusFetchTimeoutMs("1000")).toBe(3000);
@@ -1947,6 +2017,10 @@ test("maps eplus public search JSON to Korea-friendly event rows", () => {
     expect.arrayContaining([
       "https://eplus.jp/sf/search?keyword=J-POP",
       "https://eplus.jp/sf/search?keyword=K-POP",
+      "https://eplus.jp/sf/search?keyword=%E3%83%A9%E3%82%A4%E3%83%96",
+      "https://eplus.jp/sf/search?keyword=%E3%82%B3%E3%83%B3%E3%82%B5%E3%83%BC%E3%83%88",
+      "https://eplus.jp/sf/search?keyword=%E3%83%95%E3%82%A7%E3%82%B9",
+      "https://eplus.jp/sf/search?keyword=ROCK",
     ]),
   );
 });
