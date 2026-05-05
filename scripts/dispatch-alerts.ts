@@ -154,27 +154,42 @@ export async function sendWebhook(alert: DueAlert, options: WebhookSendOptions =
   const attempts = options.attempts ?? defaultWebhookAttempts;
   const retryDelayMs = options.retryDelayMs ?? 1_000;
   let lastStatus = 0;
+  let lastError: string | null = null;
   let completedAttempts = 0;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     completedAttempts = attempt;
-    const response = await fetchImpl(webhookUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(buildAlertWebhookPayload(alert)),
-    });
+    let response: Response;
+    try {
+      response = await fetchImpl(webhookUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(buildAlertWebhookPayload(alert)),
+      });
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Unknown webhook network error";
+      if (attempt === attempts) {
+        break;
+      }
+      await sleep(retryDelayMs * attempt);
+      continue;
+    }
 
     if (response.ok) {
       return;
     }
 
     lastStatus = response.status;
+    lastError = null;
     if (!shouldRetryWebhookStatus(response.status) || attempt === attempts) {
       break;
     }
     await sleep(retryDelayMs * attempt);
   }
 
+  if (lastError) {
+    throw new Error(`Webhook network error after ${completedAttempts} attempt(s): ${lastError}`);
+  }
   throw new Error(`Webhook failed with ${lastStatus} after ${completedAttempts} attempt(s)`);
 }
 
