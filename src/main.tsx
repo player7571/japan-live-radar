@@ -120,6 +120,14 @@ type AdminStats = {
     koreaFriendly: number;
   };
   bySource: Array<{ label: string; count: number }>;
+  qualityBySource?: Array<{
+    source: string;
+    total: number;
+    missingLink: number;
+    missingSaleWindow: number;
+    missingPrice: number;
+    needsAccessReview: number;
+  }>;
   byCity: Array<{ label: string; count: number }>;
   generatedAt: string;
 };
@@ -1473,6 +1481,10 @@ function AdminPage() {
                   ))}
                 </div>
                 <div>
+                  <strong>출처별 품질</strong>
+                  <AdminSourceQuality items={adminStats.qualityBySource} />
+                </div>
+                <div>
                   <strong>도시</strong>
                   {(adminStats.byCity.length ? adminStats.byCity : [{ label: "데이터 없음", count: 0 }]).map((item) => (
                     <span key={item.label}>{item.label} · {item.count}</span>
@@ -1771,6 +1783,19 @@ function AdminSyncRuns({ syncRuns }: { syncRuns: AdminStats["syncRuns"] }) {
   }
   return syncRuns.map((item) => (
     <span key={`${item.source}-${item.finishedAt ?? item.status}`}>{formatAdminSyncRun(item)}</span>
+  ));
+}
+
+function AdminSourceQuality({ items }: { items: AdminStats["qualityBySource"] }) {
+  if (!items || items.length === 0) {
+    return <span>데이터 없음</span>;
+  }
+
+  return items.map((item) => (
+    <span key={item.source}>
+      {item.source} · {item.total}개 · 일정 {item.missingSaleWindow} · 가격 {item.missingPrice} · 조건{" "}
+      {item.needsAccessReview} · 링크 {item.missingLink}
+    </span>
   ));
 }
 
