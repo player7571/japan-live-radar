@@ -20,6 +20,7 @@ import {
   toTicketmasterEventRow,
 } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
+import { rowToEvent } from "../src/lib/eventRows";
 import { serverReadKey } from "../src/lib/supabaseServer";
 import { seedEvents } from "../src/data/seedEvents";
 import { buildAlertEventSnapshot } from "../src/lib/alertSnapshot";
@@ -219,6 +220,30 @@ test("adds lottery result announcements to imported foreigner notes", () => {
   expect(draft.saleType).toBe("추첨 접수");
   expect(draft.saleWindow).toContain("2026年6月1日 12:00");
   expect(draft.foreignerNote).toContain("추첨 결과 발표: 2026年6月15日(月) 18:00頃");
+});
+
+test("classifies official resale ticket imports", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>King Gnu Stadium Live｜e+</title>
+        </head>
+        <body>
+          <h1>King Gnu Stadium Live</h1>
+          <p>会場：日産スタジアム</p>
+          <p>公演日：2026年9月21日 18:30</p>
+          <p>公式リセール受付：2026年9月1日 12:00～2026年9月10日 23:59</p>
+          <p>チケットトレードでの再販売を予定しています。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://eplus.jp/kinggnu-resale/"),
+  );
+
+  expect(draft.city).toBe("요코하마");
+  expect(draft.saleType).toBe("리세일");
+  expect(draft.saleWindow).toContain("2026年9月1日 12:00");
 });
 
 test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
@@ -860,6 +885,41 @@ test("maps Ticketmaster events as Korea-friendly rows", () => {
     price: "¥9,800 - ¥14,800",
   });
   expect(row?.foreigner_note).toContain("해외 계정/카드");
+});
+
+test("keeps resale sale types when mapping database rows", () => {
+  expect(
+    rowToEvent({
+      id: "resale-row",
+      artist: "King Gnu",
+      title: "Stadium Live",
+      city: "요코하마",
+      venue: "日産スタジアム",
+      date: "2026-09-21",
+      time: "18:30",
+      genre: "Music",
+      source: "e+",
+      ticket_access: "확인 필요",
+      sale_type: "리세일",
+      sale_window: "公式リセール受付：2026年9月1日 12:00～2026年9月10日 23:59",
+      price: "¥12,000",
+      phone_required: true,
+      foreigner_note: "리세일 조건 확인",
+      link: "https://eplus.jp/kinggnu-resale/",
+      image: null,
+    }).saleType,
+  ).toBe("리세일");
+
+  expect(
+    toEventRow({
+      artist: "King Gnu",
+      title: "Stadium Live",
+      city: "요코하마",
+      venue: "日産スタジアム",
+      date: "2026-09-21",
+      saleType: "리세일",
+    }).sale_type,
+  ).toBe("리세일");
 });
 
 test("serves the shared seed event catalog from the events API fallback", () => {

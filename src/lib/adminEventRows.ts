@@ -1,5 +1,5 @@
 export type TicketAccess = "한국 구매 가능" | "일본 번호 필요" | "확인 필요";
-export type SaleType = "추첨 접수" | "일반 판매" | "선착 판매" | "해외 판매";
+export type SaleType = "추첨 접수" | "일반 판매" | "선착 판매" | "해외 판매" | "리세일";
 
 export type AdminEventInput = {
   artist?: unknown;
@@ -49,7 +49,13 @@ function toTicketAccess(value: unknown): TicketAccess {
 }
 
 function toSaleType(value: unknown): SaleType {
-  if (value === "추첨 접수" || value === "일반 판매" || value === "선착 판매" || value === "해외 판매") {
+  if (
+    value === "추첨 접수" ||
+    value === "일반 판매" ||
+    value === "선착 판매" ||
+    value === "해외 판매" ||
+    value === "리세일"
+  ) {
     return value;
   }
   return "일반 판매";

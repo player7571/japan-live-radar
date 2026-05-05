@@ -36,7 +36,13 @@ function toTicketAccess(value: string): TicketAccess {
 }
 
 function toSaleType(value: string): SaleType {
-  if (value === "추첨 접수" || value === "일반 판매" || value === "선착 판매" || value === "해외 판매") {
+  if (
+    value === "추첨 접수" ||
+    value === "일반 판매" ||
+    value === "선착 판매" ||
+    value === "해외 판매" ||
+    value === "리세일"
+  ) {
     return value;
   }
   return saleTypeFallback;
