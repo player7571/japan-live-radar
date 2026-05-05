@@ -3,7 +3,8 @@ name: Dispatch Due Alerts
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/15 * * * *"
+    # 09:17 and 21:17 in Asia/Seoul while the app is pre-launch.
+    - cron: "17 0,12 * * *"
 
 concurrency:
   group: dispatch-due-alerts

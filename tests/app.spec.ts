@@ -1881,6 +1881,26 @@ test("limits release PR auto-merges to morning and evening KST windows", () => {
   expect(autoReleaseWorkflow).toContain("09:00/21:00 KST release windows");
 });
 
+test("keeps automatic CI and scheduled operations within Actions minute budget", () => {
+  const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
+  const deployWorkflow = readFileSync(".github/workflows/deploy-vercel.yml", "utf8");
+  const dispatchWorkflow = readFileSync(".github/workflows/dispatch-alerts.yml", "utf8");
+  const healthWorkflow = readFileSync(".github/workflows/health-check.yml", "utf8");
+  const retryWorkflow = readFileSync(".github/workflows/retry-production-deploy.yml", "utf8");
+  const syncWorkflow = readFileSync(".github/workflows/sync-ticketmaster.yml", "utf8");
+
+  expect(ciWorkflow).not.toContain("push:");
+  expect(ciWorkflow).toContain("npx playwright test --project=desktop");
+  expect(ciWorkflow).toContain("npx playwright test");
+  expect(deployWorkflow.indexOf("Check production deploy blockers")).toBeLessThan(deployWorkflow.indexOf("Set up Node"));
+  expect(deployWorkflow).toContain("Skip blocked automatic production deploy");
+  expect(dispatchWorkflow).toContain('cron: "17 0,12 * * *"');
+  expect(dispatchWorkflow).toContain("09:17 and 21:17 in Asia/Seoul");
+  expect(healthWorkflow).toContain('cron: "7 0 * * *"');
+  expect(retryWorkflow).toContain('cron: "23 12 * * *"');
+  expect(syncWorkflow).toContain('cron: "17 18 * * 1,4"');
+});
+
 test("summarizes alert dispatch failures for workflow visibility", () => {
   expect(summarizeDispatchFailures([])).toBeNull();
   expect(summarizeDispatchFailures(["alert-1: ALERT_WEBHOOK_URL is not configured"])).toBe(

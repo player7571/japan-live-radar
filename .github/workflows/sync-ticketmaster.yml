@@ -3,7 +3,8 @@ name: Sync Ticketmaster Events
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 18 * * *"
+    # Tuesday and Friday 03:17 in Asia/Seoul while Actions minutes are constrained.
+    - cron: "17 18 * * 1,4"
 
 concurrency:
   group: sync-ticketmaster-events

@@ -6,10 +6,6 @@ on:
     branches:
       - dev
       - main
-  push:
-    branches:
-      - dev
-      - main
 
 jobs:
   build-and-test:
@@ -46,4 +42,9 @@ jobs:
         run: npm run build
 
       - name: Run smoke tests
-        run: npx playwright test
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            npx playwright test
+          else
+            npx playwright test --project=desktop
+          fi
