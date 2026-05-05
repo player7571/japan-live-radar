@@ -575,8 +575,56 @@ function sourceFromHostname(hostname: string) {
   if (hostname.includes("pia.jp")) return "Ticket Pia";
   if (hostname.includes("eplus.jp")) return "e+";
   if (hostname.includes("l-tike.com")) return "Lawson Ticket";
+  if (hostname.includes("ticketmaster.")) return "Ticketmaster";
+  if (hostname.includes("ticketboard.jp") || hostname.includes("tickebo.jp")) return "ticket board";
   if (hostname.includes("livefans.jp")) return "LiveFans";
   return hostname.replace(/^www\./, "");
+}
+
+function ticketLinkScore(url: URL, label: string) {
+  const hostname = url.hostname.toLowerCase();
+  const text = normalizeFullWidth(`${label} ${url.pathname} ${url.search}`);
+  let score = 0;
+
+  if (/(pia\.jp|eplus\.jp|l-tike\.com|ticketmaster\.|ticketboard\.jp|tickebo\.jp)/i.test(hostname)) {
+    score += 50;
+  }
+  if (/(申込|申し込み|購入|受付|販売|発売|抽選|先行|一般発売|リセール|resale)/i.test(text)) {
+    score += 20;
+  }
+  if (/(チケット|ticket|ローチケ|ローソンチケット|イープラス|チケットぴあ|ticketmaster|ticket board)/i.test(text)) {
+    score += 15;
+  }
+  if (/(twitter|x\.com|instagram|youtube|line\.me|facebook|tiktok)/i.test(hostname)) {
+    score -= 100;
+  }
+
+  return score;
+}
+
+function ticketLinkFromPage($: cheerio.CheerioAPI, sourceUrl: URL) {
+  const candidates = $("a[href]")
+    .toArray()
+    .map((element) => {
+      const href = firstString($(element).attr("href"));
+      if (!href || href.startsWith("#") || /^mailto:|^tel:/i.test(href)) return null;
+      try {
+        const url = new URL(href, sourceUrl);
+        if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+        const label = compactWhitespace($(element).text());
+        return {
+          url,
+          score: ticketLinkScore(url, label),
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter((candidate): candidate is { url: URL; score: number } => Boolean(candidate))
+    .filter((candidate) => candidate.score > 0)
+    .sort((left, right) => right.score - left.score);
+
+  return candidates[0]?.url ?? sourceUrl;
 }
 
 function cityFromText(text: string) {
@@ -689,6 +737,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   );
   const textForCity = [venue, address.addressLocality, address.addressRegion, firstString(location.address), pageText].join(" ");
   const access = accessFromText(`${description} ${pageText}`);
+  const ticketLink = ticketLinkFromPage($, sourceUrl);
   const saleWindow = firstString(
     saleWindowFromOffers(offerList),
     saleWindowFromText(pageText),
@@ -703,14 +752,14 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
     venue,
     date: normalizeDate(dateSource),
     time: normalizeTime(dateSource),
-    source: sourceFromHostname(sourceUrl.hostname),
+    source: sourceFromHostname(ticketLink.hostname),
     ticketAccess: access.ticketAccess,
     saleType: saleTypeFromText(`${description} ${pageText}`),
     saleWindow,
     price,
     phoneRequired: access.phoneRequired,
     foreignerNote: importForeignerNote(description, access.foreignerNote, pageText),
-    link: sourceUrl.toString(),
+    link: ticketLink.toString(),
     image: firstString(image, propertyContent($, "meta[property='og:image']")),
   };
 }
