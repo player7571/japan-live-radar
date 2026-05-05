@@ -914,6 +914,7 @@ function App() {
                     {event.city} · {event.venue}
                   </div>
                   <div className="tag-row">
+                    <span className="mini-pill source-pill">{event.source}</span>
                     <StatusPill status={event.ticketAccess} />
                     <span className="mini-pill">{event.saleType}</span>
                     <SaleStatusPill status={getSaleStatus(event, today)} />

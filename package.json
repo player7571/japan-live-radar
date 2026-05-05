@@ -14,9 +14,11 @@
     "alerts:dispatch": "tsx scripts/dispatch-alerts.ts",
     "sync:seed": "tsx scripts/sync-seed-events.ts",
     "sync:eplus": "tsx scripts/sync-eplus.ts",
+    "sync:lawson": "tsx scripts/sync-lawson.ts",
     "sync:rakuten-ticket": "tsx scripts/sync-rakuten-ticket.ts",
     "sync:ticket-pia": "tsx scripts/sync-ticket-pia.ts",
-    "sync:ticketmaster": "tsx scripts/sync-ticketmaster.ts"
+    "sync:ticketmaster": "tsx scripts/sync-ticketmaster.ts",
+    "test:lawson": "tsx tests/lawson-parser.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
