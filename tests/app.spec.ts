@@ -11,6 +11,7 @@ import {
 } from "../scripts/check-production-health";
 import {
   buildAppEventUrl,
+  buildAlertDeliveryKey,
   buildAlertMessage,
   buildAlertWebhookPayload,
   normalizeWebhookAttempts,
@@ -1157,8 +1158,10 @@ test("builds alert webhook payloads with Korean context and contact email", () =
   expect(buildAppEventUrl(alert, "https://example.com")).toBe(
     "https://example.com/?event=seed-ado-yokohama-2026-07-21",
   );
+  expect(buildAlertDeliveryKey(alert)).toBe("alert-1:ado-2026:2026-05-10T00:00:00.000Z");
   expect(buildAlertWebhookPayload(alert)).toMatchObject({
     text: expect.stringContaining("판매 일정: 2026年5月10日 12:00"),
+    deliveryKey: "alert-1:ado-2026:2026-05-10T00:00:00.000Z",
     alertId: "alert-1",
     eventKey: "ado-2026",
     contactEmail: "fan@example.com",
@@ -1295,7 +1298,23 @@ test("retries transient alert webhook failures before marking delivery failed", 
   );
 
   expect(sentPayloads).toHaveLength(3);
-  expect(sentPayloads[0]).toMatchObject({ alertId: "alert-retry", eventKey: "ado-2026" });
+  expect(sentPayloads).toEqual([
+    expect.objectContaining({
+      alertId: "alert-retry",
+      deliveryKey: "alert-retry:ado-2026:2026-05-10T00:00:00.000Z",
+      eventKey: "ado-2026",
+    }),
+    expect.objectContaining({
+      alertId: "alert-retry",
+      deliveryKey: "alert-retry:ado-2026:2026-05-10T00:00:00.000Z",
+      eventKey: "ado-2026",
+    }),
+    expect.objectContaining({
+      alertId: "alert-retry",
+      deliveryKey: "alert-retry:ado-2026:2026-05-10T00:00:00.000Z",
+      eventKey: "ado-2026",
+    }),
+  ]);
 });
 
 test("retries transient alert webhook network errors", async () => {
