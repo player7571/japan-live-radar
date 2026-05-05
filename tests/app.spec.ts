@@ -29,6 +29,7 @@ import {
 } from "../scripts/dispatch-alerts";
 import {
   formatSaleWindow,
+  isLikelyConcert,
   nextTicketmasterPages,
   normalizeTicketmasterFetchTimeoutMs,
   normalizeTicketmasterPageLimit,
@@ -1351,6 +1352,24 @@ test("normalizes more Ticketmaster venue city aliases for Korean filters", () =>
       },
     })?.city,
   ).toBe("마쓰야마");
+});
+
+test("classifies Japanese Ticketmaster concert signals and sports exclusions", () => {
+  expect(
+    isLikelyConcert({
+      id: "tm-japanese-live",
+      name: "米津玄師 2026 ライブツアー",
+      classifications: [{ segment: { name: "音楽" }, genre: { name: "J-POP" } }],
+    }),
+  ).toBe(true);
+
+  expect(
+    isLikelyConcert({
+      id: "tm-japanese-sports",
+      name: "Bリーグ バスケットボール 大阪",
+      classifications: [{ segment: { name: "スポーツ" } }],
+    }),
+  ).toBe(false);
 });
 
 test("keeps resale sale types when mapping database rows", () => {
