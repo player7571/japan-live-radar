@@ -10,6 +10,7 @@ import {
 } from "../api/alerts";
 import { seedResponse } from "../api/events";
 import { assertPublicResolvedAddresses, extractDraft, safeUrl } from "../api/import-url";
+import { searchSources } from "../api/search-candidates";
 import { migrationFiles } from "../scripts/apply-migrations";
 import {
   validateAdminAlertsHealth,
@@ -2093,6 +2094,23 @@ test("keeps approved or rejected candidate URLs out of pending upserts", () => {
     "https://t.pia.jp/pending",
   ]);
   expect(result.skippedRows.map((row) => row.status)).toEqual(["approved", "rejected"]);
+});
+
+test("creates ticket source search URLs including Ticketmaster", () => {
+  expect(searchSources("Ado 東京")).toEqual(
+    expect.arrayContaining([
+      {
+        source: "Ticketmaster",
+        url: "https://www.ticketmaster.com/search?q=Ado%20%E6%9D%B1%E4%BA%AC&sort=date%2Casc&country=jp",
+      },
+    ]),
+  );
+  expect(searchSources("Ado 東京").map((source) => source.source)).toEqual([
+    "Ticket Pia",
+    "e+",
+    "Lawson Ticket",
+    "Ticketmaster",
+  ]);
 });
 
 test("searches concerts and opens the detail panel", async ({ page }) => {

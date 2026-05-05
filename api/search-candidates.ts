@@ -58,7 +58,7 @@ function missingCandidateTable(error: { code?: string; message?: string } | null
   return Boolean(error && (error.code === "42P01" || error.message?.includes("event_candidates")));
 }
 
-function searchSources(keyword: string) {
+export function searchSources(keyword: string) {
   const encoded = encodeURIComponent(keyword);
   return [
     {
@@ -72,6 +72,10 @@ function searchSources(keyword: string) {
     {
       source: "Lawson Ticket",
       url: `https://l-tike.com/search/?keyword=${encoded}`,
+    },
+    {
+      source: "Ticketmaster",
+      url: `https://www.ticketmaster.com/search?q=${encoded}&sort=date%2Casc&country=jp`,
     },
   ];
 }
