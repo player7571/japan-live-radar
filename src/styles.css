@@ -221,7 +221,8 @@ h1 {
   margin-bottom: 18px;
 }
 
-.quick-filters button {
+.quick-filters button,
+.date-range-field {
   min-height: 40px;
   display: inline-flex;
   align-items: center;
@@ -234,6 +235,26 @@ h1 {
   border-radius: 8px;
   cursor: pointer;
   font-weight: 760;
+}
+
+.date-range-field {
+  cursor: default;
+}
+
+.date-range-field input {
+  width: 132px;
+  min-width: 0;
+  color: #172019;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-weight: 700;
+}
+
+.date-range-field span {
+  color: #65736a;
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .quick-filters button.active {

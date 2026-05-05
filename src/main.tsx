@@ -441,6 +441,15 @@ function isInDateWindow(date: string, dateWindow: DateWindow) {
   return eventDate >= today && eventDate <= limit;
 }
 
+function isInSelectedDateRange(date: string, dateWindow: DateWindow, dateFrom: string, dateTo: string) {
+  if (!dateFrom && !dateTo) return isInDateWindow(date, dateWindow);
+
+  const eventDate = new Date(`${date}T00:00:00+09:00`);
+  const startDate = dateFrom ? new Date(`${dateFrom}T00:00:00+09:00`) : null;
+  const endDate = dateTo ? new Date(`${dateTo}T23:59:59+09:00`) : null;
+  return (!startDate || eventDate >= startDate) && (!endDate || eventDate <= endDate);
+}
+
 function App() {
   const [route, setRoute] = useState<Route>(currentRoute);
   const [events, setEvents] = useState<Event[]>(seedEvents);
@@ -451,6 +460,8 @@ function App() {
   const [city, setCity] = useState<Event["city"] | "전체">("전체");
   const [access, setAccess] = useState<TicketAccess | "전체">("전체");
   const [dateWindow, setDateWindow] = useState<DateWindow>("전체");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [saleStatus, setSaleStatus] = useState<SaleStatus>("전체");
   const [koreaFriendlyOnly, setKoreaFriendlyOnly] = useState(false);
   const [selectedId, setSelectedId] = useState(() => eventIdFromUrl() ?? seedEvents[0].id);
@@ -541,13 +552,13 @@ function App() {
       const artistMatch = artist === "전체" || event.artist === artist;
       const cityMatch = city === "전체" || event.city === city;
       const accessMatch = access === "전체" || event.ticketAccess === access;
-      const dateMatch = isInDateWindow(event.date, dateWindow);
+      const dateMatch = isInSelectedDateRange(event.date, dateWindow, dateFrom, dateTo);
       const saleStatusMatch = saleStatus === "전체" || getSaleStatus(event) === saleStatus;
       const koreaFriendlyMatch =
         !koreaFriendlyOnly || (event.ticketAccess === "한국 구매 가능" && !event.phoneRequired);
       return queryMatch && artistMatch && cityMatch && accessMatch && dateMatch && saleStatusMatch && koreaFriendlyMatch;
     });
-  }, [access, artist, city, dateWindow, events, koreaFriendlyOnly, query, saleStatus]);
+  }, [access, artist, city, dateFrom, dateTo, dateWindow, events, koreaFriendlyOnly, query, saleStatus]);
 
   const savedEventItems = useMemo(
     () => saved
@@ -737,7 +748,11 @@ function App() {
               <CalendarDays size={15} />
               <select
                 value={dateWindow}
-                onChange={(event) => setDateWindow(event.target.value as DateWindow)}
+                onChange={(event) => {
+                  setDateWindow(event.target.value as DateWindow);
+                  setDateFrom("");
+                  setDateTo("");
+                }}
               >
                 {dateWindowOptions.map((option) => (
                   <option key={option}>{option}</option>
@@ -760,6 +775,32 @@ function App() {
         </section>
 
         <section className="quick-filters" aria-label="원정 조건">
+          <label className="date-range-field">
+            <CalendarDays size={16} />
+            <span>시작</span>
+            <input
+              aria-label="시작일"
+              type="date"
+              value={dateFrom}
+              onChange={(event) => {
+                setDateFrom(event.target.value);
+                setDateWindow("전체");
+              }}
+            />
+          </label>
+          <label className="date-range-field">
+            <CalendarDays size={16} />
+            <span>종료</span>
+            <input
+              aria-label="종료일"
+              type="date"
+              value={dateTo}
+              onChange={(event) => {
+                setDateTo(event.target.value);
+                setDateWindow("전체");
+              }}
+            />
+          </label>
           <button
             className={koreaFriendlyOnly ? "active" : ""}
             type="button"
@@ -768,7 +809,14 @@ function App() {
             <ShieldCheck size={16} />
             한국에서 예매 쉬운 공연
           </button>
-          <button type="button" onClick={() => setDateWindow("여름 원정")}>
+          <button
+            type="button"
+            onClick={() => {
+              setDateWindow("여름 원정");
+              setDateFrom("");
+              setDateTo("");
+            }}
+          >
             <Plane size={16} />
             여름 원정
           </button>
@@ -780,6 +828,8 @@ function App() {
               setCity("전체");
               setAccess("전체");
               setDateWindow("전체");
+              setDateFrom("");
+              setDateTo("");
               setSaleStatus("전체");
               setKoreaFriendlyOnly(false);
             }}
