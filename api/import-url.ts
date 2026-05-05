@@ -261,6 +261,14 @@ function labeledElementValue($: cheerio.CheerioAPI, labels: string[]) {
     }
   }
 
+  for (const row of $(".event-details, .sales-info").toArray()) {
+    const label = $(row).children(".column-1, .event-details-mobile-title").first().text();
+    if (matchesLabel(label, labels)) {
+      const value = compactWhitespace($(row).children(".column-2, .event-details-date-mobile").first().text());
+      if (value) return value;
+    }
+  }
+
   return "";
 }
 
@@ -529,7 +537,7 @@ function importForeignerNote(description: string, accessNote: string, pageText: 
 
 function saleWindowFromText(text: string, fallbackYear = "") {
   const normalized = normalizeFullWidth(text);
-  if (/(公演中止|開催中止|中止となりました|中止いたします|cancelled|canceled|취소|공연\s*취소)/i.test(normalized)) {
+  if (/(公演中止|開催中止|公演.{0,12}中止|開催.{0,12}中止|中止となりました|中止いたします|event\s*(cancelled|canceled)|cancelled\s*event|취소|공연\s*취소)/i.test(normalized)) {
     return "공연 취소";
   }
 
@@ -589,10 +597,13 @@ function saleWindowFromText(text: string, fallbackYear = "") {
 }
 
 function artistFromTitle(title: string) {
-  const leadingLatinName = title.match(/^[A-Za-z0-9][A-Za-z0-9 ._'&+-]{1,40}(?=\s|　|全国|ライブ|コンサート|ツアー|公演|$)/)?.[0];
+  const cleanedTitle = title
+    .replace(/^\s*[\[［【][^\]］】]{1,24}公演[\]］】]\s*/, "")
+    .replace(/^\s*[\[［【][^\]］】]{1,24}[\]］】]\s*/, "");
+  const leadingLatinName = cleanedTitle.match(/^[A-Za-z0-9][A-Za-z0-9 ._'&+-]{1,40}(?=\s|　|全国|ライブ|コンサート|ツアー|公演|$)/)?.[0];
   if (leadingLatinName) return leadingLatinName.trim();
 
-  return title
+  return cleanedTitle
     .split(/[｜|]/)[0]
     .replace(/\s*(チケット|ライブ|コンサート|公演|ツアー).*$/i, "")
     .trim();
@@ -734,6 +745,13 @@ function ticketLinkScore(url: URL, label: string) {
 }
 
 function ticketLinkFromPage($: cheerio.CheerioAPI, sourceUrl: URL) {
+  if (
+    sourceUrl.hostname.toLowerCase().includes("ticket.rakuten.co.jp") &&
+    sourceUrl.pathname.split("/").filter(Boolean).length >= 2
+  ) {
+    return sourceUrl;
+  }
+
   const candidates = $("a[href]")
     .toArray()
     .map((element) => {
@@ -885,6 +903,48 @@ function propertyContent($: cheerio.CheerioAPI, selector: string) {
   return firstString($(selector).first().attr("content"));
 }
 
+function firstRakutenPerformance($: cheerio.CheerioAPI) {
+  const performance = $(".performance.active, .performance-mobile-card.active").first();
+  if (performance.length === 0) return null;
+
+  const desktop = {
+    title: compactWhitespace(performance.children(".column-1").first().text()),
+    date: compactWhitespace(performance.children(".column-6").first().text()),
+    time: compactWhitespace(performance.children(".column-2").first().text()),
+    area: compactWhitespace(performance.children(".column-3").first().text()),
+    venue: compactWhitespace(performance.children(".column-4").first().text()),
+  };
+  const mobile = {
+    title: compactWhitespace(performance.children(".performance-mobile-title").first().text()),
+    date: compactWhitespace(performance.find(".performance-date-mobile label").first().text()),
+    time: compactWhitespace(performance.find(".performance-time-mobile label").last().text()),
+    area: compactWhitespace(performance.find(".performance-area-mobile label").last().text()),
+    venue: compactWhitespace(performance.find(".performance-venue-mobile label").last().text()),
+  };
+  const saleDates = (() => {
+    const rawValue = firstString(performance.attr("data-date"));
+    if (!rawValue) return {};
+    try {
+      return JSON.parse(rawValue) as Record<string, string>;
+    } catch {
+      return {};
+    }
+  })();
+
+  return {
+    title: firstString(desktop.title, mobile.title),
+    date: firstString(desktop.date, mobile.date),
+    time: firstString(desktop.time, mobile.time),
+    area: firstString(desktop.area, mobile.area),
+    venue: firstString(desktop.venue, mobile.venue),
+    saleWindow: firstString(
+      saleDates.min_start_on && saleDates.max_end_on ? `${saleDates.min_start_on} - ${saleDates.max_end_on}` : "",
+      saleDates.min_start_on,
+      saleDates.max_end_on,
+    ),
+  };
+}
+
 export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   const $ = cheerio.load(html);
   const pageText = compactWhitespace($("body").text());
@@ -907,6 +967,9 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   const offers = firstObject(eventJson?.offers);
   const offerList = offerObjectList(eventJson?.offers);
   const performer = firstObject(eventJson?.performer);
+  const rakutenPerformance = sourceUrl.hostname.toLowerCase().includes("ticket.rakuten.co.jp")
+    ? firstRakutenPerformance($)
+    : null;
   const rawTitle = firstString(
     eventJson?.name,
     propertyContent($, "meta[property='og:title']"),
@@ -922,6 +985,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   );
   const rawBodyText = $("body").text();
   const dateSource = firstString(
+    rakutenPerformance?.date,
     eventJson?.startDate,
     $("time[datetime]").first().attr("datetime"),
     labeledValue($, rawBodyText, ["公演日", "開催日", "開催日時", "日程", "日時", "公演日時", "公演期間"]),
@@ -936,16 +1000,18 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   );
   const image = firstJsonImageUrl(eventJson?.image);
   const venue = firstString(
+    rakutenPerformance?.venue,
     location.name,
     labeledValue($, rawBodyText, ["会場", "会場名", "場所", "Venue", "公演会場"]),
   );
-  const textForCity = [venue, address.addressLocality, address.addressRegion, firstString(location.address), pageText].join(" ");
+  const textForCity = [rakutenPerformance?.area, venue, address.addressLocality, address.addressRegion, firstString(location.address), pageText].join(" ");
   const access = accessFromText(`${description} ${pageText}`);
   const ticketLink = ticketLinkFromStructuredData(eventJson, offerList, sourceUrl) ?? ticketLinkFromPage($, sourceUrl);
   const eventDate = normalizeDate(dateSource);
   const saleWindow = firstString(
     schemaEventStatusCue(eventJson?.eventStatus),
     saleWindowFromOffers(offerList),
+    rakutenPerformance?.saleWindow,
     saleWindowFromText(pageText, eventDate.slice(0, 4)),
     labeledValue($, rawBodyText, ["受付期間", "販売期間", "申込期間", "発売期間", "発売日時", "発売日", "一般発売"]),
   );
@@ -957,7 +1023,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
     city: cityFromText(textForCity),
     venue,
     date: eventDate,
-    time: normalizeTime(dateSource),
+    time: normalizeTime(firstString(rakutenPerformance?.time, dateSource)),
     source: sourceFromHostname(ticketLink.hostname),
     ticketAccess: access.ticketAccess,
     saleType: saleTypeFromText(`${description} ${pageText}`),

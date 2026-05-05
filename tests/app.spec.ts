@@ -546,6 +546,50 @@ test("recognizes additional Japanese ticket platform links from official pages",
   expect(draft.foreignerNote).toContain("전자티켓 인증");
 });
 
+test("extracts Rakuten Ticket performance rows without using the homepage link", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>[市川公演]さだまさし コンサートツアー2026</title>
+          <meta property="og:title" content="[市川公演]さだまさし コンサートツアー2026｜楽天チケット">
+          <meta property="og:description" content="チケット申込み後の取消しはできません。">
+          <meta property="og:image" content="https://tsimg.azureedge.net/img/Rakuten-tickets.png">
+        </head>
+        <body>
+          <div class='event-details sales-info'>
+            <div class='column-1'>タイトル</div>
+            <div class='column-2'>さだまさしコンサートツアー2026 神さまの言うとおり</div>
+          </div>
+          <div class='event-details sales-info'>
+            <div class='column-1'>詳細</div>
+            <div class='column-2'>会場:市川市文化会館　【住所】〒272-0025　千葉県市川市大和田1-1-5</div>
+          </div>
+          <div class='performance active' data-date='{"min_start_on":"2026-02-04T12:00:00","max_end_on":"2026-05-07T09:59:59"}'>
+            <div class='column-1'>＜先行＞[市川公演]さだまさし コンサートツアー2026</div>
+            <div class='column-6'>2026年 05月 16日 (土)</div>
+            <div class='column-2'>開場 16:00 / 開演 17:00</div>
+            <div class='column-3'>千葉県</div>
+            <div class='column-4'>市川市文化会館 大ホール</div>
+          </div>
+          <a href="https://ticket.rakuten.co.jp/">楽天チケット</a>
+        </body>
+      </html>
+    `,
+    new URL("https://ticket.rakuten.co.jp/music/jpop/rtiz516/"),
+  );
+
+  expect(draft.artist).toBe("さだまさし");
+  expect(draft.city).toBe("치바");
+  expect(draft.venue).toBe("市川市文化会館 大ホール");
+  expect(draft.date).toBe("2026-05-16");
+  expect(draft.time).toBe("17:00");
+  expect(draft.saleWindow).toBe("2026-02-04T12:00:00 - 2026-05-07T09:59:59");
+  expect(draft.saleWindow).not.toBe("공연 취소");
+  expect(draft.link).toBe("https://ticket.rakuten.co.jp/music/jpop/rtiz516/");
+  expect(draft.source).toBe("Rakuten Ticket");
+});
+
 test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
   const draft = extractDraft(
     `
