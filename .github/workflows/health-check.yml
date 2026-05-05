@@ -15,19 +15,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check production health blockers
+        id: blockers
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const blockerTitles = new Set([
+              "Production deploy blocked by Vercel daily quota",
+              "Production health check failed",
+            ]);
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "automation",
+              per_page: 100,
+            });
+            const blockers = issues.filter((issue) => blockerTitles.has(issue.title));
+            const skipHealth = context.eventName === "schedule" && blockers.length > 0;
+            core.setOutput("skip_health", skipHealth ? "true" : "false");
+            if (skipHealth) {
+              core.notice(`Skipping scheduled health check while production blockers are open: ${blockers.map((issue) => `#${issue.number}`).join(", ")}`);
+            } else {
+              core.info("Production health check should run.");
+            }
+
+      - name: Skip blocked scheduled health check
+        if: steps.blockers.outputs.skip_health == 'true'
+        run: echo "Production health is deferred to Retry Production Deploy while automation blockers are open."
+
       - name: Check out repository
+        if: steps.blockers.outputs.skip_health != 'true'
         uses: actions/checkout@v6
 
       - name: Set up Node
+        if: steps.blockers.outputs.skip_health != 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
+        if: steps.blockers.outputs.skip_health != 'true'
         run: npm ci
 
       - name: Check production
+        if: steps.blockers.outputs.skip_health != 'true'
         run: npm run health:production
         env:
           APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://japan-live-radar.vercel.app' }}
