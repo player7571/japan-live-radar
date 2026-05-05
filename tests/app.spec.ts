@@ -2026,6 +2026,27 @@ test("searches concerts with Korean artist and venue aliases", async ({ page }) 
   await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toBeVisible();
 });
 
+test("searches concerts with Japanese city and ticket-condition aliases", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("東京");
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /YOASOBI/ })).toBeVisible();
+
+  await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("로손");
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Ado/ })).toBeVisible();
+
+  await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("해외예매");
+  await expect(page.getByText("2개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /NewJeans/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /RADWIMPS/ })).toBeVisible();
+
+  await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("sms인증");
+  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toBeVisible();
+});
+
 test("opens shared event detail URLs and keeps the selected event in the URL", async ({ page }) => {
   await page.goto(`/?event=${seedEvents[3].id}`);
 
