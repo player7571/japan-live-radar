@@ -2108,6 +2108,8 @@ test("limits release PR auto-merges to morning and evening KST windows", () => {
   expect(mergeWorkflow).toContain("workflow_dispatch:");
   expect(mergeWorkflow).toContain('cron: "0 0,12 * * *"');
   expect(mergeWorkflow).toContain("09:00 and 21:00 in Asia/Seoul");
+  expect(mergeWorkflow).toContain("actions: write");
+  expect(mergeWorkflow).toContain('gh workflow run "Deploy to Vercel"');
   expect(mergeWorkflow).not.toContain('cron: "*/10 * * * *"');
   expect(autoReleaseWorkflow).toContain("09:00/21:00 KST release windows");
 });
