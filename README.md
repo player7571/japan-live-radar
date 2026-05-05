@@ -80,7 +80,7 @@ Users can save interest alerts from the public detail panel. The browser stores 
 GitHub Actions is the long-running automation layer so Codex heartbeat runs do not need to rely on local full-disk or network permissions.
 
 - `CI`: typecheck, build, and Playwright smoke tests for PRs and pushes to `dev`/`main`.
-- `Deploy to Vercel`: validates `dev` preview builds and deploys `main` as production, then verifies production health. Automatic `main` deploys are skipped while open production deploy/health automation blockers exist so quota is preserved for the retry workflow.
+- `Deploy to Vercel`: deploys `main` as production, then verifies production health. It also supports manual `workflow_dispatch` preview validation when needed, but does not run automatically for every `dev` push so the Vercel free daily quota is preserved. Automatic `main` deploys are skipped while open production deploy/health automation blockers exist so quota is preserved for the retry workflow.
 - `Auto Release PR`: opens a `dev` to `main` release PR whenever `dev` changes.
 - `Merge Release PR`: merges the open `dev` to `main` release PR after all PR checks finish successfully.
 - `Retry Production Deploy`: when production deploy or health automation issues are open, retries the main production deploy every six hours and closes the blockers after health passes.
@@ -161,7 +161,7 @@ Normal development flow:
 
 If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, continue feature work on `dev` and avoid manual deploy retries until quota resets. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
 
-Vercel Git preview builds are skipped by `scripts/vercel-ignore-build.sh` so duplicate Vercel builds do not consume quota. GitHub Actions remains the source of truth for preview checks and uses `vercel build` with `vercel deploy --prebuilt` when a preview deployment is needed.
+Vercel Git preview builds are skipped by `scripts/vercel-ignore-build.sh` so duplicate Vercel builds do not consume quota. GitHub Actions `CI` remains the source of truth for `dev` and PR checks. Use the `Deploy to Vercel` manual workflow only when a real Vercel preview validation is worth spending quota; production deploys happen from `main` or the retry workflow after quota resets.
 
 ## Branch Rules
 
