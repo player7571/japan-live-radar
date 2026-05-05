@@ -25,6 +25,14 @@ import {
   validateProductionHealth,
 } from "../scripts/check-production-health";
 import {
+  eplusSearchUrls,
+  extractEplusPayload,
+  isLikelyEplusConcert,
+  normalizeEplusFetchTimeoutMs,
+  normalizeEplusRowLimit,
+  toEplusEventRow,
+} from "../scripts/sync-eplus";
+import {
   buildAppEventUrl,
   buildAlertDeliveryKey,
   buildAlertMessage,
@@ -1859,6 +1867,90 @@ test("keeps twice-weekly Ticketmaster sync runs healthy within the default stale
   });
 });
 
+test("maps eplus public search JSON to Korea-friendly event rows", () => {
+  const html = `
+    <script id="json" type="application/json">
+      {
+        "data": {
+          "record_list": [
+            {
+              "koenbi_term": "20260619",
+              "kaien_time": "1830",
+              "kanren_venue": {
+                "venue_name": "Zepp Shinjuku (TOKYO)",
+                "todofuken_name": "東京都"
+              },
+              "kanren_kogyo_sub": {
+                "kogyo_code": "live-001",
+                "kogyo_sub_code": "0001",
+                "kogyo_name_1": "Ado",
+                "kogyo_name_2": "SPECIAL LIVE 2026"
+              },
+              "koen_detail_url_pc": "/sf/detail/live001-P0030001P021001",
+              "kanren_uketsuke_koen_list": [
+                {
+                  "hambai_hoho_label": "先着",
+                  "uketsuke_name_pc": "一般発売",
+                  "uketsuke_start_datetime": "20260515100000",
+                  "uketsuke_end_datetime": "20260618180000",
+                  "uketsuke_status": "0",
+                  "shutsuensha": "Ado"
+                }
+              ]
+            },
+            {
+              "koenbi_term": "20260620",
+              "kaien_time": "1545",
+              "kanren_venue": {
+                "venue_name": "大崎ブライトコアホール",
+                "todofuken_name": "東京都"
+              },
+              "kanren_kogyo_sub": {
+                "kogyo_code": "talk-001",
+                "kogyo_sub_code": "0001",
+                "kogyo_name_1": "パンダドラゴン お話し会",
+                "kogyo_name_2": "8周年記念"
+              },
+              "koen_detail_url_pc": "/sf/detail/talk001-P0030001P021001",
+              "kanren_uketsuke_koen_list": []
+            }
+          ]
+        }
+      }
+    </script>
+  `;
+  const records = extractEplusPayload(html)?.data?.record_list ?? [];
+
+  expect(records).toHaveLength(2);
+  expect(isLikelyEplusConcert(records[0])).toBe(true);
+  expect(isLikelyEplusConcert(records[1])).toBe(false);
+  expect(toEplusEventRow(records[0], new Date("2026-05-05T00:00:00+09:00"))).toMatchObject({
+    source: "e+",
+    source_event_id: "https://eplus.jp/sf/detail/live001-P0030001P021001",
+    artist: "Ado SPECIAL LIVE 2026",
+    title: "Ado SPECIAL LIVE 2026",
+    city: "도쿄",
+    venue: "Zepp Shinjuku (TOKYO)",
+    date: "2026-06-19",
+    time: "18:30",
+    ticket_access: "일본 번호 필요",
+    sale_type: "선착 판매",
+    phone_required: true,
+    link: "https://eplus.jp/sf/detail/live001-P0030001P021001",
+  });
+  expect(toEplusEventRow(records[1], new Date("2026-05-05T00:00:00+09:00"))).toBeNull();
+  expect(normalizeEplusRowLimit(undefined)).toBe(40);
+  expect(normalizeEplusRowLimit("200")).toBe(120);
+  expect(normalizeEplusFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeEplusFetchTimeoutMs("1000")).toBe(3000);
+  expect(eplusSearchUrls()).toEqual(
+    expect.arrayContaining([
+      "https://eplus.jp/sf/search?keyword=J-POP",
+      "https://eplus.jp/sf/search?keyword=K-POP",
+    ]),
+  );
+});
+
 test("maps Ticketmaster events as Korea-friendly rows", () => {
   const row = toTicketmasterEventRow({
     id: "tm-korea-friendly",
@@ -2352,6 +2444,8 @@ test("keeps automatic CI and scheduled operations within Actions minute budget",
   expect(healthWorkflow).toContain("steps.blockers.outputs.skip_health != 'true'");
   expect(retryWorkflow).toContain('cron: "23 12 * * *"');
   expect(syncWorkflow).toContain('cron: "17 18 * * 1,4"');
+  expect(syncWorkflow).toContain("npm run sync:eplus");
+  expect(syncWorkflow).toContain("EPLUS_SYNC_KEYWORDS");
 });
 
 test("summarizes alert dispatch failures for workflow visibility", () => {

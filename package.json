@@ -13,6 +13,7 @@
     "health:production": "tsx scripts/check-production-health.ts",
     "alerts:dispatch": "tsx scripts/dispatch-alerts.ts",
     "sync:seed": "tsx scripts/sync-seed-events.ts",
+    "sync:eplus": "tsx scripts/sync-eplus.ts",
     "sync:ticketmaster": "tsx scripts/sync-ticketmaster.ts"
   },
   "dependencies": {
