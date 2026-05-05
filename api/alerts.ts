@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { calculateReminderAt } from "../src/lib/alertSchedule.js";
+import { calculateReminderAt, normalizeAlertLeadTimeHours } from "../src/lib/alertSchedule.js";
 
 type VercelRequest = {
   method?: string;
@@ -17,6 +17,7 @@ type AlertPayload = {
   event?: unknown;
   active?: unknown;
   contactEmail?: unknown;
+  remindBeforeHours?: unknown;
 };
 
 type EventSnapshot = {
@@ -75,15 +76,17 @@ export function normalizeAlertContactEmail(value: unknown) {
   return email.slice(0, 254);
 }
 
-export { calculateReminderAt };
+export { calculateReminderAt, normalizeAlertLeadTimeHours };
 
 export function buildAlertUpsertRow(input: {
   clientId: string;
   snapshot: EventSnapshot;
   active: boolean;
   contactEmail: string | null;
+  remindBeforeHours?: unknown;
   now?: Date;
 }) {
+  const remindBeforeHours = normalizeAlertLeadTimeHours(input.remindBeforeHours);
   return {
     client_id: input.clientId,
     event_key: eventKey(input.snapshot),
@@ -91,7 +94,8 @@ export function buildAlertUpsertRow(input: {
     status: input.active ? "active" : "cancelled",
     channel: input.contactEmail ? "email" : "browser",
     contact_email: input.contactEmail,
-    remind_at: input.active ? calculateReminderAt(input.snapshot, input.now) : null,
+    remind_before_hours: remindBeforeHours,
+    remind_at: input.active ? calculateReminderAt(input.snapshot, input.now, remindBeforeHours) : null,
     updated_at: (input.now ?? new Date()).toISOString(),
   };
 }
@@ -123,10 +127,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data, error } = await supabase
       .from("event_alerts")
       .upsert(
-        buildAlertUpsertRow({ clientId, snapshot, active, contactEmail }),
+        buildAlertUpsertRow({ clientId, snapshot, active, contactEmail, remindBeforeHours: body.remindBeforeHours }),
         { onConflict: "client_id,event_key" },
       )
-      .select("id,event_key,status,remind_at,updated_at")
+      .select("id,event_key,status,remind_at,remind_before_hours,updated_at")
       .single();
 
     if (missingAlertTable(error)) {

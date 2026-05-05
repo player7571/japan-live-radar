@@ -24,6 +24,7 @@ type DueAlert = {
   event_snapshot: EventSnapshot;
   contact_email?: string | null;
   remind_at: string;
+  remind_before_hours?: number | null;
 };
 
 type DueAlertResponse = {
@@ -94,6 +95,7 @@ export function buildAlertMessage(alert: DueAlert) {
   const appEventUrl = buildAppEventUrl(alert);
   const lines = [
     `알림 시간: ${alert.remind_at}`,
+    alert.remind_before_hours ? `알림 기준: 예매 시작 ${alert.remind_before_hours}시간 전` : null,
     alert.contact_email ? `수신처: ${alert.contact_email}` : null,
     `공연: ${eventLabel(event)}`,
     event.city || event.venue ? `장소: ${[event.city, event.venue].filter(Boolean).join(" / ")}` : null,
@@ -123,6 +125,7 @@ export function buildAlertWebhookPayload(alert: DueAlert) {
     saleType: alert.event_snapshot?.saleType ?? null,
     phoneRequired: alert.event_snapshot?.phoneRequired ?? null,
     remindAt: alert.remind_at,
+    remindBeforeHours: alert.remind_before_hours ?? null,
   };
 }
 
