@@ -760,7 +760,7 @@ test("formats Ticketmaster sale windows for alert parsing", () => {
     },
   });
 
-  expect(saleWindow).toBe("2026.06.02 11:00 - 2026.08.07 18:00");
+  expect(saleWindow).toBe("일반 판매: 2026.06.02 11:00 - 2026.08.07 18:00");
   expect(formatSaleWindow({ id: "tm-onsale", dates: { status: { code: "onsale" } } })).toBe("판매 중");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "판매 중" })).toBe("판매 중");
   expect(formatSaleWindow({ id: "tm-offsale", dates: { status: { code: "offsale" } } })).toBe("판매 종료");
@@ -776,6 +776,59 @@ test("formats Ticketmaster sale windows for alert parsing", () => {
       new Date("2026-05-04T00:00:00+09:00"),
     ),
   ).toBe(new Date("2026-06-02T08:00:00+09:00").toISOString());
+});
+
+test("preserves Ticketmaster presale windows before public sale windows", () => {
+  const event = {
+    id: "tm-presale",
+    name: "YOASOBI Arena Tour",
+    url: "https://www.ticketmaster.com/event/tm-presale",
+    dates: { start: { localDate: "2026-09-20", localTime: "18:00:00" } },
+    sales: {
+      presales: [
+        {
+          name: "Fan Club Presale",
+          startDateTime: "2026-06-01T03:00:00Z",
+          endDateTime: "2026-06-05T14:59:00Z",
+        },
+        {
+          name: "Venue Presale",
+          startDateTime: "2026-05-20T01:00:00Z",
+          endDateTime: "2026-05-22T14:59:00Z",
+        },
+      ],
+      public: {
+        startDateTime: "2026-07-01T01:00:00Z",
+        endDateTime: "2026-09-19T09:00:00Z",
+      },
+    },
+    classifications: [{ segment: { name: "Music" }, genre: { name: "J-Pop" } }],
+    _embedded: {
+      attractions: [{ name: "YOASOBI" }],
+      venues: [{ name: "Saitama Super Arena", city: { name: "Saitama" } }],
+    },
+  };
+
+  expect(formatSaleWindow(event)).toBe(
+    "선예매 - Venue Presale: 2026.05.20 10:00 - 2026.05.22 23:59 / 선예매 - Fan Club Presale: 2026.06.01 12:00 - 2026.06.05 23:59 / 일반 판매: 2026.07.01 10:00 - 2026.09.19 18:00",
+  );
+
+  const row = toTicketmasterEventRow(event);
+  expect(row).toMatchObject({
+    sale_type: "선착 판매",
+    sale_window:
+      "선예매 - Venue Presale: 2026.05.20 10:00 - 2026.05.22 23:59 / 선예매 - Fan Club Presale: 2026.06.01 12:00 - 2026.06.05 23:59 / 일반 판매: 2026.07.01 10:00 - 2026.09.19 18:00",
+  });
+  expect(
+    calculateReminderAt(
+      {
+        id: "tm-presale",
+        date: "2026-09-20",
+        saleWindow: row?.sale_window ?? "",
+      },
+      new Date("2026-05-01T00:00:00+09:00"),
+    ),
+  ).toBe(new Date("2026-05-20T07:00:00+09:00").toISOString());
 });
 
 test("queries Ticketmaster by music classification as well as keywords", () => {

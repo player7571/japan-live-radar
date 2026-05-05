@@ -37,6 +37,7 @@ npx playwright test
 - Admin event entry, candidate approval, URL import, search candidates, quality stats, and alert subscriptions live under `api/`.
 - Stable fallback data is synced with `npm run sync:seed`.
 - Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
+- Ticketmaster public sale and presale windows are preserved in Korean-facing sale schedule text so reminders can target the earliest available ticket window.
 - Supabase migrations run with `npm run db:migrate` or the manual `Supabase Migrate` workflow.
 
 ## Admin Operations
@@ -53,7 +54,7 @@ Open `/#admin` and enter `ADMIN_API_TOKEN`.
 
 Users can save interest alerts from the public detail panel. The browser stores the local selection immediately, and `/api/alerts` upserts the server-side reminder when Supabase is configured.
 
-- Reminder timing prefers the sale-window start and schedules three hours before sales open. If the sale window is missing, it falls back to seven days before the event date.
+- Reminder timing prefers the first sale-window start, including Ticketmaster presales, and schedules three hours before sales open. If the sale window is missing, it falls back to seven days before the event date.
 - Users can add an alert email in the saved-alerts panel. The email is stored with each active server-side alert and sent to the delivery webhook as `contactEmail`.
 - Alert messages include an `appUrl` detail link such as `https://japan-live-radar.vercel.app/?event=<event-id>` so recipients can jump back to the matching concert detail.
 - `Dispatch Due Alerts` runs every 15 minutes and reads due rows from `/api/admin-alerts`.

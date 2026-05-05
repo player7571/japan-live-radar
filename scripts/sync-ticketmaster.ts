@@ -29,6 +29,11 @@ type TicketmasterEvent = {
       startDateTime?: string;
       endDateTime?: string;
     };
+    presales?: Array<{
+      name?: string;
+      startDateTime?: string;
+      endDateTime?: string;
+    }>;
   };
   priceRanges?: Array<{
     min?: number;
@@ -213,12 +218,45 @@ function formatTicketmasterTime(value?: string) {
 }
 
 export function formatSaleWindow(event: TicketmasterEvent) {
-  const start = event.sales?.public?.startDateTime;
-  const end = event.sales?.public?.endDateTime;
-  if (!start && !end) return formatTicketmasterStatus(event);
+  const windows = [
+    ...ticketmasterPresaleWindows(event),
+    ticketmasterSaleWindow("일반 판매", event.sales?.public),
+  ].filter(Boolean);
+
+  if (windows.length === 0) return formatTicketmasterStatus(event);
+  return windows.join(" / ");
+}
+
+function ticketmasterSaleWindow(
+  label: string,
+  sale: { startDateTime?: string; endDateTime?: string } | undefined,
+) {
+  const start = sale?.startDateTime;
+  const end = sale?.endDateTime;
+  if (!start && !end) return null;
   const startText = start ? formatTicketmasterDateTime(start) ?? "시작일 확인 필요" : "시작일 확인 필요";
   const endText = end ? formatTicketmasterDateTime(end) ?? "종료일 확인 필요" : "종료일 확인 필요";
-  return `${startText} - ${endText}`;
+  return `${label}: ${startText} - ${endText}`;
+}
+
+function ticketmasterPresaleWindows(event: TicketmasterEvent) {
+  return [...(event.sales?.presales ?? [])]
+    .sort((left, right) => {
+      const leftTime = left.startDateTime ? new Date(left.startDateTime).getTime() : Number.POSITIVE_INFINITY;
+      const rightTime = right.startDateTime ? new Date(right.startDateTime).getTime() : Number.POSITIVE_INFINITY;
+      return leftTime - rightTime;
+    })
+    .map((presale) => ticketmasterSaleWindow(ticketmasterPresaleLabel(presale.name), presale))
+    .filter(Boolean);
+}
+
+function ticketmasterPresaleLabel(name: string | undefined) {
+  const normalized = name?.trim();
+  return normalized ? `선예매 - ${normalized}` : "선예매";
+}
+
+function ticketmasterSaleType(event: TicketmasterEvent) {
+  return ticketmasterPresaleWindows(event).length > 0 ? "선착 판매" : "일반 판매";
 }
 
 function formatTicketmasterStatus(event: TicketmasterEvent) {
@@ -424,7 +462,7 @@ export function toTicketmasterEventRow(event: TicketmasterEvent): EventUpsertRow
       null,
     genre,
     ticket_access: "한국 구매 가능",
-    sale_type: "일반 판매",
+    sale_type: ticketmasterSaleType(event),
     sale_window: formatSaleWindow(event),
     price: formatPrice(event),
     phone_required: false,
