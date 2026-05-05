@@ -102,6 +102,7 @@ type AdminStats = {
     skippedCount: number;
     message: string | null;
     finishedAt: string | null;
+    ageHours: number | null;
   }> | null;
   syncHealth?: {
     status: "healthy" | "stale" | "error" | "missing";
@@ -153,7 +154,8 @@ function formatAdminSyncRun(item: NonNullable<AdminStats["syncRuns"]>[number]) {
           minute: "2-digit",
         })
       : "시간 미정";
-  return `${item.source} · ${status} · ${item.upsertedCount}/${item.fetchedCount} · ${finishedText}`;
+  const ageText = item.ageHours === null ? "경과 확인 필요" : `${item.ageHours}시간 전`;
+  return `${item.source} · ${status} · ${item.upsertedCount}/${item.fetchedCount} · ${ageText} · ${finishedText}`;
 }
 
 function formatAdminSyncHealth(syncHealth: AdminStats["syncHealth"]) {
