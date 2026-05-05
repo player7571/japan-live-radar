@@ -1319,16 +1319,25 @@ function AdminPage() {
         });
         const candidatePayload = (await candidateResponse.json()) as {
           candidates?: CandidateApiItem[];
+          skippedCandidates?: CandidateApiItem[];
           configured?: boolean;
         };
         if (candidateResponse.ok && candidatePayload.configured !== false && candidatePayload.candidates) {
-          finalCandidates = candidatePayload.candidates.map(toCandidate);
+          finalCandidates = candidatePayload.candidates
+            .filter((candidate) => candidate.status === "pending")
+            .map(toCandidate);
           setCandidateStatus("ready");
         } else {
           setCandidateStatus("local");
         }
       } catch {
         setCandidateStatus("local");
+      }
+
+      if (finalCandidates.length === 0) {
+        setImportStatus("ready");
+        setImportMessage("이미 승인/거절된 URL이라 새 후보를 추가하지 않았어요.");
+        return;
       }
 
       setImportCandidates((current) => {
@@ -1424,23 +1433,30 @@ function AdminPage() {
       const payload = (await response.json()) as {
         configured?: boolean;
         candidates?: CandidateApiItem[];
+        skippedCandidates?: CandidateApiItem[];
         error?: string;
       };
       if (!response.ok || !payload.candidates) {
         throw new Error(payload.error ?? "검색 후보 생성 실패");
       }
 
-      const nextCandidates = payload.candidates.map((candidate) => ({
-        ...toCandidate(candidate),
-        storage: payload.configured === false ? "local" as const : "db" as const,
-      }));
+      const nextCandidates = payload.candidates
+        .filter((candidate) => candidate.status === "pending")
+        .map((candidate) => ({
+          ...toCandidate(candidate),
+          storage: payload.configured === false ? "local" as const : "db" as const,
+        }));
       setImportCandidates((current) => {
         const existingIds = new Set(nextCandidates.map((candidate) => candidate.id));
         return [...nextCandidates, ...current.filter((candidate) => !existingIds.has(candidate.id))].slice(0, 50);
       });
       setCandidateStatus(payload.configured === false ? "local" : "ready");
       setSearchStatus("ready");
-      setSearchMessage(`${nextCandidates.length}개 검색 후보를 만들었어요.`);
+      setSearchMessage(
+        nextCandidates.length > 0
+          ? `${nextCandidates.length}개 검색 후보를 만들었어요.`
+          : "이미 승인/거절된 검색 후보라 새로 추가하지 않았어요.",
+      );
     } catch (error) {
       setSearchStatus("error");
       setSearchMessage(error instanceof Error ? error.message : "검색 후보 생성 실패");

@@ -38,6 +38,7 @@ import { rowToEvent } from "../src/lib/eventRows";
 import { serverReadKey } from "../src/lib/supabaseServer";
 import { seedEvents } from "../src/data/seedEvents";
 import { buildAlertEventSnapshot } from "../src/lib/alertSnapshot";
+import { splitCandidateRowsByExistingStatus } from "../src/lib/candidateDedupe";
 import { currentTokyoDay, getSaleStatus } from "../src/lib/saleStatus";
 
 test("extracts Japanese ticket page sales cues", () => {
@@ -1789,6 +1790,29 @@ test("uses source URLs for imported admin event ids", () => {
   expect(row.source_event_id).toContain("t-pia-jp");
 });
 
+test("keeps approved or rejected candidate URLs out of pending upserts", () => {
+  const rows = [
+    { source_url: "https://t.pia.jp/new", status: "pending" as const },
+    { source_url: "https://t.pia.jp/pending", status: "pending" as const },
+    { source_url: "https://t.pia.jp/approved", status: "pending" as const },
+    { source_url: "https://t.pia.jp/rejected", status: "pending" as const },
+    { source_url: "https://t.pia.jp/approved", status: "pending" as const },
+  ];
+  const existingRows = [
+    { source_url: "https://t.pia.jp/pending", status: "pending" as const },
+    { source_url: "https://t.pia.jp/approved", status: "approved" as const },
+    { source_url: "https://t.pia.jp/rejected", status: "rejected" as const },
+  ];
+
+  const result = splitCandidateRowsByExistingStatus(rows, existingRows);
+
+  expect(result.upsertRows.map((row) => row.source_url)).toEqual([
+    "https://t.pia.jp/new",
+    "https://t.pia.jp/pending",
+  ]);
+  expect(result.skippedRows.map((row) => row.status)).toEqual(["approved", "rejected"]);
+});
+
 test("searches concerts and opens the detail panel", async ({ page }) => {
   await page.goto("/");
 
@@ -2165,6 +2189,66 @@ test("imports an admin draft from a URL", async ({ page }) => {
     "href",
     "https://t.pia.jp/example",
   );
+});
+
+test("does not requeue already approved imported URL candidates", async ({ page }) => {
+  await page.route("**/api/import-url", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        results: [
+          {
+            url: "https://t.pia.jp/approved",
+            draft: {
+              artist: "Ado",
+              title: "Ado Arena Live",
+              city: "도쿄",
+              venue: "Tokyo Dome",
+              date: "2026-11-02",
+              source: "Ticket Pia",
+              link: "https://t.pia.jp/approved",
+            },
+          },
+        ],
+      }),
+    });
+  });
+  await page.route("**/api/admin-candidates", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        configured: true,
+        candidates: [],
+        skippedCandidates: [
+          {
+            id: "candidate-approved",
+            source: "Ticket Pia",
+            sourceUrl: "https://t.pia.jp/approved",
+            status: "approved",
+            createdAt: "2026-05-04T00:00:00Z",
+            draft: {
+              artist: "Ado",
+              title: "Ado Arena Live",
+              city: "도쿄",
+              venue: "Tokyo Dome",
+              date: "2026-11-02",
+              source: "Ticket Pia",
+              link: "https://t.pia.jp/approved",
+            },
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.goto("/#admin");
+
+  await page.getByLabel("관리자 토큰").fill("test-token");
+  await page.getByLabel("URL로 초안 가져오기").fill("https://t.pia.jp/approved");
+  await page.getByRole("button", { name: "가져오기" }).click();
+
+  await expect(page.getByText("이미 승인/거절된 URL이라 새 후보를 추가하지 않았어요.")).toBeVisible();
+  await expect(page.getByLabel("URL 후보").getByText("Ado", { exact: true })).toHaveCount(0);
 });
 
 test("approves a database-backed import candidate", async ({ page }) => {
