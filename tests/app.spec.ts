@@ -970,6 +970,57 @@ test("extracts array-based JSON-LD event data", () => {
   expect(draft.image).toBe("https://example.com/king-gnu.jpg");
 });
 
+test("extracts MusicEvent JSON-LD pages as concerts", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>宇多田ヒカル LIVE｜チケットぴあ</title>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": ["MusicEvent", "Event"],
+              "name": "宇多田ヒカル SCIENCE FICTION TOUR",
+              "startDate": "2026-10-18T18:30:00+09:00",
+              "performer": { "@type": "MusicGroup", "name": "宇多田ヒカル" },
+              "location": {
+                "@type": "Place",
+                "name": "日本武道館",
+                "address": {
+                  "@type": "PostalAddress",
+                  "addressLocality": "千代田区",
+                  "addressRegion": "東京都"
+                }
+              },
+              "offers": {
+                "@type": "Offer",
+                "price": "12800",
+                "validFrom": "2026-07-01T12:00:00+09:00",
+                "url": "https://t.pia.jp/pia/event/event.do?eventCd=2600018"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <p>チケットは電子チケットでSMS認証が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600018"),
+  );
+
+  expect(draft.artist).toBe("宇多田ヒカル");
+  expect(draft.title).toBe("宇多田ヒカル SCIENCE FICTION TOUR");
+  expect(draft.city).toBe("도쿄");
+  expect(draft.venue).toBe("日本武道館");
+  expect(draft.date).toBe("2026-10-18");
+  expect(draft.time).toBe("18:30");
+  expect(draft.price).toBe("¥12,800");
+  expect(draft.saleWindow).toBe("2026-07-01T12:00:00+09:00");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+  expect(draft.link).toBe("https://t.pia.jp/pia/event/event.do?eventCd=2600018");
+});
+
 test("extracts JSON-LD offer availability start and end windows", () => {
   const draft = extractDraft(
     `
