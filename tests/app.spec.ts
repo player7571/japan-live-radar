@@ -1242,6 +1242,59 @@ test("retries transient alert webhook failures before marking delivery failed", 
   expect(sentPayloads[0]).toMatchObject({ alertId: "alert-retry", eventKey: "ado-2026" });
 });
 
+test("retries transient alert webhook network errors", async () => {
+  let attempts = 0;
+
+  await sendWebhook(
+    {
+      id: "alert-network-retry",
+      event_key: "ado-2026",
+      remind_at: "2026-05-10T00:00:00.000Z",
+      event_snapshot: { artist: "Ado" },
+    },
+    {
+      webhookUrl: "https://example.com/webhook",
+      attempts: 3,
+      retryDelayMs: 0,
+      fetchImpl: async () => {
+        attempts += 1;
+        if (attempts < 3) {
+          throw new Error("socket hang up");
+        }
+        return new Response("ok", { status: 200 });
+      },
+    },
+  );
+
+  expect(attempts).toBe(3);
+});
+
+test("reports webhook network errors after retry attempts are exhausted", async () => {
+  let attempts = 0;
+
+  await expect(
+    sendWebhook(
+      {
+        id: "alert-network-down",
+        event_key: "ado-2026",
+        remind_at: "2026-05-10T00:00:00.000Z",
+        event_snapshot: { artist: "Ado" },
+      },
+      {
+        webhookUrl: "https://example.com/webhook",
+        attempts: 2,
+        retryDelayMs: 0,
+        fetchImpl: async () => {
+          attempts += 1;
+          throw new Error("network unreachable");
+        },
+      },
+    ),
+  ).rejects.toThrow("Webhook network error after 2 attempt(s): network unreachable");
+
+  expect(attempts).toBe(2);
+});
+
 test("does not retry non-retryable alert webhook failures", async () => {
   let attempts = 0;
 
