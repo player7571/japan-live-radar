@@ -14,7 +14,7 @@ create table if not exists public.events (
   ticket_access text not null default '확인 필요'
     check (ticket_access in ('한국 구매 가능', '일본 번호 필요', '확인 필요')),
   sale_type text not null default '일반 판매'
-    check (sale_type in ('추첨 접수', '일반 판매', '선착 판매', '해외 판매')),
+    check (sale_type in ('추첨 접수', '일반 판매', '선착 판매', '해외 판매', '리세일')),
   sale_window text,
   price text,
   phone_required boolean not null default false,

@@ -43,7 +43,7 @@ type AdminEventDraft = {
   genre: string;
   source: string;
   ticketAccess: TicketAccess;
-  saleType: "추첨 접수" | "일반 판매" | "선착 판매" | "해외 판매";
+  saleType: "추첨 접수" | "일반 판매" | "선착 판매" | "해외 판매" | "리세일";
   saleWindow: string;
   price: string;
   phoneRequired: boolean;
@@ -1514,6 +1514,7 @@ function AdminPage() {
               <option>일반 판매</option>
               <option>선착 판매</option>
               <option>해외 판매</option>
+              <option>리세일</option>
             </select>
           </label>
           <label className="admin-field">

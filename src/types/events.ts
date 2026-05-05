@@ -1,6 +1,6 @@
 export type City = string;
 export type TicketAccess = "한국 구매 가능" | "일본 번호 필요" | "확인 필요";
-export type SaleType = "추첨 접수" | "일반 판매" | "선착 판매" | "해외 판매";
+export type SaleType = "추첨 접수" | "일반 판매" | "선착 판매" | "해외 판매" | "리세일";
 
 export type Event = {
   id: string;
