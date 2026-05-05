@@ -933,6 +933,47 @@ test("extracts JSON-LD aggregate and fallback offers", () => {
   expect(draft.saleWindow).toBe("2026-06-01T12:00:00+09:00");
 });
 
+test("prefers JSON-LD offer ticket URLs when source pages have no ticket links", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Event",
+              "name": "Ado Special Live",
+              "startDate": "2026-12-12T18:00:00+09:00",
+              "performer": { "@type": "MusicGroup", "name": "Ado" },
+              "location": {
+                "@type": "Place",
+                "name": "Kアリーナ横浜",
+                "address": "神奈川県横浜市"
+              },
+              "offers": {
+                "@type": "Offer",
+                "url": "https://l-tike.com/concert/ado-special-live/",
+                "validFrom": "2026-08-01T12:00:00+09:00",
+                "price": "11000"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <p>チケット受付の詳細は販売ページをご確認ください。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://www.universal-music.co.jp/ado/news/special-live/"),
+  );
+
+  expect(draft.artist).toBe("Ado");
+  expect(draft.link).toBe("https://l-tike.com/concert/ado-special-live/");
+  expect(draft.source).toBe("Lawson Ticket");
+  expect(draft.saleWindow).toBe("2026-08-01T12:00:00+09:00");
+  expect(draft.price).toBe("¥11,000");
+});
+
 test("calculates alert reminders from sale windows and event dates", () => {
   const now = new Date("2026-05-04T00:00:00+09:00");
 
