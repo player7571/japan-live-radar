@@ -22,6 +22,7 @@ type DueAlert = {
   id: string;
   event_key: string;
   event_snapshot: EventSnapshot;
+  channel?: "browser" | "email" | string | null;
   contact_email?: string | null;
   remind_at: string;
   remind_before_hours?: number | null;
@@ -117,6 +118,7 @@ export function buildAlertWebhookPayload(alert: DueAlert) {
     deliveryKey: buildAlertDeliveryKey(alert),
     alertId: alert.id,
     eventKey: alert.event_key,
+    channel: alert.channel ?? null,
     contactEmail: alert.contact_email ?? null,
     appUrl: buildAppEventUrl(alert),
     event: alert.event_snapshot,
@@ -177,10 +179,16 @@ export async function sendWebhook(alert: DueAlert, options: WebhookSendOptions =
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     completedAttempts = attempt;
     let response: Response;
+    const deliveryKey = buildAlertDeliveryKey(alert);
     try {
       response = await fetchImpl(webhookUrl, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "x-japan-live-radar-alert-id": alert.id,
+          "x-japan-live-radar-delivery-key": deliveryKey,
+          "x-japan-live-radar-event-key": alert.event_key,
+        },
         body: JSON.stringify(buildAlertWebhookPayload(alert)),
         signal: AbortSignal.timeout(timeoutMs),
       });
