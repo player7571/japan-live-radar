@@ -612,6 +612,45 @@ test("detects additional Japanese concert cities from imported pages", () => {
   ).toBe("히로시마");
 });
 
+test("detects imported cities from prefecture-only structured addresses", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>SEKAI NO OWARI ARENA</title>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Event",
+              "name": "SEKAI NO OWARI ARENA",
+              "startDate": "2026-11-03T18:00:00+09:00",
+              "location": {
+                "@type": "Place",
+                "name": "Aichi Sky Expo",
+                "address": {
+                  "@type": "PostalAddress",
+                  "addressRegion": "Aichi"
+                }
+              },
+              "offers": {
+                "@type": "Offer",
+                "url": "https://ticket.rakuten.co.jp/music/jpop/sekainoowari2026/"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <p>楽天チケットで販売。電子チケットはSMS認証が必要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://artist.example.com/live/sekainoowari"),
+  );
+
+  expect(draft.city).toBe("나고야");
+  expect(draft.source).toBe("Rakuten Ticket");
+});
+
 test("detects city from major venue aliases when city text is absent", () => {
   expect(
     extractDraft(
