@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { AdminEventInput } from "../src/lib/adminEventRows.js";
 import { toEventRow } from "../src/lib/adminEventRows.js";
+import { splitCandidateRowsByExistingStatus } from "../src/lib/candidateDedupe.js";
 
 type VercelRequest = {
   method?: string;
@@ -149,10 +150,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const rows = inputs.map(normalizeCandidateInput);
-      const { data, error } = await supabase
-        .from("event_candidates")
-        .upsert(rows, { onConflict: "source_url" })
-        .select("id,source,source_url,draft,status,rejection_reason,approved_event_id,created_at,updated_at");
+      const sourceUrls = Array.from(new Set(rows.map((row) => row.source_url).filter(Boolean))) as string[];
+      let existingRows: CandidateRow[] = [];
+
+      if (sourceUrls.length > 0) {
+        const { data: existingData, error: existingError } = await supabase
+          .from("event_candidates")
+          .select("id,source,source_url,draft,status,rejection_reason,approved_event_id,created_at,updated_at")
+          .in("source_url", sourceUrls);
+
+        if (missingCandidateTable(existingError)) {
+          res.status(503).json({ configured: false, error: "Candidate table is not ready" });
+          return;
+        }
+        if (existingError) {
+          res.status(500).json({ error: existingError.message });
+          return;
+        }
+
+        existingRows = (existingData ?? []) as CandidateRow[];
+      }
+
+      const { upsertRows, skippedRows } = splitCandidateRowsByExistingStatus(rows, existingRows);
+      const { data, error } = upsertRows.length > 0
+        ? await supabase
+          .from("event_candidates")
+          .upsert(upsertRows, { onConflict: "source_url" })
+          .select("id,source,source_url,draft,status,rejection_reason,approved_event_id,created_at,updated_at")
+        : { data: [], error: null };
 
       if (missingCandidateTable(error)) {
         res.status(503).json({ configured: false, error: "Candidate table is not ready" });
@@ -167,6 +192,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ok: true,
         configured: true,
         candidates: ((data ?? []) as CandidateRow[]).map(toPublicCandidate),
+        skippedCandidates: skippedRows.map(toPublicCandidate),
       });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Invalid request" });
