@@ -92,6 +92,7 @@ const ticketmasterApiKey = process.env.TICKETMASTER_API_KEY;
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ticketmasterPageLimit = normalizeTicketmasterPageLimit(process.env.TICKETMASTER_PAGE_LIMIT);
+const ticketmasterFetchTimeoutMs = normalizeTicketmasterFetchTimeoutMs(process.env.TICKETMASTER_FETCH_TIMEOUT_MS);
 export const searchProfiles = [
   { label: "all-jp-events", params: {} },
   { label: "music-classification", params: { classificationName: "music" } },
@@ -112,6 +113,12 @@ export function normalizeTicketmasterPageLimit(value: string | undefined) {
   const parsed = value ? Number(value) : Number.NaN;
   if (!Number.isFinite(parsed)) return 2;
   return Math.min(Math.max(Math.trunc(parsed), 1), 5);
+}
+
+export function normalizeTicketmasterFetchTimeoutMs(value: string | undefined) {
+  const parsed = value ? Number(value) : Number.NaN;
+  if (!Number.isFinite(parsed)) return 12_000;
+  return Math.min(Math.max(Math.trunc(parsed), 3_000), 30_000);
 }
 
 export function nextTicketmasterPages(
@@ -156,7 +163,9 @@ async function fetchTicketmasterPage(
   apiKey: string,
   pageNumber = 0,
 ) {
-  const response = await fetch(ticketmasterEndpoint(profile, apiKey, pageNumber));
+  const response = await fetch(ticketmasterEndpoint(profile, apiKey, pageNumber), {
+    signal: AbortSignal.timeout(ticketmasterFetchTimeoutMs),
+  });
   if (response.status === 429) {
     console.warn(`Skipping ${profile.label}: Ticketmaster rate limit`);
     return null;

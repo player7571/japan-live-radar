@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: "17 18 * * *"
 
+concurrency:
+  group: sync-ticketmaster-events
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -38,6 +42,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
           TICKETMASTER_PAGE_LIMIT: ${{ vars.TICKETMASTER_PAGE_LIMIT || '2' }}
+          TICKETMASTER_FETCH_TIMEOUT_MS: ${{ vars.TICKETMASTER_FETCH_TIMEOUT_MS || '12000' }}
 
       - name: Create issue on failure
         if: failure()
