@@ -1299,6 +1299,18 @@ test("queries Ticketmaster by music classification as well as keywords", () => {
         label: "music-classification",
         params: { classificationName: "music" },
       }),
+      expect.objectContaining({
+        label: "japanese-live-keyword",
+        params: { keyword: "ライブ" },
+      }),
+      expect.objectContaining({
+        label: "japanese-concert-keyword",
+        params: { keyword: "コンサート" },
+      }),
+      expect.objectContaining({
+        label: "kpop-keyword",
+        params: { keyword: "K-POP" },
+      }),
     ]),
   );
 });

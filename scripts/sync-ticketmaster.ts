@@ -100,6 +100,10 @@ export const searchProfiles = [
   { label: "concert-keyword", params: { keyword: "concert" } },
   { label: "live-keyword", params: { keyword: "live" } },
   { label: "festival-keyword", params: { keyword: "festival" } },
+  { label: "japanese-live-keyword", params: { keyword: "ライブ" } },
+  { label: "japanese-concert-keyword", params: { keyword: "コンサート" } },
+  { label: "jpop-keyword", params: { keyword: "J-POP" } },
+  { label: "kpop-keyword", params: { keyword: "K-POP" } },
 ] as const;
 
 function requireEnv(name: string, value: string | undefined): string {
