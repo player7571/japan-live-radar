@@ -14,7 +14,7 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
@@ -37,7 +37,7 @@ jobs:
 
       - name: Install Playwright Chromium
         timeout-minutes: 8
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Typecheck
         run: npm run typecheck
