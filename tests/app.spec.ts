@@ -1837,6 +1837,15 @@ test("defines an installable PWA app shell", () => {
   expect(registrationSource).toContain('navigator.serviceWorker.register("/sw.js")');
 });
 
+test("keeps automatic Vercel deploys off dev pushes to preserve quota", () => {
+  const deployWorkflow = readFileSync(".github/workflows/deploy-vercel.yml", "utf8");
+  const pushBlock = deployWorkflow.match(/push:\n\s+branches:\n(?<branches>(?:\s+- .+\n)+)/)?.groups?.branches ?? "";
+
+  expect(pushBlock).toContain("- main");
+  expect(pushBlock).not.toContain("- dev");
+  expect(deployWorkflow).toContain("workflow_dispatch:");
+});
+
 test("summarizes alert dispatch failures for workflow visibility", () => {
   expect(summarizeDispatchFailures([])).toBeNull();
   expect(summarizeDispatchFailures(["alert-1: ALERT_WEBHOOK_URL is not configured"])).toBe(
