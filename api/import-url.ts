@@ -602,6 +602,15 @@ function firstJsonString(value: unknown) {
   return firstString(value);
 }
 
+function firstJsonImageUrl(value: unknown): string {
+  if (Array.isArray(value)) return firstString(...value.map(firstJsonImageUrl));
+  if (value && typeof value === "object") {
+    const image = value as Record<string, unknown>;
+    return firstString(image.url, image.contentUrl, image["@id"]);
+  }
+  return firstString(value);
+}
+
 function normalizeSchemaPriceRange(lowPrice: unknown, highPrice: unknown) {
   const low = firstString(lowPrice);
   const high = firstString(highPrice);
@@ -868,8 +877,7 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
       pageText,
     ),
   );
-  const imageValue = eventJson?.image;
-  const image = firstJsonString(imageValue);
+  const image = firstJsonImageUrl(eventJson?.image);
   const venue = firstString(
     location.name,
     labeledValue($, rawBodyText, ["会場", "会場名", "場所", "Venue", "公演会場"]),

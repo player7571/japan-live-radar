@@ -793,7 +793,7 @@ test("extracts array-based JSON-LD event data", () => {
                   "validThrough": "2026-06-20T23:59:00+09:00"
                 }
               ],
-              "image": ["https://example.com/king-gnu.jpg"]
+              "image": [{ "@type": "ImageObject", "url": "https://example.com/king-gnu.jpg" }]
             }
           </script>
         </head>
