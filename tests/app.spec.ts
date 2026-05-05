@@ -2646,6 +2646,8 @@ test("keeps automatic CI and scheduled operations within Actions minute budget",
   expect(dispatchWorkflow.indexOf("Check due alert queue")).toBeLessThan(dispatchWorkflow.indexOf("Set up Node"));
   expect(dispatchWorkflow).toContain("No due alerts; skipping Node setup.");
   expect(dispatchWorkflow).toContain("steps.due_alerts.outputs.should_dispatch == 'true'");
+  expect(dispatchWorkflow).toContain("--max-time");
+  expect(dispatchWorkflow).toContain("ALERT_QUEUE_MAX_TIME_SECONDS");
   expect(healthWorkflow).toContain('cron: "7 0 * * *"');
   expect(healthWorkflow.indexOf("Check production health blockers")).toBeLessThan(healthWorkflow.indexOf("Set up Node"));
   expect(healthWorkflow).toContain("Skip blocked scheduled health check");
