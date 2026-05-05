@@ -451,12 +451,16 @@ function postgrestStringList(values: string[]) {
   return `(${values.map((value) => `"${value.replaceAll('"', '\\"')}"`).join(",")})`;
 }
 
+export function shouldDeleteStaleTicketmasterRows(currentRowCount: number, skippedProfiles: string[]) {
+  return currentRowCount > 0 && skippedProfiles.length === 0;
+}
+
 async function deleteStaleTicketmasterRows(
   supabase: EventsSupabaseClient,
   currentRows: EventUpsertRow[],
   skippedProfiles: string[],
 ) {
-  if (skippedProfiles.length > 0) return 0;
+  if (!shouldDeleteStaleTicketmasterRows(currentRows.length, skippedProfiles)) return 0;
 
   const query = supabase.from("events").delete({ count: "exact" }).eq("source", "Ticketmaster");
   const { error, count } =
@@ -553,20 +557,19 @@ async function main() {
 
   if (rows.length === 0) {
     const staleDeletedCount = await deleteStaleTicketmasterRows(supabase, rows, skippedProfiles);
+    const message =
+      skippedProfiles.length > 0
+        ? `No usable dated events. Rate-limited profiles: ${skippedProfiles.join(", ")}.`
+        : "No concert-like Ticketmaster JP events were found. Preserved existing Ticketmaster rows because this sync produced zero usable rows.";
     await recordSyncRun(supabase, {
       source: "Ticketmaster",
       status: "success",
       fetchedCount: collected.size,
       skippedCount,
-      message:
-        skippedProfiles.length > 0
-          ? `No usable dated events. Rate-limited profiles: ${skippedProfiles.join(", ")}.`
-          : `No concert-like Ticketmaster JP events were found. Removed ${staleDeletedCount} stale Ticketmaster rows.`,
+      message,
       startedAt,
     });
-    console.log(
-      `No concert-like Ticketmaster events found after ${searchProfiles.length} JP searches. Removed ${staleDeletedCount} stale rows.`,
-    );
+    console.log(`${message} Removed ${staleDeletedCount} stale rows.`);
     return;
   }
 
