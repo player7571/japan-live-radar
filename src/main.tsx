@@ -1688,6 +1688,10 @@ function AdminPage() {
               <button className="secondary-button" type="button" onClick={() => approveCandidate(candidate)}>
                 {candidate.storage === "db" && candidateReadyForApproval(candidate) ? "승인 저장" : "초안 적용"}
               </button>
+              <a className="secondary-button source-link" href={candidate.url} target="_blank" rel="noreferrer">
+                원본 열기
+                <ExternalLink size={16} />
+              </a>
               <button className="icon-button" type="button" aria-label="후보 제외" onClick={() => rejectCandidate(candidate)}>
                 <X size={17} />
               </button>
