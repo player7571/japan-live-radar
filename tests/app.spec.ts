@@ -1455,6 +1455,7 @@ test("builds alert webhook payloads with Korean context and contact email", () =
   const alert = {
     id: "alert-1",
     event_key: "ado-2026",
+    channel: "email",
     contact_email: "fan@example.com",
     remind_at: "2026-05-10T00:00:00.000Z",
     remind_before_hours: 24,
@@ -1495,6 +1496,7 @@ test("builds alert webhook payloads with Korean context and contact email", () =
     deliveryKey: "alert-1:ado-2026:2026-05-10T00:00:00.000Z",
     alertId: "alert-1",
     eventKey: "ado-2026",
+    channel: "email",
     contactEmail: "fan@example.com",
     appUrl: "https://japan-live-radar.vercel.app/?event=seed-ado-yokohama-2026-07-21",
     source: "Ticket Pia",
@@ -1635,6 +1637,11 @@ test("retries transient alert webhook failures before marking delivery failed", 
       retryDelayMs: 0,
       fetchImpl: async (_url, init) => {
         sentPayloads.push(JSON.parse(String(init?.body)));
+        expect(init?.headers).toMatchObject({
+          "x-japan-live-radar-alert-id": "alert-retry",
+          "x-japan-live-radar-delivery-key": "alert-retry:ado-2026:2026-05-10T00:00:00.000Z",
+          "x-japan-live-radar-event-key": "ado-2026",
+        });
         return new Response("ok", { status: statuses.shift() ?? 200 });
       },
     },
