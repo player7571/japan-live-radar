@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { Client } from "pg";
 
-const migrations = [
+export const migrationFiles = [
   "20260504163000_create_events.sql",
   "20260504172000_create_sync_runs.sql",
   "20260504194000_create_event_candidates.sql",
@@ -10,6 +11,7 @@ const migrations = [
   "20260504204500_extend_event_alerts_delivery.sql",
   "20260505024500_add_alert_contact_email.sql",
   "20260505091000_add_resale_sale_type.sql",
+  "20260505141000_add_alert_lead_time.sql",
 ];
 
 function requireEnv(name: string, value: string | undefined): string {
@@ -30,7 +32,7 @@ async function main() {
 
   await client.connect();
   try {
-    for (const migration of migrations) {
+    for (const migration of migrationFiles) {
       const sql = await readFile(join("supabase", "migrations", migration), "utf8");
       await client.query(sql);
       console.log(`Applied ${migration}`);
@@ -40,7 +42,13 @@ async function main() {
   }
 }
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+function isDirectRun() {
+  return Boolean(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href);
+}
+
+if (isDirectRun()) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}
