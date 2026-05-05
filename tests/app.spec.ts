@@ -2318,6 +2318,9 @@ test("keeps automatic CI and scheduled operations within Actions minute budget",
   expect(deployWorkflow).toContain("Skip blocked automatic production deploy");
   expect(dispatchWorkflow).toContain('cron: "17 0,12 * * *"');
   expect(dispatchWorkflow).toContain("09:17 and 21:17 in Asia/Seoul");
+  expect(dispatchWorkflow.indexOf("Check due alert queue")).toBeLessThan(dispatchWorkflow.indexOf("Set up Node"));
+  expect(dispatchWorkflow).toContain("No due alerts; skipping Node setup.");
+  expect(dispatchWorkflow).toContain("steps.due_alerts.outputs.should_dispatch == 'true'");
   expect(healthWorkflow).toContain('cron: "7 0 * * *"');
   expect(retryWorkflow).toContain('cron: "23 12 * * *"');
   expect(syncWorkflow).toContain('cron: "17 18 * * 1,4"');
