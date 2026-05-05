@@ -281,18 +281,38 @@ function formatTicketmasterStatus(event: TicketmasterEvent) {
 }
 
 function formatPrice(event: TicketmasterEvent) {
-  const price = event.priceRanges?.[0];
-  if (!price) return null;
-  const currency = price.currency === "JPY" || !price.currency ? "¥" : price.currency;
-  if (typeof price.min === "number" && typeof price.max === "number" && price.min !== price.max) {
+  const ranges = (event.priceRanges ?? [])
+    .map((price) => {
+      const min = typeof price.min === "number" ? price.min : null;
+      const max = typeof price.max === "number" ? price.max : null;
+      const low = min ?? max;
+      const high = max ?? min;
+      const currency = price.currency?.trim().toUpperCase() || "JPY";
+
+      if (low === null || high === null || !Number.isFinite(low) || !Number.isFinite(high)) return null;
+      return {
+        currency,
+        low: Math.min(low, high),
+        high: Math.max(low, high),
+      };
+    })
+    .filter((price) => price !== null);
+  if (ranges.length === 0) return null;
+
+  const currencyCode = ranges.some((price) => price.currency === "JPY") ? "JPY" : ranges[0].currency;
+  const sameCurrencyRanges = ranges.filter((price) => price.currency === currencyCode);
+  const currency = currencyCode === "JPY" ? "¥" : currencyCode;
+  const lowest = Math.min(...sameCurrencyRanges.map((price) => price.low));
+  const highest = Math.max(...sameCurrencyRanges.map((price) => price.high));
+  if (!Number.isFinite(lowest) || !Number.isFinite(highest)) return null;
+
+  if (lowest !== highest) {
     return currency === "¥"
-      ? `${currency}${price.min.toLocaleString("ja-JP")} - ${currency}${price.max.toLocaleString("ja-JP")}`
-      : `${currency} ${price.min.toLocaleString()} - ${price.max.toLocaleString()}`;
+      ? `${currency}${lowest.toLocaleString("ja-JP")} - ${currency}${highest.toLocaleString("ja-JP")}`
+      : `${currency} ${lowest.toLocaleString()} - ${highest.toLocaleString()}`;
   }
-  if (typeof price.min === "number") {
-    return currency === "¥" ? `${currency}${price.min.toLocaleString("ja-JP")}` : `${currency} ${price.min.toLocaleString()}`;
-  }
-  return null;
+
+  return currency === "¥" ? `${currency}${lowest.toLocaleString("ja-JP")}` : `${currency} ${lowest.toLocaleString()}`;
 }
 
 const cityAliases: Array<[string[], string]> = [

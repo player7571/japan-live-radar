@@ -1460,7 +1460,10 @@ test("maps Ticketmaster events as Korea-friendly rows", () => {
         endDateTime: "2026-08-07T09:00:00Z",
       },
     },
-    priceRanges: [{ min: 9800, max: 14800, currency: "JPY" }],
+    priceRanges: [
+      { min: 9800, max: 14800, currency: "JPY" },
+      { min: 6500, max: 22000, currency: "JPY" },
+    ],
     classifications: [{ segment: { name: "Music" }, genre: { name: "K-Pop" } }],
     _embedded: {
       attractions: [{ name: "NewJeans" }],
@@ -1473,9 +1476,30 @@ test("maps Ticketmaster events as Korea-friendly rows", () => {
     city: "후쿠오카",
     ticket_access: "한국 구매 가능",
     phone_required: false,
-    price: "¥9,800 - ¥14,800",
+    price: "¥6,500 - ¥22,000",
   });
   expect(row?.foreigner_note).toContain("해외 계정/카드");
+});
+
+test("aggregates Ticketmaster price ranges without mixing currencies", () => {
+  const row = toTicketmasterEventRow({
+    id: "tm-price-ranges",
+    name: "YOASOBI Arena",
+    url: "https://www.ticketmaster.com/event/tm-price-ranges",
+    dates: { start: { localDate: "2026-09-12", localTime: "18:00:00" } },
+    priceRanges: [
+      { min: 100, max: 140, currency: "USD" },
+      { min: 7200, max: 9800, currency: "JPY" },
+      { min: 6500, max: 12800, currency: "JPY" },
+    ],
+    classifications: [{ segment: { name: "Music" }, genre: { name: "J-Pop" } }],
+    _embedded: {
+      attractions: [{ name: "YOASOBI" }],
+      venues: [{ name: "Osaka Jo Hall", city: { name: "Osaka" } }],
+    },
+  });
+
+  expect(row?.price).toBe("¥6,500 - ¥12,800");
 });
 
 test("maps Ticketmaster UTC datetimes to Tokyo local event dates and times", () => {
