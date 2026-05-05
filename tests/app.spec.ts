@@ -1840,6 +1840,20 @@ test("persists local alert selections", async ({ page }) => {
   await expect(page.getByRole("button", { name: "알림 설정됨" })).toBeVisible();
 });
 
+test("shows alert subscription sync feedback in the detail panel", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await page.getByRole("button", { name: "일정 알림" }).click();
+
+  const detail = page.getByLabel("공연 상세");
+  await expect(detail.getByRole("status")).toHaveText("서버 알림까지 저장됐어요.");
+
+  await page.getByRole("button", { name: "알림 설정됨" }).click();
+  await expect(detail.getByRole("status")).toHaveText("서버 알림도 해제됐어요.");
+  await expect(page.getByRole("button", { name: "일정 알림" })).toBeVisible();
+});
+
 test("opens saved alerts and jumps back to a saved concert", async ({ page }) => {
   await page.goto("/");
 
@@ -1888,7 +1902,7 @@ test("shows alert contact email save feedback", async ({ page }) => {
   await page.getByPlaceholder("알림 받을 이메일").fill("fan@example.com");
   await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
 
-  await expect(page.getByRole("status")).toHaveText("알림 이메일을 저장했어요.");
+  await expect(page.getByLabel("저장한 알림").getByRole("status")).toHaveText("알림 이메일을 저장했어요.");
 });
 
 test("validates alert contact email before saving", async ({ page }) => {
@@ -1910,7 +1924,7 @@ test("validates alert contact email before saving", async ({ page }) => {
   await page.getByPlaceholder("알림 받을 이메일").fill("not-an-email");
   await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
 
-  await expect(page.getByRole("status")).toHaveText("이메일 형식을 확인해 주세요.");
+  await expect(page.getByLabel("저장한 알림").getByRole("status")).toHaveText("이메일 형식을 확인해 주세요.");
   expect(alertRequests).toBe(0);
 });
 

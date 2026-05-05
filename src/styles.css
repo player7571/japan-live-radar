@@ -326,6 +326,20 @@ h1 {
   color: #a03a2c;
 }
 
+.alert-sync-feedback {
+  margin-top: -4px;
+  font-size: 0.84rem;
+  color: #526158;
+}
+
+.alert-sync-feedback.saved {
+  color: #256449;
+}
+
+.alert-sync-feedback.error {
+  color: #a03a2c;
+}
+
 .saved-alert-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

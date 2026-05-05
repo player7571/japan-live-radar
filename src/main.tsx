@@ -136,6 +136,11 @@ type AlertEmailFeedback = {
   status: "idle" | "saving" | "saved" | "error";
   message: string;
 };
+type AlertSyncFeedback = {
+  eventId: string;
+  status: "saving" | "saved" | "error";
+  message: string;
+} | null;
 type AdminAlertItem = {
   id: string;
   event_key: string;
@@ -482,6 +487,7 @@ function App() {
     status: "idle",
     message: "",
   });
+  const [alertSyncFeedback, setAlertSyncFeedback] = useState<AlertSyncFeedback>(null);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
 
@@ -622,7 +628,22 @@ function App() {
       current.includes(id) ? current.filter((savedId) => savedId !== id) : [...current, id],
     );
     if (event) {
-      void syncAlertSubscription(event, nextActive);
+      setAlertSyncFeedback({
+        eventId: id,
+        status: "saving",
+        message: nextActive ? "서버 알림을 저장하는 중" : "서버 알림을 해제하는 중",
+      });
+      void syncAlertSubscription(event, nextActive).then((synced) => {
+        setAlertSyncFeedback({
+          eventId: id,
+          status: synced ? "saved" : "error",
+          message: synced
+            ? nextActive
+              ? "서버 알림까지 저장됐어요."
+              : "서버 알림도 해제됐어요."
+            : "브라우저에는 반영했고 서버 동기화는 다시 시도할 수 있어요.",
+        });
+      });
     }
   };
 
@@ -901,6 +922,7 @@ function App() {
               event={selectedEvent}
               saved={saved.includes(selectedEvent.id)}
               copied={copiedEventId === selectedEvent.id}
+              alertFeedback={alertSyncFeedback?.eventId === selectedEvent.id ? alertSyncFeedback : null}
               onSave={toggleSaved}
               onCopyLink={copyEventLink}
             />
@@ -1815,12 +1837,14 @@ function EventDetail({
   event,
   saved,
   copied,
+  alertFeedback,
   onSave,
   onCopyLink,
 }: {
   event: Event;
   saved: boolean;
   copied: boolean;
+  alertFeedback: AlertSyncFeedback;
   onSave: (id: string) => void;
   onCopyLink: (id: string) => void | Promise<void>;
 }) {
@@ -1891,6 +1915,11 @@ function EventDetail({
             {copied ? "링크 복사됨" : "상세 링크 복사"}
           </button>
         </div>
+        {alertFeedback ? (
+          <span className={`alert-sync-feedback ${alertFeedback.status}`} role="status">
+            {alertFeedback.message}
+          </span>
+        ) : null}
       </div>
     </aside>
   );
