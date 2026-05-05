@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { AdminEventInput } from "../src/lib/adminEventRows.js";
+import { splitCandidateRowsByExistingStatus } from "../src/lib/candidateDedupe.js";
 
 type VercelRequest = {
   method?: string;
@@ -136,15 +137,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       source,
       source_url: url,
       draft: candidateDraft(keyword, source, url),
-      status: "pending",
+      status: "pending" as const,
     })),
   );
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
-  const { data, error } = await supabase
-    .from("event_candidates")
-    .upsert(rows, { onConflict: "source_url" })
-    .select("id,source,source_url,draft,status,rejection_reason,approved_event_id,created_at,updated_at");
+  const sourceUrls = Array.from(new Set(rows.map((row) => row.source_url).filter(Boolean))) as string[];
+  let existingRows: CandidateRow[] = [];
+
+  if (sourceUrls.length > 0) {
+    const { data: existingData, error: existingError } = await supabase
+      .from("event_candidates")
+      .select("id,source,source_url,draft,status,rejection_reason,approved_event_id,created_at,updated_at")
+      .in("source_url", sourceUrls);
+
+    if (missingCandidateTable(existingError)) {
+      res.status(200).json({
+        configured: false,
+        candidates: rows.map((row, index) => ({
+          id: `generated-${Date.now()}-${index}`,
+          source: row.source,
+          sourceUrl: row.source_url,
+          draft: row.draft,
+          status: row.status,
+          createdAt: new Date().toISOString(),
+        })),
+      });
+      return;
+    }
+
+    if (existingError) {
+      res.status(500).json({ error: existingError.message });
+      return;
+    }
+
+    existingRows = (existingData ?? []) as CandidateRow[];
+  }
+
+  const { upsertRows, skippedRows } = splitCandidateRowsByExistingStatus(rows, existingRows);
+  const { data, error } = upsertRows.length > 0
+    ? await supabase
+      .from("event_candidates")
+      .upsert(upsertRows, { onConflict: "source_url" })
+      .select("id,source,source_url,draft,status,rejection_reason,approved_event_id,created_at,updated_at")
+    : { data: [], error: null };
 
   if (missingCandidateTable(error)) {
     res.status(200).json({
@@ -170,5 +206,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ok: true,
     configured: true,
     candidates: ((data ?? []) as CandidateRow[]).map(toPublicCandidate),
+    skippedCandidates: skippedRows.map(toPublicCandidate),
   });
 }
