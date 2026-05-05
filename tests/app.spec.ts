@@ -1846,6 +1846,17 @@ test("keeps automatic Vercel deploys off dev pushes to preserve quota", () => {
   expect(deployWorkflow).toContain("workflow_dispatch:");
 });
 
+test("limits release PR auto-merges to morning and evening KST windows", () => {
+  const mergeWorkflow = readFileSync(".github/workflows/merge-release-pr.yml", "utf8");
+  const autoReleaseWorkflow = readFileSync(".github/workflows/auto-release.yml", "utf8");
+
+  expect(mergeWorkflow).toContain("workflow_dispatch:");
+  expect(mergeWorkflow).toContain('cron: "0 0,12 * * *"');
+  expect(mergeWorkflow).toContain("09:00 and 21:00 in Asia/Seoul");
+  expect(mergeWorkflow).not.toContain('cron: "*/10 * * * *"');
+  expect(autoReleaseWorkflow).toContain("09:00/21:00 KST release windows");
+});
+
 test("summarizes alert dispatch failures for workflow visibility", () => {
   expect(summarizeDispatchFailures([])).toBeNull();
   expect(summarizeDispatchFailures(["alert-1: ALERT_WEBHOOK_URL is not configured"])).toBe(

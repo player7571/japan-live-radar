@@ -40,7 +40,7 @@ jobs:
           existing_pr="$(with_retry gh pr list --base main --head dev --state open --json number --jq '.[0].number // ""')"
           if [ -n "$existing_pr" ]; then
             echo "Release PR #$existing_pr already exists."
-            with_retry gh pr edit "$existing_pr" --body "Automated release from dev to main. CI, Vercel, migrations, and production health checks run through GitHub Actions."
+            with_retry gh pr edit "$existing_pr" --body "Release candidate from dev to main. This PR is checked by CI and merged by the Merge Release PR workflow during the 09:00/21:00 KST release windows, or manually when an immediate production release is desired."
             exit 0
           fi
 
@@ -58,7 +58,7 @@ jobs:
             --base main \
             --head dev \
             --title "Release dev to production" \
-            --body "Automated release from dev to main. CI, Vercel, migrations, and production health checks run through GitHub Actions.")"
+            --body "Release candidate from dev to main. This PR is checked by CI and merged by the Merge Release PR workflow during the 09:00/21:00 KST release windows, or manually when an immediate production release is desired.")"
           echo "$pr_url"
 
       - name: Create issue on failure

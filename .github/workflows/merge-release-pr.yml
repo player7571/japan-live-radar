@@ -3,7 +3,8 @@ name: Merge Release PR
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/10 * * * *"
+    # 09:00 and 21:00 in Asia/Seoul.
+    - cron: "0 0,12 * * *"
 
 permissions:
   checks: read
