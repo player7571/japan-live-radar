@@ -1,6 +1,7 @@
 import { pathToFileURL } from "node:url";
 
 type EventSnapshot = {
+  id?: string;
   artist?: string;
   title?: string;
   city?: string;
@@ -70,8 +71,15 @@ function eventLabel(event: EventSnapshot) {
   return [event.artist, event.title].filter(Boolean).join(" - ") || "일본 콘서트";
 }
 
+export function buildAppEventUrl(alert: DueAlert, baseUrl = appBaseUrl) {
+  const eventId = alert.event_snapshot?.id;
+  if (!eventId) return baseUrl;
+  return `${baseUrl}/?event=${encodeURIComponent(eventId)}`;
+}
+
 export function buildAlertMessage(alert: DueAlert) {
   const event = alert.event_snapshot ?? {};
+  const appEventUrl = buildAppEventUrl(alert);
   const lines = [
     `알림 시간: ${alert.remind_at}`,
     alert.contact_email ? `수신처: ${alert.contact_email}` : null,
@@ -82,6 +90,7 @@ export function buildAlertMessage(alert: DueAlert) {
     event.saleType || event.price ? `티켓: ${[event.saleType, event.price].filter(Boolean).join(" / ")}` : null,
     event.saleWindow ? `판매 일정: ${event.saleWindow}` : null,
     event.foreignerNote ? `확인 메모: ${event.foreignerNote}` : null,
+    `앱에서 보기: ${appEventUrl}`,
     event.link ? `티켓 링크: ${event.link}` : null,
   ].filter(Boolean);
 
@@ -94,6 +103,7 @@ export function buildAlertWebhookPayload(alert: DueAlert) {
     alertId: alert.id,
     eventKey: alert.event_key,
     contactEmail: alert.contact_email ?? null,
+    appUrl: buildAppEventUrl(alert),
     event: alert.event_snapshot,
     source: alert.event_snapshot?.source ?? null,
     ticketAccess: alert.event_snapshot?.ticketAccess ?? null,

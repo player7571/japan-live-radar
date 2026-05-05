@@ -262,6 +262,16 @@ function currentRoute(): Route {
   return window.location.hash === "#admin" ? "admin" : "app";
 }
 
+function eventIdFromUrl() {
+  return new URLSearchParams(window.location.search).get("event");
+}
+
+function replaceEventUrl(id: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("event", id);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 function loadSavedEventIds() {
   try {
     const savedValue = window.localStorage.getItem(savedEventsStorageKey);
@@ -409,7 +419,7 @@ function App() {
   const [dateWindow, setDateWindow] = useState<DateWindow>("전체");
   const [saleStatus, setSaleStatus] = useState<SaleStatus>("전체");
   const [koreaFriendlyOnly, setKoreaFriendlyOnly] = useState(false);
-  const [selectedId, setSelectedId] = useState(seedEvents[0].id);
+  const [selectedId, setSelectedId] = useState(() => eventIdFromUrl() ?? seedEvents[0].id);
   const [saved, setSaved] = useState<string[]>(loadSavedEventIds);
   const [alertClientId] = useState(loadAlertClientId);
   const [alertEmail, setAlertEmail] = useState(loadAlertEmail);
@@ -454,9 +464,11 @@ function App() {
                 ? "DB 데이터"
                 : "샘플 데이터",
           );
-          setSelectedId((current) =>
-            data.events.some((event) => event.id === current) ? current : data.events[0].id,
-          );
+          setSelectedId((current) => {
+            const linkedEventId = eventIdFromUrl();
+            if (linkedEventId && data.events.some((event) => event.id === linkedEventId)) return linkedEventId;
+            return data.events.some((event) => event.id === current) ? current : data.events[0].id;
+          });
         }
       } catch {
         // Vite's local dev server does not serve Vercel API routes, so the seed data remains active.
@@ -511,6 +523,11 @@ function App() {
 
   const selectedEvent = filteredEvents.find((event) => event.id === selectedId) ?? filteredEvents[0];
   const heroEvent = selectedEvent ?? events[0];
+
+  const selectEvent = (id: string) => {
+    setSelectedId(id);
+    replaceEventUrl(id);
+  };
 
   const syncAlertSubscription = async (event: Event, active: boolean) => {
     if (useSeedData) return true;
@@ -609,7 +626,7 @@ function App() {
             onSaveEmail={saveAlertEmail}
             onRemove={toggleSaved}
             onSelect={(id) => {
-              setSelectedId(id);
+              selectEvent(id);
               setAlertsOpen(false);
             }}
           />
@@ -751,7 +768,7 @@ function App() {
               <button
                 className={`event-card ${selectedEvent && event.id === selectedEvent.id ? "active" : ""}`}
                 key={event.id}
-                onClick={() => setSelectedId(event.id)}
+                onClick={() => selectEvent(event.id)}
               >
                 <img src={event.image} alt="" />
                 <div className="event-card-body">
