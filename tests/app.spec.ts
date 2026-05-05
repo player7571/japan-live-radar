@@ -617,7 +617,8 @@ test("extracts array-based JSON-LD event data", () => {
                 {
                   "@type": "Offer",
                   "price": "15000",
-                  "validFrom": "2026-06-10T12:00:00+09:00"
+                  "validFrom": "2026-06-10T12:00:00+09:00",
+                  "validThrough": "2026-06-20T23:59:00+09:00"
                 }
               ],
               "image": ["https://example.com/king-gnu.jpg"]
@@ -638,10 +639,51 @@ test("extracts array-based JSON-LD event data", () => {
   expect(draft.venue).toBe("日産スタジアム");
   expect(draft.date).toBe("2026-09-05");
   expect(draft.time).toBe("19:00");
-  expect(draft.saleWindow).toBe("2026-06-10T12:00:00+09:00");
+  expect(draft.saleWindow).toBe("2026-06-10T12:00:00+09:00 - 2026-06-20T23:59:00+09:00");
   expect(draft.price).toBe("¥15,000");
   expect(draft.ticketAccess).toBe("한국 구매 가능");
   expect(draft.image).toBe("https://example.com/king-gnu.jpg");
+});
+
+test("extracts JSON-LD offer availability start and end windows", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Event",
+              "name": "LE SSERAFIM Japan Fan Meeting",
+              "startDate": "2026-08-22T18:00:00+09:00",
+              "location": {
+                "@type": "Place",
+                "name": "有明アリーナ",
+                "address": "東京都江東区"
+              },
+              "offers": {
+                "@type": "Offer",
+                "availabilityStarts": "2026-05-15T12:00:00+09:00",
+                "availabilityEnds": "2026-05-28T23:59:00+09:00",
+                "availability": "https://schema.org/PreOrder",
+                "price": "12000"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <p>海外受付 international ticket credit card available</p>
+          <p>日本の携帯電話番号は不要です。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/lesserafim-fanmeeting"),
+  );
+
+  expect(draft.city).toBe("도쿄");
+  expect(draft.saleWindow).toBe("2026-05-15T12:00:00+09:00 - 2026-05-28T23:59:00+09:00");
+  expect(draft.price).toBe("¥12,000");
+  expect(draft.ticketAccess).toBe("한국 구매 가능");
 });
 
 test("uses JSON-LD offer availability when sale dates are absent", () => {
