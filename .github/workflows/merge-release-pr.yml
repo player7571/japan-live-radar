@@ -17,6 +17,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - name: Merge clean release PR
         env:
           GH_TOKEN: ${{ github.token }}
@@ -47,6 +52,20 @@ jobs:
           fi
 
           echo "Checking release PR #$pr_number"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main dev
+          if ! git merge-base --is-ancestor origin/main origin/dev; then
+            echo "dev does not contain the latest main release commit. Reconciling dev with main before release merge."
+            git switch -C dev origin/dev
+            if ! git merge --no-edit origin/main; then
+              echo "Could not automatically merge main into dev. Manual conflict resolution is required."
+              exit 1
+            fi
+            with_retry git push origin HEAD:dev
+            echo "Pushed dev reconciliation merge. Waiting for checks on the updated dev head."
+          fi
+
           for attempt in $(seq 1 30); do
             head_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/dev" --jq '.object.sha')"
             check_runs_json="$(gh api "repos/$GITHUB_REPOSITORY/commits/$head_sha/check-runs?per_page=100")"
