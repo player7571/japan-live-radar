@@ -44,7 +44,11 @@ type SyncHealthStatus = "healthy" | "stale" | "error" | "missing" | "empty";
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const adminApiToken = process.env.ADMIN_API_TOKEN;
-const syncStaleAfterHours = Number.parseInt(process.env.SYNC_STALE_AFTER_HOURS ?? "30", 10);
+export const defaultSyncStaleAfterHours = 108;
+const syncStaleAfterHours = Number.parseInt(
+  process.env.SYNC_STALE_AFTER_HOURS ?? String(defaultSyncStaleAfterHours),
+  10,
+);
 
 function headerValue(req: VercelRequest, name: string) {
   const value = req.headers?.[name] ?? req.headers?.[name.toLowerCase()];
@@ -211,7 +215,9 @@ function syncFinishedTime(finishedAt: string | null) {
 export function summarizeSyncHealth(
   rows: SyncRunStatsRow[],
   now = new Date(),
-  staleAfterHours = Number.isFinite(syncStaleAfterHours) && syncStaleAfterHours > 0 ? syncStaleAfterHours : 30,
+  staleAfterHours = Number.isFinite(syncStaleAfterHours) && syncStaleAfterHours > 0
+    ? syncStaleAfterHours
+    : defaultSyncStaleAfterHours,
 ) {
   const latestRuns = summarizeSyncRunsAt(rows, now);
   const nowTime = now.getTime();

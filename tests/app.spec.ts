@@ -1,7 +1,13 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
-import { summarizeAlertQueue, summarizeQualityBySource, summarizeSyncHealth, summarizeSyncRunsAt } from "../api/admin-stats";
+import {
+  defaultSyncStaleAfterHours,
+  summarizeAlertQueue,
+  summarizeQualityBySource,
+  summarizeSyncHealth,
+  summarizeSyncRunsAt,
+} from "../api/admin-stats";
 import {
   buildAlertUpsertRow,
   calculateReminderAt,
@@ -1763,6 +1769,32 @@ test("flags stale and errored sync runs for admin stats", () => {
   ).toMatchObject({
     status: "error",
     errorSources: ["ticketmaster"],
+  });
+});
+
+test("keeps twice-weekly Ticketmaster sync runs healthy within the default stale window", () => {
+  const rows = [
+    {
+      source: "ticketmaster",
+      status: "success" as const,
+      fetched_count: 420,
+      upserted_count: 390,
+      skipped_count: 30,
+      message: null,
+      finished_at: "2026-05-01T18:17:00Z",
+    },
+  ];
+
+  expect(defaultSyncStaleAfterHours).toBe(108);
+  expect(summarizeSyncHealth(rows, new Date("2026-05-05T17:17:00Z"))).toMatchObject({
+    status: "healthy",
+    staleAfterHours: 108,
+    staleSources: [],
+  });
+  expect(summarizeSyncHealth(rows, new Date("2026-05-06T07:18:00Z"))).toMatchObject({
+    status: "stale",
+    staleAfterHours: 108,
+    staleSources: ["ticketmaster"],
   });
 });
 
