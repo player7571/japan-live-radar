@@ -73,7 +73,7 @@ GitHub Actions is the long-running automation layer so Codex heartbeat runs do n
 - `Merge Release PR`: merges the open `dev` to `main` release PR after all PR checks finish successfully.
 - `Retry Production Deploy`: when production deploy or health automation issues are open, retries the main production deploy every six hours and closes the blockers after health passes.
 - `Supabase Migrate`: applies migrations automatically when migration files land on `main`, and can also be run manually.
-- `Sync Ticketmaster Events`: refreshes seed and Ticketmaster data on a daily schedule.
+- `Sync Ticketmaster Events`: refreshes seed and Ticketmaster data on a daily schedule. The workflow uses a single concurrency group so scheduled and manual syncs do not overlap.
 - `Dispatch Due Alerts`: checks the protected alert queue every 15 minutes and dispatches via `ALERT_WEBHOOK_URL` when configured. The workflow uses a single concurrency group so scheduled and manual runs do not overlap and double-send the same due alert.
 - `Production Health Check`: checks `/api/health`, the protected alert queue, and admin alert/sync stats every 30 minutes.
 
@@ -118,6 +118,7 @@ SUPABASE_ANON_KEY
 APP_BASE_URL
 VITE_USE_SEED_DATA
 TICKETMASTER_PAGE_LIMIT
+TICKETMASTER_FETCH_TIMEOUT_MS
 ALERT_WEBHOOK_ATTEMPTS
 ALERT_WEBHOOK_TIMEOUT_MS
 SYNC_STALE_AFTER_HOURS
@@ -127,6 +128,7 @@ SYNC_STALE_AFTER_HOURS
 - `APP_BASE_URL` overrides the production URL used by health checks and alert dispatch scripts.
 - `VITE_USE_SEED_DATA=true` forces the frontend to use local seed data during development.
 - `TICKETMASTER_PAGE_LIMIT` caps Ticketmaster sync pagination per search profile. It defaults to `2` pages, is clamped from `1` to `5`, and can be set as a GitHub repository variable for the scheduled sync workflow.
+- `TICKETMASTER_FETCH_TIMEOUT_MS` controls each Ticketmaster API request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable for the scheduled sync workflow.
 - `ALERT_WEBHOOK_ATTEMPTS` controls retry attempts for transient alert webhook HTTP failures and network exceptions. It defaults to `3`, is clamped from `1` to `5`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `ALERT_WEBHOOK_TIMEOUT_MS` controls each alert webhook request timeout. It defaults to `10000`, is clamped from `1000` to `30000`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `SYNC_STALE_AFTER_HOURS` controls when the admin stats API marks the latest sync run as delayed. It defaults to `30` hours to cover the daily Ticketmaster schedule with slack.
