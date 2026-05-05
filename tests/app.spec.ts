@@ -30,7 +30,7 @@ import { rowToEvent } from "../src/lib/eventRows";
 import { serverReadKey } from "../src/lib/supabaseServer";
 import { seedEvents } from "../src/data/seedEvents";
 import { buildAlertEventSnapshot } from "../src/lib/alertSnapshot";
-import { getSaleStatus } from "../src/lib/saleStatus";
+import { currentTokyoDay, getSaleStatus } from "../src/lib/saleStatus";
 
 test("extracts Japanese ticket page sales cues", () => {
   const draft = extractDraft(
@@ -532,6 +532,9 @@ test("combines separated sale start and end fields from imported pages", () => {
 });
 
 test("classifies sale status from text-only availability cues", () => {
+  expect(currentTokyoDay(new Date("2026-05-04T17:30:00Z")).toISOString()).toBe(
+    new Date("2026-05-05T00:00:00+09:00").toISOString(),
+  );
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "販売中" })).toBe("판매 중");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "受付終了" })).toBe("판매 종료");
   expect(getSaleStatus({ ...seedEvents[0], saleWindow: "発売予定" })).toBe("오픈 예정");

@@ -2,12 +2,26 @@ import type { Event } from "../types/events";
 
 export type SaleStatus = "전체" | "오픈 예정" | "판매 중" | "판매 종료" | "확인 필요";
 
-const defaultToday = new Date("2026-05-04T00:00:00+09:00");
-
 const endedStatusCue =
   /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|판매\s*종료|sold\s*out|closed|ended)/i;
 const activeStatusCue = /(販売中(?!止)|受付中|発売中|申込受付中|チケット発売中|판매\s*중|on\s*sale|available\s*now|now\s*on\s*sale)/i;
 const upcomingStatusCue = /(販売予定|受付予定|発売予定|近日発売|準備中|오픈\s*예정|coming\s*soon)/i;
+
+export function currentTokyoDay(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .formatToParts(now)
+    .reduce<Record<string, string>>((acc, part) => {
+      if (part.type !== "literal") acc[part.type] = part.value;
+      return acc;
+    }, {});
+
+  return new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00+09:00`);
+}
 
 function parseSaleWindowDateParts(year: number, month: string, day: string, hour?: string, minute?: string) {
   return new Date(
@@ -15,7 +29,7 @@ function parseSaleWindowDateParts(year: number, month: string, day: string, hour
   );
 }
 
-function getSaleWindowDates(saleWindow: string, eventDate: string, referenceDate = defaultToday) {
+function getSaleWindowDates(saleWindow: string, eventDate: string, referenceDate = currentTokyoDay()) {
   const eventYear = Number(eventDate.slice(0, 4)) || referenceDate.getFullYear();
   const explicitYearMatches = Array.from(
     saleWindow.matchAll(/(\d{4})\s*[年/.-]\s*(\d{1,2})\s*[月/.-]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*(?:(\d{1,2}):(\d{2}))?/g),
@@ -39,7 +53,7 @@ function getSaleWindowCueStatus(saleWindow: string): Exclude<SaleStatus, "전체
   return null;
 }
 
-export function getSaleStatus(event: Event, referenceDate = defaultToday): Exclude<SaleStatus, "전체"> {
+export function getSaleStatus(event: Event, referenceDate = currentTokyoDay()): Exclude<SaleStatus, "전체"> {
   const saleWindow = event.saleWindow.trim();
   if (!saleWindow) return "확인 필요";
 

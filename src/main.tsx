@@ -29,7 +29,7 @@ import {
 import { seedEvents } from "./data/seedEvents";
 import { buildAlertEventSnapshot } from "./lib/alertSnapshot";
 import { calculateReminderAt } from "./lib/alertSchedule";
-import { getSaleStatus, type SaleStatus } from "./lib/saleStatus";
+import { currentTokyoDay, getSaleStatus, type SaleStatus } from "./lib/saleStatus";
 import type { Event, EventApiResponse, TicketAccess } from "./types/events";
 import "./styles.css";
 
@@ -214,7 +214,7 @@ const accessOptions: Array<TicketAccess | "전체"> = [
 ];
 const dateWindowOptions: DateWindow[] = ["전체", "60일 이내", "90일 이내", "여름 원정"];
 const saleStatusOptions: SaleStatus[] = ["전체", "오픈 예정", "판매 중", "판매 종료", "확인 필요"];
-const today = new Date("2026-05-04T00:00:00+09:00");
+const today = currentTokyoDay();
 const useSeedData = import.meta.env.VITE_USE_SEED_DATA === "true";
 const savedEventsStorageKey = "japan-live-radar.saved-events";
 const alertClientStorageKey = "japan-live-radar.alert-client";
@@ -553,7 +553,7 @@ function App() {
       const cityMatch = city === "전체" || event.city === city;
       const accessMatch = access === "전체" || event.ticketAccess === access;
       const dateMatch = isInSelectedDateRange(event.date, dateWindow, dateFrom, dateTo);
-      const saleStatusMatch = saleStatus === "전체" || getSaleStatus(event) === saleStatus;
+      const saleStatusMatch = saleStatus === "전체" || getSaleStatus(event, today) === saleStatus;
       const koreaFriendlyMatch =
         !koreaFriendlyOnly || (event.ticketAccess === "한국 구매 가능" && !event.phoneRequired);
       return queryMatch && artistMatch && cityMatch && accessMatch && dateMatch && saleStatusMatch && koreaFriendlyMatch;
@@ -878,7 +878,7 @@ function App() {
                   <div className="tag-row">
                     <StatusPill status={event.ticketAccess} />
                     <span className="mini-pill">{event.saleType}</span>
-                    <SaleStatusPill status={getSaleStatus(event)} />
+                    <SaleStatusPill status={getSaleStatus(event, today)} />
                   </div>
                 </div>
                 <ChevronRight className="card-arrow" size={18} />
@@ -1820,7 +1820,7 @@ function EventDetail({
           <Fact icon={<CalendarDays size={18} />} label="공연일" value={`${event.date.replaceAll("-", ".")} ${event.time}`} />
           <Fact icon={<MapPin size={18} />} label="도시/회장" value={`${event.city} · ${event.venue}`} />
           <Fact icon={<Ticket size={18} />} label="티켓" value={`${event.saleType} · ${event.price}`} />
-          <Fact icon={<Clock3 size={18} />} label="예매 상태" value={getSaleStatus(event)} />
+          <Fact icon={<Clock3 size={18} />} label="예매 상태" value={getSaleStatus(event, today)} />
           <Fact icon={<Clock3 size={18} />} label="판매 기간" value={event.saleWindow} />
           <Fact icon={<Bell size={18} />} label="알림 예정" value={formatAlertReminder(event)} />
         </div>
