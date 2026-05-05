@@ -271,6 +271,34 @@ test("adds identity verification and companion registration cues to imported not
   expect(draft.foreignerNote).toContain("동행자 등록/티켓 분배");
 });
 
+test("adds special sale and restricted-view cues to imported notes", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>RADWIMPS Arena Live｜チケットぴあ</title>
+        </head>
+        <body>
+          <h1>RADWIMPS Arena Live</h1>
+          <p>会場：有明アリーナ</p>
+          <p>公演日：2026年11月02日 18:30</p>
+          <p>アップグレード抽選受付：2026年8月1日 12:00～2026年8月7日 23:59</p>
+          <p>機材席開放につき追加販売を実施します。</p>
+          <p>注釈付き指定席、ステージサイド席はステージおよび演出が見えにくい場合があります。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://t.pia.jp/pia/event/event.do?eventCd=2600099"),
+  );
+
+  expect(draft.city).toBe("도쿄");
+  expect(draft.saleType).toBe("추첨 접수");
+  expect(draft.saleWindow).toContain("2026年8月1日 12:00");
+  expect(draft.foreignerNote).toContain("업그레이드 추첨");
+  expect(draft.foreignerNote).toContain("추가 판매/기재석 개방");
+  expect(draft.foreignerNote).toContain("주석付き/시야제한");
+});
+
 test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
   const draft = extractDraft(
     `
