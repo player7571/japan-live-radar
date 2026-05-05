@@ -77,6 +77,25 @@ export function normalizeAlertContactEmail(value: unknown) {
 
 export { calculateReminderAt };
 
+export function buildAlertUpsertRow(input: {
+  clientId: string;
+  snapshot: EventSnapshot;
+  active: boolean;
+  contactEmail: string | null;
+  now?: Date;
+}) {
+  return {
+    client_id: input.clientId,
+    event_key: eventKey(input.snapshot),
+    event_snapshot: input.snapshot,
+    status: input.active ? "active" : "cancelled",
+    channel: input.contactEmail ? "email" : "browser",
+    contact_email: input.contactEmail,
+    remind_at: input.active ? calculateReminderAt(input.snapshot, input.now) : null,
+    updated_at: (input.now ?? new Date()).toISOString(),
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -99,22 +118,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const snapshot = body.event as EventSnapshot;
     const active = body.active !== false;
-    const remindAt = active ? calculateReminderAt(snapshot) : null;
     const contactEmail = normalizeAlertContactEmail(body.contactEmail);
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     const { data, error } = await supabase
       .from("event_alerts")
       .upsert(
-        {
-          client_id: clientId,
-          event_key: eventKey(snapshot),
-          event_snapshot: snapshot,
-          status: active ? "active" : "cancelled",
-          channel: contactEmail ? "email" : "browser",
-          contact_email: contactEmail,
-          remind_at: remindAt,
-          updated_at: new Date().toISOString(),
-        },
+        buildAlertUpsertRow({ clientId, snapshot, active, contactEmail }),
         { onConflict: "client_id,event_key" },
       )
       .select("id,event_key,status,remind_at,updated_at")
