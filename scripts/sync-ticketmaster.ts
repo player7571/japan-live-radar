@@ -171,10 +171,10 @@ function bestImage(images: TicketmasterEvent["images"]) {
   return [...images].sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0].url;
 }
 
-function formatTicketmasterDateTime(value: string) {
+function ticketmasterTokyoDateParts(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat("en-CA", {
+  return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "2-digit",
@@ -188,8 +188,25 @@ function formatTicketmasterDateTime(value: string) {
       if (part.type !== "literal") acc[part.type] = part.value;
       return acc;
     }, {});
+}
+
+function formatTicketmasterDateTime(value: string) {
+  const parts = ticketmasterTokyoDateParts(value);
+  if (!parts) return null;
 
   return `${parts.year}.${parts.month}.${parts.day} ${parts.hour}:${parts.minute}`;
+}
+
+function formatTicketmasterDate(value?: string) {
+  if (!value) return null;
+  const parts = ticketmasterTokyoDateParts(value);
+  return parts ? `${parts.year}-${parts.month}-${parts.day}` : null;
+}
+
+function formatTicketmasterTime(value?: string) {
+  if (!value) return null;
+  const parts = ticketmasterTokyoDateParts(value);
+  return parts ? `${parts.hour}:${parts.minute}` : null;
 }
 
 export function formatSaleWindow(event: TicketmasterEvent) {
@@ -352,7 +369,7 @@ async function deleteStaleTicketmasterRows(
 }
 
 export function toTicketmasterEventRow(event: TicketmasterEvent): EventUpsertRow | null {
-  const date = event.dates?.start?.localDate ?? event.dates?.start?.dateTime?.slice(0, 10);
+  const date = event.dates?.start?.localDate ?? formatTicketmasterDate(event.dates?.start?.dateTime);
   if (!date) return null;
 
   const venue = event._embedded?.venues?.[0];
@@ -373,7 +390,7 @@ export function toTicketmasterEventRow(event: TicketmasterEvent): EventUpsertRow
     date,
     time:
       event.dates?.start?.localTime?.slice(0, 5) ??
-      event.dates?.start?.dateTime?.slice(11, 16) ??
+      formatTicketmasterTime(event.dates?.start?.dateTime) ??
       null,
     genre,
     ticket_access: "한국 구매 가능",
