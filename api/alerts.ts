@@ -96,6 +96,9 @@ export function buildAlertUpsertRow(input: {
     contact_email: input.contactEmail,
     remind_before_hours: remindBeforeHours,
     remind_at: input.active ? calculateReminderAt(input.snapshot, input.now, remindBeforeHours) : null,
+    last_sent_at: null,
+    last_error: null,
+    send_count: 0,
     updated_at: (input.now ?? new Date()).toISOString(),
   };
 }

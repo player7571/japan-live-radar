@@ -1882,6 +1882,9 @@ test("builds alert subscription upsert rows with email and cancellation state", 
     contact_email: "fan@example.com",
     remind_before_hours: 24,
     remind_at: new Date("2026-05-09T12:00:00+09:00").toISOString(),
+    last_sent_at: null,
+    last_error: null,
+    send_count: 0,
     updated_at: now.toISOString(),
   });
 
@@ -1898,6 +1901,9 @@ test("builds alert subscription upsert rows with email and cancellation state", 
     channel: "browser",
     contact_email: null,
     remind_at: null,
+    last_sent_at: null,
+    last_error: null,
+    send_count: 0,
   });
 });
 
