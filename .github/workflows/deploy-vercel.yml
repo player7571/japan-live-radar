@@ -7,6 +7,10 @@ on:
       - dev
       - main
 
+permissions:
+  contents: read
+  issues: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -24,7 +28,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check production deploy blockers
+        id: production_blocker
+        if: github.ref_name == 'main' && github.event_name == 'push'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const blockerTitles = new Set([
+              "Production deploy blocked by Vercel daily quota",
+              "Production health check failed",
+            ]);
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "automation",
+              per_page: 100,
+            });
+            const blockers = issues.filter((issue) => blockerTitles.has(issue.title));
+            core.setOutput("skip_deploy", blockers.length > 0 ? "true" : "false");
+            if (blockers.length > 0) {
+              core.notice(`Skipping automatic production deploy while blockers are open: ${blockers.map((issue) => `#${issue.number}`).join(", ")}`);
+            }
+
+      - name: Skip blocked automatic production deploy
+        if: github.ref_name == 'main' && github.event_name == 'push' && steps.production_blocker.outputs.skip_deploy == 'true'
+        run: echo "Production deploy is deferred to Retry Production Deploy while automation blockers are open."
+
       - name: Sync Vercel runtime environment
+        if: github.ref_name != 'main' || github.event_name != 'push' || steps.production_blocker.outputs.skip_deploy != 'true'
         run: |
           upsert_env() {
             local name="$1"
@@ -67,12 +99,14 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Pull Vercel environment
+        if: github.ref_name != 'main' || github.event_name != 'push' || steps.production_blocker.outputs.skip_deploy != 'true'
         run: npx vercel pull --yes --environment=${{ github.ref_name == 'main' && 'production' || 'preview' }} --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Build Vercel output
+        if: github.ref_name != 'main' || github.event_name != 'push' || steps.production_blocker.outputs.skip_deploy != 'true'
         run: npx vercel build ${{ github.ref_name == 'main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -85,7 +119,7 @@ jobs:
           echo "This workflow still syncs preview env and builds the prebuilt output for validation."
 
       - name: Deploy production
-        if: github.ref_name == 'main'
+        if: github.ref_name == 'main' && (github.event_name != 'push' || steps.production_blocker.outputs.skip_deploy != 'true')
         run: >
           npx vercel deploy --prebuilt --prod
           --env VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
@@ -98,7 +132,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Verify production
-        if: github.ref_name == 'main'
+        if: github.ref_name == 'main' && (github.event_name != 'push' || steps.production_blocker.outputs.skip_deploy != 'true')
         run: |
           sleep 45
           npm run health:production

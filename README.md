@@ -65,7 +65,7 @@ Users can save interest alerts from the public detail panel. The browser stores 
 GitHub Actions is the long-running automation layer so Codex heartbeat runs do not need to rely on local full-disk or network permissions.
 
 - `CI`: typecheck, build, and Playwright smoke tests for PRs and pushes to `dev`/`main`.
-- `Deploy to Vercel`: deploys `dev` as preview and `main` as production, then verifies production health.
+- `Deploy to Vercel`: validates `dev` preview builds and deploys `main` as production, then verifies production health. Automatic `main` deploys are skipped while open production deploy/health automation blockers exist so quota is preserved for the retry workflow.
 - `Auto Release PR`: opens a `dev` to `main` release PR whenever `dev` changes.
 - `Merge Release PR`: merges the open `dev` to `main` release PR after all PR checks finish successfully.
 - `Retry Production Deploy`: when production deploy or health automation issues are open, retries the main production deploy every six hours and closes the blockers after health passes.
@@ -135,7 +135,7 @@ Normal development flow:
 3. Open a PR into `dev` and wait for GitHub CI.
 4. Merge to `dev`.
 5. Let `Auto Release PR` update the open `dev` to `main` release PR.
-6. Merge the release PR after its checks pass. If production deploy capacity is exhausted after merge, leave the matching automation issues open and let `Retry Production Deploy` finish the release later.
+6. Merge the release PR after its checks pass. If production deploy capacity is exhausted after merge, leave the matching automation issues open and let `Retry Production Deploy` finish the release later. While those blockers are open, automatic `main` push deploys are intentionally skipped to avoid spending more Vercel quota.
 7. Verify production with `npm run health:production` or `https://japan-live-radar.vercel.app/api/health`.
 
 If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, continue feature work on `dev` and avoid manual deploy retries until quota resets. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
