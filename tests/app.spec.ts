@@ -35,6 +35,7 @@ import {
   normalizeTicketmasterFetchTimeoutMs,
   normalizeTicketmasterPageLimit,
   searchProfiles,
+  shouldDeleteStaleTicketmasterRows,
   toTicketmasterEventRow,
 } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
@@ -1128,6 +1129,12 @@ test("limits Ticketmaster pagination while following available pages", () => {
   expect(nextTicketmasterPages({ number: 0, totalPages: 4 }, 3)).toEqual([1, 2]);
   expect(nextTicketmasterPages({ number: 1, totalPages: 4 }, 3)).toEqual([2]);
   expect(nextTicketmasterPages({ number: 0, totalPages: 1 }, 3)).toEqual([]);
+});
+
+test("preserves Ticketmaster rows when a sync produces zero usable rows", () => {
+  expect(shouldDeleteStaleTicketmasterRows(3, [])).toBe(true);
+  expect(shouldDeleteStaleTicketmasterRows(0, [])).toBe(false);
+  expect(shouldDeleteStaleTicketmasterRows(3, ["music-keyword"])).toBe(false);
 });
 
 test("summarizes latest sync run per source for admin quality checks", () => {

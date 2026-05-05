@@ -38,6 +38,7 @@ npx playwright test
 - Stable fallback data is synced with `npm run sync:seed`.
 - Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
 - Ticketmaster public sale and presale windows are preserved in Korean-facing sale schedule text so reminders can target the earliest available ticket window.
+- Ticketmaster stale cleanup only runs after a sync produces at least one usable concert row, so a temporary empty or misclassified API response does not wipe the existing catalog.
 - Supabase migrations run with `npm run db:migrate` or the manual `Supabase Migrate` workflow.
 
 ## Admin Operations
