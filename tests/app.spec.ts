@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { buildAlertStatusUpdate, normalizeAdminAlertListOptions } from "../api/admin-alerts";
 import { summarizeAlertQueue, summarizeQualityBySource, summarizeSyncHealth, summarizeSyncRunsAt } from "../api/admin-stats";
@@ -1804,6 +1804,37 @@ test("applies every checked-in Supabase migration", () => {
     .sort();
 
   expect([...migrationFiles].sort()).toEqual(checkedInMigrations);
+});
+
+test("defines an installable PWA app shell", () => {
+  const indexHtml = readFileSync("index.html", "utf8");
+  const manifest = JSON.parse(readFileSync("public/manifest.webmanifest", "utf8")) as {
+    name?: string;
+    start_url?: string;
+    display?: string;
+    icons?: Array<{ src?: string; sizes?: string; purpose?: string }>;
+  };
+  const serviceWorker = readFileSync("public/sw.js", "utf8");
+  const registrationSource = readFileSync("src/registerServiceWorker.ts", "utf8");
+
+  expect(indexHtml).toContain('rel="manifest" href="/manifest.webmanifest"');
+  expect(indexHtml).toContain('name="theme-color"');
+  expect(manifest).toMatchObject({
+    name: "Japan Live Radar",
+    start_url: "/",
+    display: "standalone",
+  });
+  expect(manifest.icons).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ src: "/icon-192.png", sizes: "192x192", purpose: expect.stringContaining("maskable") }),
+      expect.objectContaining({ src: "/icon-512.png", sizes: "512x512", purpose: expect.stringContaining("maskable") }),
+    ]),
+  );
+  expect(existsSync("public/icon-192.png")).toBe(true);
+  expect(existsSync("public/icon-512.png")).toBe(true);
+  expect(serviceWorker).toContain('url.pathname.startsWith("/api/")');
+  expect(serviceWorker).toContain("caches.open(cacheName)");
+  expect(registrationSource).toContain('navigator.serviceWorker.register("/sw.js")');
 });
 
 test("summarizes alert dispatch failures for workflow visibility", () => {
