@@ -14,6 +14,7 @@
     "alerts:dispatch": "tsx scripts/dispatch-alerts.ts",
     "sync:seed": "tsx scripts/sync-seed-events.ts",
     "sync:eplus": "tsx scripts/sync-eplus.ts",
+    "sync:rakuten-ticket": "tsx scripts/sync-rakuten-ticket.ts",
     "sync:ticket-pia": "tsx scripts/sync-ticket-pia.ts",
     "sync:ticketmaster": "tsx scripts/sync-ticketmaster.ts"
   },
