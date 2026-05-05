@@ -945,6 +945,26 @@ test("maps Ticketmaster events as Korea-friendly rows", () => {
   expect(row?.foreigner_note).toContain("해외 계정/카드");
 });
 
+test("maps Ticketmaster UTC datetimes to Tokyo local event dates and times", () => {
+  const row = toTicketmasterEventRow({
+    id: "tm-tokyo-time",
+    name: "Ado Countdown Live",
+    url: "https://www.ticketmaster.com/event/tm-tokyo-time",
+    dates: { start: { dateTime: "2026-12-31T15:30:00Z" } },
+    classifications: [{ segment: { name: "Music" }, genre: { name: "J-Pop" } }],
+    _embedded: {
+      attractions: [{ name: "Ado" }],
+      venues: [{ name: "Tokyo Dome", city: { name: "Tokyo" } }],
+    },
+  });
+
+  expect(row).toMatchObject({
+    date: "2027-01-01",
+    time: "00:30",
+    city: "도쿄",
+  });
+});
+
 test("keeps resale sale types when mapping database rows", () => {
   expect(
     rowToEvent({
