@@ -7,6 +7,7 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  Copy,
   Database,
   ExternalLink,
   Filter,
@@ -272,6 +273,39 @@ function replaceEventUrl(id: string) {
   window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
+function eventDetailUrl(id: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("event", id);
+  url.hash = "";
+  return url.href;
+}
+
+async function copyText(value: string) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // Fall back to a temporary textarea for browsers that block async clipboard writes.
+  }
+
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    document.body.append(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
 function loadSavedEventIds() {
   try {
     const savedValue = window.localStorage.getItem(savedEventsStorageKey);
@@ -428,6 +462,7 @@ function App() {
     message: "",
   });
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
 
   const cityOptions = useMemo(
     () => ["전체", ...Array.from(new Set(events.map((event) => event.city))).sort((a, b) => a.localeCompare(b, "ko"))],
@@ -527,6 +562,12 @@ function App() {
   const selectEvent = (id: string) => {
     setSelectedId(id);
     replaceEventUrl(id);
+  };
+
+  const copyEventLink = async (id: string) => {
+    if (await copyText(eventDetailUrl(id))) {
+      setCopiedEventId(id);
+    }
   };
 
   const syncAlertSubscription = async (event: Event, active: boolean) => {
@@ -799,7 +840,9 @@ function App() {
             <EventDetail
               event={selectedEvent}
               saved={saved.includes(selectedEvent.id)}
+              copied={copiedEventId === selectedEvent.id}
               onSave={toggleSaved}
+              onCopyLink={copyEventLink}
             />
           ) : (
             <aside className="detail-panel empty-detail" aria-label="공연 상세">
@@ -1694,11 +1737,15 @@ function SaleStatusPill({ status }: { status: Exclude<SaleStatus, "전체"> }) {
 function EventDetail({
   event,
   saved,
+  copied,
   onSave,
+  onCopyLink,
 }: {
   event: Event;
   saved: boolean;
+  copied: boolean;
   onSave: (id: string) => void;
+  onCopyLink: (id: string) => void | Promise<void>;
 }) {
   return (
     <aside className="detail-panel" aria-label="공연 상세">
@@ -1757,6 +1804,14 @@ function EventDetail({
           >
             {saved ? <Check size={17} /> : <Bell size={17} />}
             {saved ? "알림 설정됨" : "일정 알림"}
+          </button>
+          <button
+            className={`secondary-button ${copied ? "active" : ""}`}
+            onClick={() => void onCopyLink(event.id)}
+            type="button"
+          >
+            {copied ? <Check size={17} /> : <Copy size={17} />}
+            {copied ? "링크 복사됨" : "상세 링크 복사"}
           </button>
         </div>
       </div>

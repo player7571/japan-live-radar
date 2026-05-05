@@ -1453,6 +1453,27 @@ test("opens shared event detail URLs and keeps the selected event in the URL", a
   await expect(page).toHaveURL(new RegExp(`event=${seedEvents[1].id}`));
 });
 
+test("copies the selected concert detail link", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value: string) => {
+          window.sessionStorage.setItem("copied-link", value);
+        },
+      },
+    });
+  });
+
+  await page.goto(`/?event=${seedEvents[3].id}`);
+  await page.getByRole("button", { name: "상세 링크 복사" }).click();
+
+  await expect(page.getByRole("button", { name: "링크 복사됨" })).toBeVisible();
+  await expect
+    .poll(async () => page.evaluate(() => window.sessionStorage.getItem("copied-link")))
+    .toContain(`event=${seedEvents[3].id}`);
+});
+
 test("filters by city and ticket access without horizontal overflow", async ({ page }) => {
   await page.goto("/");
 
