@@ -15,6 +15,7 @@ import {
   buildAlertMessage,
   buildAlertWebhookPayload,
   normalizeWebhookAttempts,
+  normalizeWebhookTimeoutMs,
   sendWebhook,
   shouldRetryWebhookStatus,
   summarizeDispatchFailures,
@@ -1464,6 +1465,9 @@ test("classifies retryable alert webhook delivery statuses", () => {
   expect(normalizeWebhookAttempts(undefined)).toBe(3);
   expect(normalizeWebhookAttempts("0")).toBe(1);
   expect(normalizeWebhookAttempts("9")).toBe(5);
+  expect(normalizeWebhookTimeoutMs(undefined)).toBe(10000);
+  expect(normalizeWebhookTimeoutMs("500")).toBe(1000);
+  expect(normalizeWebhookTimeoutMs("45000")).toBe(30000);
   expect(shouldRetryWebhookStatus(408)).toBe(true);
   expect(shouldRetryWebhookStatus(429)).toBe(true);
   expect(shouldRetryWebhookStatus(500)).toBe(true);
@@ -1542,6 +1546,27 @@ test("retries transient alert webhook network errors", async () => {
   );
 
   expect(attempts).toBe(3);
+});
+
+test("sets a timeout signal for alert webhook requests", async () => {
+  await sendWebhook(
+    {
+      id: "alert-timeout",
+      event_key: "ado-2026",
+      remind_at: "2026-05-10T00:00:00.000Z",
+      event_snapshot: { artist: "Ado" },
+    },
+    {
+      webhookUrl: "https://example.com/webhook",
+      attempts: 1,
+      timeoutMs: 2500,
+      fetchImpl: async (_url, init) => {
+        expect(init?.signal).toBeInstanceOf(AbortSignal);
+        expect(init?.signal?.aborted).toBe(false);
+        return new Response("ok", { status: 200 });
+      },
+    },
+  );
 });
 
 test("reports webhook network errors after retry attempts are exhausted", async () => {
