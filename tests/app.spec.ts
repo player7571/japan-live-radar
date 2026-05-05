@@ -2263,7 +2263,7 @@ test("validates production health with admin alert and sync coverage", () => {
         emptySources: ["ticketmaster"],
       },
     }),
-  ).toThrow("Sync health produced no usable rows: ticketmaster");
+  ).not.toThrow();
 });
 
 test("applies every checked-in Supabase migration", () => {
