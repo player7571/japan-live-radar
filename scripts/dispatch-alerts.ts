@@ -36,6 +36,7 @@ const appBaseUrl = (process.env.APP_BASE_URL ?? "https://japan-live-radar.vercel
 const adminApiToken = process.env.ADMIN_API_TOKEN;
 const alertWebhookUrl = process.env.ALERT_WEBHOOK_URL;
 const defaultWebhookAttempts = normalizeWebhookAttempts(process.env.ALERT_WEBHOOK_ATTEMPTS);
+const defaultWebhookTimeoutMs = normalizeWebhookTimeoutMs(process.env.ALERT_WEBHOOK_TIMEOUT_MS);
 
 type WebhookFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -44,6 +45,7 @@ type WebhookSendOptions = {
   fetchImpl?: WebhookFetch;
   attempts?: number;
   retryDelayMs?: number;
+  timeoutMs?: number;
 };
 
 function requireEnv(name: string, value: string | undefined): string {
@@ -57,6 +59,12 @@ export function normalizeWebhookAttempts(value: string | undefined) {
   const parsed = value ? Number(value) : Number.NaN;
   if (!Number.isFinite(parsed)) return 3;
   return Math.min(Math.max(Math.trunc(parsed), 1), 5);
+}
+
+export function normalizeWebhookTimeoutMs(value: string | undefined) {
+  const parsed = value ? Number(value) : Number.NaN;
+  if (!Number.isFinite(parsed)) return 10_000;
+  return Math.min(Math.max(Math.trunc(parsed), 1_000), 30_000);
 }
 
 export function shouldRetryWebhookStatus(status: number) {
@@ -158,6 +166,7 @@ export async function sendWebhook(alert: DueAlert, options: WebhookSendOptions =
   const fetchImpl = options.fetchImpl ?? fetch;
   const attempts = options.attempts ?? defaultWebhookAttempts;
   const retryDelayMs = options.retryDelayMs ?? 1_000;
+  const timeoutMs = options.timeoutMs ?? defaultWebhookTimeoutMs;
   let lastStatus = 0;
   let lastError: string | null = null;
   let completedAttempts = 0;
@@ -170,6 +179,7 @@ export async function sendWebhook(alert: DueAlert, options: WebhookSendOptions =
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(buildAlertWebhookPayload(alert)),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
       lastError = error instanceof Error ? error.message : "Unknown webhook network error";
