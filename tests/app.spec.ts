@@ -127,6 +127,57 @@ test("uses explicit no-phone overseas cues for Korea-friendly imports", () => {
   expect(draft.foreignerNote).toContain("일본 전화번호/SMS 인증 불필요");
 });
 
+test("uses overseas phone-number cues for Korea-friendly imported ticket pages", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>LE SSERAFIM Japan Fan Meeting｜e+</title>
+        </head>
+        <body>
+          <h1>LE SSERAFIM Japan Fan Meeting</h1>
+          <p>会場：幕張メッセ</p>
+          <p>公演日：2026年9月14日 18:00</p>
+          <p>海外受付 international ticket credit card available</p>
+          <p>電話番号は国番号を選択して登録できます。海外の電話番号でもSMS認証可能です。</p>
+          <p>受付期間：2026年6月1日 12:00～2026年6月8日 23:59</p>
+        </body>
+      </html>
+    `,
+    new URL("https://eplus.jp/sf/detail/lesserafim-overseas-phone"),
+  );
+
+  expect(draft.city).toBe("치바");
+  expect(draft.ticketAccess).toBe("한국 구매 가능");
+  expect(draft.phoneRequired).toBe(false);
+  expect(draft.foreignerNote).toContain("해외 전화번호/SMS 인증 가능");
+});
+
+test("flags Japan-only mobile phone registration on imported ticket pages", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>Official HIGE DANdism Arena Live｜ローチケ</title>
+        </head>
+        <body>
+          <h1>Official HIGE DANdism Arena Live</h1>
+          <p>会場：大阪城ホール</p>
+          <p>公演日：2026年11月02日 18:30</p>
+          <p>お申込みには日本国内の携帯電話番号のみ登録できます。SMSを受信できる端末が必要です。</p>
+          <p>発売日時：2026年8月1日 10:00</p>
+        </body>
+      </html>
+    `,
+    new URL("https://l-tike.com/concert/higedan-phone-only"),
+  );
+
+  expect(draft.city).toBe("오사카");
+  expect(draft.ticketAccess).toBe("일본 번호 필요");
+  expect(draft.phoneRequired).toBe(true);
+  expect(draft.foreignerNote).toContain("일본 국내 휴대전화번호/SMS 한정");
+});
+
 test("keeps Japan-resident-only ticket pages out of Korea-friendly imports", () => {
   const draft = extractDraft(
     `
