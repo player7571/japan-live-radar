@@ -535,9 +535,16 @@ function schemaAvailabilityCue(value: unknown) {
   return "";
 }
 
+function schemaOfferSaleWindow(offer: Record<string, unknown>) {
+  const start = firstString(firstJsonString(offer.availabilityStarts), firstJsonString(offer.validFrom));
+  const end = firstString(firstJsonString(offer.availabilityEnds), firstJsonString(offer.validThrough));
+  if (start && end) return `${start} - ${end}`;
+  return firstString(start, end);
+}
+
 function saleWindowFromOffers(offers: Array<Record<string, unknown>>) {
   return firstString(
-    ...offers.flatMap((offer) => [firstJsonString(offer.availabilityStarts), firstJsonString(offer.validFrom)]),
+    ...offers.map(schemaOfferSaleWindow),
     ...offers.map((offer) => schemaAvailabilityCue(offer.availability)),
   );
 }
