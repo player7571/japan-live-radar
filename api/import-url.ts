@@ -316,8 +316,24 @@ function paymentPickupNoteFromText(text: string) {
   return notes.join(" ");
 }
 
+function lotteryResultNoteFromText(text: string) {
+  const normalized = normalizeFullWidth(text);
+  const result = normalized.match(
+    /(抽選結果発表日時|抽選結果発表|結果発表|当落発表|当選発表)\s*[:：]?\s*([^\n。]{1,60})/i,
+  );
+  if (!result) return "";
+
+  return `추첨 결과 발표: ${compactWhitespace(result[2])}.`;
+}
+
 function importForeignerNote(description: string, accessNote: string, pageText: string) {
-  return [description, accessNote, residencyRestrictionNoteFromText(pageText), paymentPickupNoteFromText(pageText)]
+  return [
+    description,
+    accessNote,
+    residencyRestrictionNoteFromText(pageText),
+    lotteryResultNoteFromText(pageText),
+    paymentPickupNoteFromText(pageText),
+  ]
     .map(compactWhitespace)
     .filter(Boolean)
     .filter((note, index, notes) => notes.indexOf(note) === index)
