@@ -2147,6 +2147,10 @@ test("imports an admin draft from a URL", async ({ page }) => {
   await expect(page.getByText("1개 URL 초안을 후보에 추가했어요.")).toBeVisible();
   await expect(page.getByLabel("URL 후보").getByText("YOASOBI")).toBeVisible();
   await expect(page.getByLabel("URL 후보").getByText("2026-11-02")).toBeVisible();
+  await expect(page.getByLabel("URL 후보").getByRole("link", { name: "원본 열기" })).toHaveAttribute(
+    "href",
+    "https://t.pia.jp/example",
+  );
 });
 
 test("approves a database-backed import candidate", async ({ page }) => {
@@ -2320,6 +2324,10 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
 
   await expect(page.getByText("1개 검색 후보를 만들었어요.")).toBeVisible();
   await expect(page.getByLabel("URL 후보").getByText("Ado", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("URL 후보").getByRole("link", { name: "원본 열기" })).toHaveAttribute(
+    "href",
+    "https://t.pia.jp/en/pia/search_dtl_input.do?keyword=Ado",
+  );
   await page.getByRole("button", { name: "초안 적용" }).click();
   await expect(page.getByText("후보를 입력폼에 적용했어요.")).toBeVisible();
 });
