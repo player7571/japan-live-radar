@@ -246,6 +246,31 @@ test("classifies official resale ticket imports", () => {
   expect(draft.saleWindow).toContain("2026年9月1日 12:00");
 });
 
+test("adds identity verification and companion registration cues to imported notes", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>SEKAI NO OWARI Arena Tour｜ローチケ</title>
+        </head>
+        <body>
+          <h1>SEKAI NO OWARI Arena Tour</h1>
+          <p>会場：日本ガイシホール</p>
+          <p>公演日：2026年10月18日 18:00</p>
+          <p>入場時に本人確認を行います。顔写真付き身分証明書またはパスポートをご持参ください。</p>
+          <p>同行者登録とチケット分配は来場前にお済ませください。来場者情報の変更はできません。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://l-tike.com/concert/sekainoowari-identity"),
+  );
+
+  expect(draft.city).toBe("나고야");
+  expect(draft.ticketAccess).toBe("확인 필요");
+  expect(draft.foreignerNote).toContain("본인확인/신분증/얼굴사진");
+  expect(draft.foreignerNote).toContain("동행자 등록/티켓 분배");
+});
+
 test("extracts Lawson table fields and prefers showtime over doors-open time", () => {
   const draft = extractDraft(
     `
