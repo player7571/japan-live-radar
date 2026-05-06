@@ -43,6 +43,15 @@ import {
   ticketPiaSearchUrls,
 } from "../scripts/sync-ticket-pia";
 import {
+  extractLawsonDetailRows,
+  extractLawsonSearchRows,
+  lawsonLogicalEventKey,
+  lawsonSearchUrls,
+  normalizeLawsonFetchTimeoutMs,
+  normalizeLawsonPageLimit,
+  normalizeLawsonRowLimit,
+} from "../scripts/sync-lawson";
+import {
   extractRakutenTicketDetailUrls,
   normalizeRakutenTicketCategoryLimit,
   normalizeRakutenTicketFetchTimeoutMs,
@@ -2208,6 +2217,67 @@ test("maps Ticket Pia rlsInfo search HTML to Korea-friendly event rows", () => {
     expect.arrayContaining([
       "https://t.pia.jp/pia/rlsInfo.do?kw=J-POP&cAsgnFlg=false&bAsgnFlg=false&includeSaleEnd=false&page=1&responsive=true&noConvert=true&searchMode=1&mode=2&dispMode=1",
       "https://t.pia.jp/pia/rlsInfo.do?kw=K-POP&cAsgnFlg=false&bAsgnFlg=false&includeSaleEnd=false&page=1&responsive=true&noConvert=true&searchMode=1&mode=2&dispMode=1",
+    ]),
+  );
+});
+
+test("maps Lawson Ticket public HTML fixtures to Korea-friendly event rows", () => {
+  const searchHtml = readFileSync(new URL("./fixtures/lawson-search.html", import.meta.url), "utf8");
+  const detailHtml = readFileSync(new URL("./fixtures/lawson-detail.html", import.meta.url), "utf8");
+  const now = new Date("2026-05-06T00:00:00+09:00");
+  const searchRows = extractLawsonSearchRows(searchHtml, now);
+  const detailRows = extractLawsonDetailRows(
+    detailHtml,
+    "https://l-tike.com/concert/mevent/?mid=583255",
+    now,
+  );
+
+  expect(searchRows).toHaveLength(1);
+  expect(searchRows[0]).toMatchObject({
+    source: "Lawson Ticket",
+    source_event_id: expect.stringContaining("https://l-tike.com/order/?gLcode=56605"),
+    artist: "METROCK OSAKA 2026",
+    title: "METROCK OSAKA 2026",
+    city: "오사카",
+    venue: "堺市・海とのふれあい広場",
+    date: "2026-05-30",
+    time: null,
+    genre: "Music",
+    ticket_access: "일본 번호 필요",
+    sale_type: "선착 판매",
+    phone_required: true,
+    country_code: "JP",
+  });
+  expect(searchRows[0].sale_window).toBe("접수기간: 2026.04.18 10:00 - 2026.05.14 22:00");
+  expect(searchRows[0].foreigner_note).toContain("로치케 계정");
+
+  expect(detailRows).toHaveLength(1);
+  expect(detailRows[0]).toMatchObject({
+    source: "Lawson Ticket",
+    source_event_id: "https://l-tike.com/order/?gLcode=94264&gScheduleNo=80",
+    artist: "Ado",
+    title: "Ado",
+    city: "요코하마",
+    venue: "日産スタジアム",
+    date: "2026-07-04",
+    sale_type: "추첨 접수",
+    phone_required: true,
+    link: "https://l-tike.com/order/?gLcode=94264&gScheduleNo=80",
+  });
+  expect(detailRows[0].sale_window).toBe("접수기간: 2026.04.13 10:00 - 2026.05.06 23:59");
+  expect(lawsonLogicalEventKey(detailRows[0])).toBe("ado|2026-07-04||日産スタジアム|요코하마");
+  expect(normalizeLawsonRowLimit(undefined)).toBe(80);
+  expect(normalizeLawsonRowLimit("200")).toBe(120);
+  expect(normalizeLawsonPageLimit(undefined)).toBe(1);
+  expect(normalizeLawsonPageLimit("8")).toBe(3);
+  expect(normalizeLawsonFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeLawsonFetchTimeoutMs("1000")).toBe(3000);
+  expect(lawsonSearchUrls()).toEqual(
+    expect.arrayContaining([
+      "https://cdn.l-tike.com/concert/",
+      "https://cdn.l-tike.com/search/?keyword=J-POP",
+      "https://cdn.l-tike.com/search/?keyword=K-POP",
+      "https://cdn.l-tike.com/search/?keyword=%E3%83%A9%E3%82%A4%E3%83%96",
     ]),
   );
 });
