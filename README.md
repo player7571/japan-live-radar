@@ -44,6 +44,7 @@ npx playwright test
 - Public event reads are served by `api/events.ts`.
 - Admin event entry, candidate approval, URL import, search candidates, quality stats, and alert subscriptions live under `api/`.
 - Stable fallback data is synced with `npm run sync:seed`.
+- All configured public source syncs can be run in sequence with `npm run sync:public-sources`. Set `SYNC_PUBLIC_SOURCES=lawson,ticket-pia` to run a subset, or `SYNC_CONTINUE_ON_ERROR=true` to collect failures across sources during manual operations.
 - Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
 - e+ public search ingestion runs with `npm run sync:eplus`, maps usable public concert rows into the live catalog, merges duplicate ticket-phase listings for the same performance, and removes stale e+ rows only after a successful usable sync.
 - Lawson Ticket / ローチケ public HTML ingestion runs with `npm run sync:lawson`, reads public concert category/search pages plus `concert/mevent/?mid=...` detail pages, maps JSON-LD Event and visible search result rows into the live catalog, and removes stale Lawson Ticket rows only after a successful usable sync.

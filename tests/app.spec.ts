@@ -25,6 +25,11 @@ import {
   validateProductionHealth,
 } from "../scripts/check-production-health";
 import {
+  normalizePublicSyncSelection,
+  publicSyncPlanSummary,
+  publicSyncSteps,
+} from "../scripts/sync-public-sources";
+import {
   eplusLogicalEventKey,
   eplusSearchUrls,
   extractEplusPayload,
@@ -3270,6 +3275,23 @@ test("creates ticket source search URLs including additional Japanese sources", 
     "Rakuten Ticket",
     "LiveFans",
   ]);
+});
+
+test("plans public event source syncs without running network jobs", () => {
+  expect(normalizePublicSyncSelection(undefined).map((step) => step.script)).toEqual([
+    "sync:seed",
+    "sync:ticketmaster",
+    "sync:eplus",
+    "sync:lawson",
+    "sync:ticket-pia",
+    "sync:rakuten-ticket",
+  ]);
+  expect(normalizePublicSyncSelection("lawson, pia, lawson").map((step) => step.script)).toEqual([
+    "sync:lawson",
+    "sync:ticket-pia",
+  ]);
+  expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Lawson Ticket (sync:lawson)");
+  expect(() => normalizePublicSyncSelection("unknown-source")).toThrow("Unknown sync source");
 });
 
 test("expands regional Japanese city aliases for Korean search", () => {
