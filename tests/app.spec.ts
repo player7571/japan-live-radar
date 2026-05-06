@@ -30,6 +30,15 @@ import {
   publicSyncSteps,
 } from "../scripts/sync-public-sources";
 import {
+  creativemanIndexUrls,
+  creativemanLogicalEventKey,
+  extractCreativemanDetailUrls,
+  extractCreativemanRows,
+  normalizeCreativemanFetchTimeoutMs,
+  normalizeCreativemanIndexLimit,
+  normalizeCreativemanRowLimit,
+} from "../scripts/sync-creativeman";
+import {
   eplusLogicalEventKey,
   eplusSearchUrls,
   extractEplusPayload,
@@ -2368,6 +2377,83 @@ test("maps Lawson Ticket public HTML fixtures to Korea-friendly event rows", () 
   );
 });
 
+test("maps Creativeman public detail pages to event rows", () => {
+  const indexHtml = `
+    <a href="/event/loudness-45th-anniversary/">LOUDNESS</a>
+    <a href="https://www.creativeman.co.jp/event/hot-milk-2026/">HOT MILK</a>
+    <a href="https://example.com/event/external/">external</a>
+    <a href="/2026/05/03/news/">news</a>
+  `;
+  const detailHtml = `
+    <html>
+      <head>
+        <title>LOUDNESS - CREATIVEMAN PRODUCTIONS</title>
+        <meta property="og:image" content="https://www.creativeman.co.jp/loudness.jpg">
+      </head>
+      <body>
+        <h1>LOUDNESS</h1>
+        <h2>TICKET INFORMATION</h2>
+        東京 2026/5/3(日) Zepp DiverCity Tokyo 追加公演
+        ---
+        開場・開演 | OPEN 17:00 / START 18:00
+        チケット | 1F指定席￥11,000（税込/全席指定/1Drink別）
+        チケット先行 | オフィシャル先行
+        期間：2026/4/6(月)12:00～2026/4/8(水)23:59
+        チケット発売日 | 4/11(土)10:00am～
+        福岡 2026/5/6(水・休) Zepp Fukuoka チケット発売中
+        ---
+        開場・開演 | OPEN 17:00 / START 18:00
+        チケット | 1F指定席￥11,000（税込/全席指定/1Drink別）
+        プレイガイド | チケットぴあ イープラス ローソンチケット
+        Purchasing Tickets from Overseas
+        TICKETS ON SALE：MAR 28 sat
+        https://w.pia.jp/a/loudness26eng45th/
+      </body>
+    </html>
+  `;
+  const detailUrl = "https://www.creativeman.co.jp/event/loudness-45th-anniversary/";
+  const rows = extractCreativemanRows(detailHtml, detailUrl, new Date("2026-05-01T00:00:00+09:00"));
+
+  expect(extractCreativemanDetailUrls(indexHtml)).toEqual([
+    "https://www.creativeman.co.jp/event/loudness-45th-anniversary/",
+    "https://www.creativeman.co.jp/event/hot-milk-2026/",
+  ]);
+  expect(rows).toHaveLength(2);
+  expect(rows[0]).toMatchObject({
+    source: "Creativeman",
+    artist: "LOUDNESS",
+    title: "LOUDNESS",
+    city: "도쿄",
+    venue: "Zepp DiverCity Tokyo 追加公演",
+    date: "2026-05-03",
+    time: "18:00",
+    sale_type: "추첨 접수",
+    sale_window: "受付期間: 2026/4/6(月)12:00~2026/4/8(水)23:59",
+    price: "¥11,000",
+    ticket_access: "한국 구매 가능",
+    phone_required: false,
+    link: detailUrl,
+    image: "https://www.creativeman.co.jp/loudness.jpg",
+  });
+  expect(rows[1]).toMatchObject({
+    city: "후쿠오카",
+    venue: "Zepp Fukuoka",
+    date: "2026-05-06",
+    sale_type: "선착 판매",
+  });
+  expect(creativemanLogicalEventKey(rows[0])).toBe("loudness|2026-05-03|18:00|zepp divercity tokyo 追加公演|도쿄");
+  expect(normalizeCreativemanRowLimit(undefined)).toBe(60);
+  expect(normalizeCreativemanRowLimit("200")).toBe(100);
+  expect(normalizeCreativemanIndexLimit(undefined)).toBe(2);
+  expect(normalizeCreativemanIndexLimit("20")).toBe(6);
+  expect(normalizeCreativemanFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeCreativemanFetchTimeoutMs("1000")).toBe(3000);
+  expect(creativemanIndexUrls()).toEqual([
+    "https://www.creativeman.co.jp/upcoming/",
+    "https://www.creativeman.co.jp/event/",
+  ]);
+});
+
 test("maps Rakuten Ticket category pages and detail drafts to event rows", () => {
   const categoryHtml = `
     <a href="https://ticket.rakuten.co.jp/music/jpop/rtiz516/">さだまさし</a>
@@ -3327,12 +3413,14 @@ test("plans public event source syncs without running network jobs", () => {
     "sync:lawson",
     "sync:ticket-pia",
     "sync:rakuten-ticket",
+    "sync:creativeman",
   ]);
   expect(normalizePublicSyncSelection("lawson, pia, lawson").map((step) => step.script)).toEqual([
     "sync:lawson",
     "sync:ticket-pia",
   ]);
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Lawson Ticket (sync:lawson)");
+  expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Creativeman (sync:creativeman)");
   expect(() => normalizePublicSyncSelection("unknown-source")).toThrow("Unknown sync source");
 });
 
