@@ -411,6 +411,7 @@ const concertSignals = [
 ];
 
 const nonConcertSignals = [
+  "sports",
   "basketball",
   "バスケットボール",
   "baseball",
@@ -447,6 +448,31 @@ const nonConcertSignals = [
   "bkb",
   "格闘技",
   "相撲",
+  "theatre",
+  "theater",
+  "arts & theatre",
+  "comedy",
+  "stand-up",
+  "movie",
+  "cinema",
+  "film",
+  "exhibition",
+  "expo",
+  "leisure",
+  "ライブビューイング",
+  "舞台",
+  "演劇",
+  "ミュージカル",
+  "映画",
+  "上映",
+  "展覧会",
+  "美術展",
+  "博覧会",
+  "お笑い",
+  "トークショー",
+  "講演",
+  "セミナー",
+  "レジャー",
 ];
 
 function eventSearchText(event: TicketmasterEvent) {
