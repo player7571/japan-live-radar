@@ -47,6 +47,7 @@ npx playwright test
 - Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
 - e+ public search ingestion runs with `npm run sync:eplus`, maps usable public concert rows into the live catalog, merges duplicate ticket-phase listings for the same performance, and removes stale e+ rows only after a successful usable sync.
 - Ticket Pia public search ingestion runs with `npm run sync:ticket-pia`, maps the public `rlsInfo` search result rows into the live catalog, and removes stale Ticket Pia rows only after a successful usable sync.
+- Rakuten Ticket public category ingestion runs with `npm run sync:rakuten-ticket`, follows public music category links into detail pages, reuses the URL import parser, and removes stale Rakuten Ticket rows only after a successful usable sync.
 - Ticketmaster public sale and presale windows are preserved in Korean-facing sale schedule text so reminders can target the earliest available ticket window.
 - Ticketmaster stale cleanup only runs after a sync produces at least one usable concert row, so a temporary empty or misclassified API response does not wipe the existing catalog.
 - Supabase migrations run with `npm run db:migrate` or the manual `Supabase Migrate` workflow.
@@ -87,7 +88,7 @@ GitHub Actions is the long-running automation layer so Codex heartbeat runs do n
 - `Merge Release PR`: merges the open `dev` to `main` release PR after all PR checks finish successfully during the 09:00 and 21:00 KST release windows. It can also be run manually with `workflow_dispatch` when an immediate production release is desired.
 - `Retry Production Deploy`: when production deploy or health automation issues are open, retries the main production deploy once daily and closes the blockers after health passes.
 - `Supabase Migrate`: applies migrations automatically when migration files land on `main`, and can also be run manually.
-- `Sync External Events`: refreshes seed, Ticketmaster, e+ public search, and Ticket Pia public search data twice weekly while Actions minutes are constrained. The workflow uses a single concurrency group so scheduled and manual syncs do not overlap.
+- `Sync External Events`: refreshes seed, Ticketmaster, e+ public search, Ticket Pia public search, and Rakuten Ticket public category data twice weekly while Actions minutes are constrained. The workflow uses a single concurrency group so scheduled and manual syncs do not overlap.
 - `Dispatch Due Alerts`: checks the protected alert queue twice daily and dispatches via `ALERT_WEBHOOK_URL` when configured. The workflow uses a single concurrency group so scheduled and manual runs do not overlap and double-send the same due alert.
 - `Production Health Check`: checks `/api/health`, the protected alert queue, and admin alert/sync stats once daily.
 
@@ -151,6 +152,10 @@ SYNC_STALE_AFTER_HOURS
 - `TICKET_PIA_PAGE_LIMIT` caps Ticket Pia search result pages fetched per keyword. It defaults to `1`, is clamped from `1` to `3`, and can be set as a GitHub repository variable.
 - `TICKET_PIA_ROW_LIMIT` caps Ticket Pia rows inserted per run. It defaults to `80`, is clamped from `1` to `120`, and can be set as a GitHub repository variable.
 - `TICKET_PIA_FETCH_TIMEOUT_MS` controls each Ticket Pia page request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable.
+- `RAKUTEN_TICKET_CATEGORY_URLS` optionally overrides the public Rakuten Ticket music category pages used by `npm run sync:rakuten-ticket`.
+- `RAKUTEN_TICKET_CATEGORY_LIMIT` caps Rakuten Ticket category pages fetched per run. It defaults to `4`, is clamped from `1` to `8`, and can be set as a GitHub repository variable.
+- `RAKUTEN_TICKET_ROW_LIMIT` caps Rakuten Ticket detail pages inserted per run. It defaults to `60`, is clamped from `1` to `100`, and can be set as a GitHub repository variable.
+- `RAKUTEN_TICKET_FETCH_TIMEOUT_MS` controls each Rakuten Ticket page request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable.
 - `ALERT_WEBHOOK_ATTEMPTS` controls retry attempts for transient alert webhook HTTP failures and network exceptions. It defaults to `3`, is clamped from `1` to `5`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `ALERT_WEBHOOK_TIMEOUT_MS` controls each alert webhook request timeout. It defaults to `10000`, is clamped from `1000` to `30000`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `ALERT_WEBHOOK_SECRET` optionally signs alert webhook payloads so downstream delivery workers can reject spoofed requests before processing.

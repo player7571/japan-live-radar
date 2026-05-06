@@ -64,6 +64,16 @@ jobs:
           TICKET_PIA_ROW_LIMIT: ${{ vars.TICKET_PIA_ROW_LIMIT || '80' }}
           TICKET_PIA_FETCH_TIMEOUT_MS: ${{ vars.TICKET_PIA_FETCH_TIMEOUT_MS || '12000' }}
 
+      - name: Sync Rakuten Ticket events
+        run: npm run sync:rakuten-ticket
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RAKUTEN_TICKET_CATEGORY_URLS: ${{ vars.RAKUTEN_TICKET_CATEGORY_URLS || '' }}
+          RAKUTEN_TICKET_CATEGORY_LIMIT: ${{ vars.RAKUTEN_TICKET_CATEGORY_LIMIT || '4' }}
+          RAKUTEN_TICKET_ROW_LIMIT: ${{ vars.RAKUTEN_TICKET_ROW_LIMIT || '60' }}
+          RAKUTEN_TICKET_FETCH_TIMEOUT_MS: ${{ vars.RAKUTEN_TICKET_FETCH_TIMEOUT_MS || '12000' }}
+
       - name: Create issue on failure
         if: failure()
         uses: actions/github-script@v9
