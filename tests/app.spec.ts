@@ -2454,6 +2454,22 @@ test("classifies Japanese Ticketmaster concert signals and sports exclusions", (
       classifications: [{ segment: { name: "スポーツ" } }],
     }),
   ).toBe(false);
+
+  expect(
+    isLikelyConcert({
+      id: "tm-live-viewing",
+      name: "SPECIAL LIVE 2026 ライブビューイング",
+      classifications: [{ segment: { name: "Film" }, genre: { name: "Cinema" } }],
+    }),
+  ).toBe(false);
+
+  expect(
+    isLikelyConcert({
+      id: "tm-musical",
+      name: "ROCK ミュージカル 東京公演",
+      classifications: [{ segment: { name: "Arts & Theatre" }, genre: { name: "Theatre" } }],
+    }),
+  ).toBe(false);
 });
 
 test("keeps resale sale types when mapping database rows", () => {
