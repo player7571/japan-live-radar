@@ -2024,6 +2024,38 @@ test("maps eplus public search JSON to Korea-friendly event rows", () => {
                   "uketsuke_status": "0"
                 }
               ]
+            },
+            {
+              "koenbi_term": "20260621",
+              "kaien_time": "1700",
+              "kanren_venue": {
+                "venue_name": "新宿ピカデリー",
+                "todofuken_name": "東京都"
+              },
+              "kanren_kogyo_sub": {
+                "kogyo_code": "viewing-001",
+                "kogyo_sub_code": "0001",
+                "kogyo_name_1": "SPECIAL LIVE 2026 ライブビューイング",
+                "kogyo_name_2": "映画館上映"
+              },
+              "koen_detail_url_pc": "/sf/detail/viewing001-P0030001P021001",
+              "kanren_uketsuke_koen_list": []
+            },
+            {
+              "koenbi_term": "20260622",
+              "kaien_time": "1300",
+              "kanren_venue": {
+                "venue_name": "東京国際フォーラム ホールC",
+                "todofuken_name": "東京都"
+              },
+              "kanren_kogyo_sub": {
+                "kogyo_code": "stage-001",
+                "kogyo_sub_code": "0001",
+                "kogyo_name_1": "ロックミュージカル",
+                "kogyo_name_2": "舞台公演"
+              },
+              "koen_detail_url_pc": "/sf/detail/stage001-P0030001P021001",
+              "kanren_uketsuke_koen_list": []
             }
           ]
         }
@@ -2034,9 +2066,11 @@ test("maps eplus public search JSON to Korea-friendly event rows", () => {
   const festivalLottery = toEplusEventRow(records[2], new Date("2026-05-05T00:00:00+09:00"));
   const festivalEarlyBird = toEplusEventRow(records[3], new Date("2026-05-05T00:00:00+09:00"));
 
-  expect(records).toHaveLength(4);
+  expect(records).toHaveLength(6);
   expect(isLikelyEplusConcert(records[0])).toBe(true);
   expect(isLikelyEplusConcert(records[1])).toBe(false);
+  expect(isLikelyEplusConcert(records[4])).toBe(false);
+  expect(isLikelyEplusConcert(records[5])).toBe(false);
   expect(toEplusEventRow(records[0], new Date("2026-05-05T00:00:00+09:00"))).toMatchObject({
     source: "e+",
     source_event_id: "https://eplus.jp/sf/detail/live001-P0030001P021001",
@@ -2052,6 +2086,8 @@ test("maps eplus public search JSON to Korea-friendly event rows", () => {
     link: "https://eplus.jp/sf/detail/live001-P0030001P021001",
   });
   expect(toEplusEventRow(records[1], new Date("2026-05-05T00:00:00+09:00"))).toBeNull();
+  expect(toEplusEventRow(records[4], new Date("2026-05-05T00:00:00+09:00"))).toBeNull();
+  expect(toEplusEventRow(records[5], new Date("2026-05-05T00:00:00+09:00"))).toBeNull();
   expect(festivalLottery).toMatchObject({
     title: "MasterPeace 2026 OKINAWA MUSIC & ART FESTIVAL",
     city: "오키나와",
