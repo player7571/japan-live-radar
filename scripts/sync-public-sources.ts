@@ -15,6 +15,7 @@ export const publicSyncSteps: PublicSyncStep[] = [
   { key: "lawson", label: "Lawson Ticket", script: "sync:lawson", aliases: ["l-tike", "ローチケ", "ローソン"] },
   { key: "ticket-pia", label: "Ticket Pia", script: "sync:ticket-pia", aliases: ["pia", "チケットぴあ"] },
   { key: "rakuten-ticket", label: "Rakuten Ticket", script: "sync:rakuten-ticket", aliases: ["rakuten", "楽天"] },
+  { key: "creativeman", label: "Creativeman", script: "sync:creativeman", aliases: ["creative man", "クリエイティブマン"] },
 ];
 
 function normalizeToken(value: string) {

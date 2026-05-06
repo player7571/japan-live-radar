@@ -14,6 +14,7 @@
     "alerts:dispatch": "tsx scripts/dispatch-alerts.ts",
     "sync:seed": "tsx scripts/sync-seed-events.ts",
     "sync:public-sources": "tsx scripts/sync-public-sources.ts",
+    "sync:creativeman": "tsx scripts/sync-creativeman.ts",
     "sync:eplus": "tsx scripts/sync-eplus.ts",
     "sync:lawson": "tsx scripts/sync-lawson.ts",
     "sync:rakuten-ticket": "tsx scripts/sync-rakuten-ticket.ts",
