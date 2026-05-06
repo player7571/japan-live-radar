@@ -3265,6 +3265,14 @@ test("creates ticket source search URLs including additional Japanese sources", 
         source: "LiveFans",
         url: "https://www.livefans.jp/search?option=3&keyword=Ado%20%E6%9D%B1%E4%BA%AC",
       },
+      {
+        source: "Live Nation H.I.P.",
+        url: "https://www.livenationhip.co.jp/",
+      },
+      {
+        source: "Creativeman",
+        url: "https://www.creativeman.co.jp/upcoming/",
+      },
     ]),
   );
   expect(searchSources("Ado 東京").map((source) => source.source)).toEqual([
@@ -3274,6 +3282,8 @@ test("creates ticket source search URLs including additional Japanese sources", 
     "Ticketmaster",
     "Rakuten Ticket",
     "LiveFans",
+    "Live Nation H.I.P.",
+    "Creativeman",
   ]);
 });
 

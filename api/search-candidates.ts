@@ -85,6 +85,14 @@ export function searchSources(keyword: string) {
       source: "LiveFans",
       url: `https://www.livefans.jp/search?option=3&keyword=${encoded}`,
     },
+    {
+      source: "Live Nation H.I.P.",
+      url: "https://www.livenationhip.co.jp/",
+    },
+    {
+      source: "Creativeman",
+      url: "https://www.creativeman.co.jp/upcoming/",
+    },
   ];
 }
 
