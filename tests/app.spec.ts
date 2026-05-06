@@ -2208,6 +2208,19 @@ test("maps Ticket Pia rlsInfo search HTML to Korea-friendly event rows", () => {
             </ul>
           </a>
         </div>
+        <div class="event_link" itemscope itemtype="http://schema.org/Event">
+          <a href="https://ticket.pia.jp/pia/ticketInformation.do?eventCd=viewing&rlsCd=001&lotRlsCd=" itemprop="url">
+            <ul class="table_data">
+              <li class="is_title">一般発売／SPECIAL LIVE 2026 ライブビューイング</li>
+              <li class="is_date"><span class="dt"><time itemprop="startDate" datetime="2026-05-25T00:00:00+09:00"></time>2026/5/25(月)</span></li>
+              <li class="is_place" itemprop="location" itemscope itemtype="http://schema.org/Place">
+                <span itemprop="name">新宿ピカデリー</span>
+                (<span itemprop="address" itemscope itemtype="http://schema.org/PostalAddress"><span itemprop="addressRegion">東京都</span></span>)
+              </li>
+              <li class="is_status"><span>販売期間中</span></li>
+            </ul>
+          </a>
+        </div>
       </section>
     </section>
   `;
