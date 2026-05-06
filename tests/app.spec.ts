@@ -131,6 +131,38 @@ test("extracts Japanese ticket page sales cues", () => {
   expect(draft.phoneRequired).toBe(true);
 });
 
+test("recognizes official promoter source pages during URL import", () => {
+  const liveNationDraft = extractDraft(
+    `
+      <html>
+        <head><title>Charlie Puth Whatever's Clever! World Tour | LIVE NATION H.I.P.</title></head>
+        <body>
+          <h1>Charlie Puth Whatever's Clever! World Tour</h1>
+          <p>2026年10月16日(金) 東京ガーデンシアター</p>
+          <p>チケット先行は4/13(月)正午より受付を開始します。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://www.livenationhip.co.jp/events/charlie-puth"),
+  );
+  const creativemanDraft = extractDraft(
+    `
+      <html>
+        <head><title>LOUDNESS | CREATIVEMAN PRODUCTIONS</title></head>
+        <body>
+          <h1>LOUDNESS</h1>
+          <p>2026年5月6日(水) 東京</p>
+          <p>発売中</p>
+        </body>
+      </html>
+    `,
+    new URL("https://www.creativeman.co.jp/event/loudness2026/"),
+  );
+
+  expect(liveNationDraft.source).toBe("Live Nation H.I.P.");
+  expect(creativemanDraft.source).toBe("Creativeman");
+});
+
 test("rejects private or local admin import URLs", () => {
   expect(() => safeUrl("https://example.com/ticket")).not.toThrow();
   expect(() => safeUrl("https://fc2.com/ticket")).not.toThrow();
