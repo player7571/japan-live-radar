@@ -2674,6 +2674,43 @@ test("maps Creativeman public detail pages to event rows", () => {
   ]);
 });
 
+test("keeps Creativeman venue and sale windows scoped to ticket fields", () => {
+  const detailHtml = `
+    <html>
+      <head><title>REIKO - CREATIVEMAN PRODUCTIONS</title></head>
+      <body>
+        <h1>REIKO</h1>
+        LIVE INFORMATION
+        東京 2026/6/1(月) 渋谷WWW 出演者 REIKO / Guest Band 公演
+        開場・開演 | OPEN 18:00 / START 19:00
+        チケット発売日 | 4/18(土)10:00〜
+        プレイガイド ローソンチケット
+        注意事項 ・未就学児童入場不可
+        INFO クリエイティブマン:03-3499-6669
+        {"@context":"https://schema.org","@type":"WebPage"}
+      </body>
+    </html>
+  `;
+  const rows = extractCreativemanRows(
+    detailHtml,
+    "https://www.creativeman.co.jp/event/reiko-voice26/",
+    new Date("2026-05-01T00:00:00+09:00"),
+  );
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    source: "Creativeman",
+    artist: "REIKO",
+    venue: "渋谷WWW",
+    date: "2026-06-01",
+    time: "19:00",
+    sale_window: "発売日: 4/18(土)10:00〜",
+  });
+  expect(rows[0].venue).not.toContain("出演者");
+  expect(rows[0].sale_window).not.toContain("プレイガイド");
+  expect(rows[0].sale_window).not.toContain("@context");
+});
+
 test("maps Live Nation H.I.P. public pages to event rows", () => {
   const indexHtml = `
     <a href="https://www.livenationhip.co.jp/all-events/lany-tickets-ae771408">LANY</a>
