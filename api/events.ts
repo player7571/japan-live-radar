@@ -2,7 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { seedEvents } from "../src/data/seedEvents.js";
 import { rowToEvent, type EventRow } from "../src/lib/eventRows.js";
 import { serverReadKey } from "../src/lib/supabaseServer.js";
-import type { EventApiResponse, SyncRun } from "../src/types/events.js";
+import { rowToSyncRun, summarizeLatestSyncRuns, type SyncRunRow } from "../src/lib/syncRuns.js";
+import type { EventApiResponse } from "../src/types/events.js";
 
 type VercelRequest = {
   method?: string;
@@ -22,28 +23,6 @@ export function seedResponse(): EventApiResponse {
   return {
     events: seedEvents,
     source: "seed",
-  };
-}
-
-type SyncRunRow = {
-  source: string;
-  status: "success" | "error";
-  fetched_count: number;
-  upserted_count: number;
-  skipped_count: number;
-  message: string | null;
-  finished_at: string;
-};
-
-function rowToSyncRun(row: SyncRunRow): SyncRun {
-  return {
-    source: row.source,
-    status: row.status,
-    fetchedCount: row.fetched_count,
-    upsertedCount: row.upserted_count,
-    skippedCount: row.skipped_count,
-    message: row.message,
-    finishedAt: row.finished_at,
   };
 }
 
@@ -77,8 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select("source,status,fetched_count,upserted_count,skipped_count,message,finished_at")
       .eq("status", "success")
       .order("finished_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(30),
   ]);
 
   if (eventsResult.error || !eventsResult.data || eventsResult.data.length === 0) {
@@ -86,12 +64,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  const syncRows = syncResult.error ? [] : ((syncResult.data ?? []) as SyncRunRow[]);
+
   res.status(200).json({
     events: (eventsResult.data as EventRow[]).map(rowToEvent),
     source: "supabase",
-    meta: !syncResult.error && syncResult.data
+    meta: syncRows.length > 0
       ? {
-          lastSync: rowToSyncRun(syncResult.data as SyncRunRow),
+          lastSync: rowToSyncRun(syncRows[0]),
+          latestSyncBySource: summarizeLatestSyncRuns(syncRows),
         }
       : undefined,
   } satisfies EventApiResponse);

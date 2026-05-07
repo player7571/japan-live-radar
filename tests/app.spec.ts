@@ -24,7 +24,7 @@ import {
   validateAdminStatsHealth,
   validateProductionHealth,
 } from "../scripts/check-production-health";
-import { summarizeLatestSyncRuns } from "../api/health";
+import { formatEventSyncLabel, summarizeLatestSyncRuns } from "../src/lib/syncRuns";
 import {
   normalizePublicSyncSelection,
   publicSyncPlanSummary,
@@ -3029,6 +3029,72 @@ test("summarizes latest public sync runs by source", () => {
       finishedAt: null,
     },
   ]);
+});
+
+test("formats event API sync labels with source coverage", () => {
+  expect(formatEventSyncLabel(undefined, "seed")).toBe("샘플 데이터");
+  expect(formatEventSyncLabel(undefined, "supabase")).toBe("DB 데이터");
+  expect(
+    formatEventSyncLabel(
+      {
+        lastSync: {
+          source: "Ticketmaster",
+          status: "success",
+          fetchedCount: 20,
+          upsertedCount: 18,
+          skippedCount: 2,
+          message: null,
+          finishedAt: "2026-05-07T00:00:00Z",
+        },
+      },
+      "supabase",
+    ),
+  ).toBe("Ticketmaster 18건 동기화");
+  expect(
+    formatEventSyncLabel(
+      {
+        latestSyncBySource: [
+          {
+            source: "Lawson Ticket",
+            status: "success",
+            fetchedCount: 12,
+            upsertedCount: 10,
+            skippedCount: 2,
+            message: null,
+            finishedAt: "2026-05-07T00:00:00Z",
+          },
+          {
+            source: "Creativeman",
+            status: "success",
+            fetchedCount: 8,
+            upsertedCount: 8,
+            skippedCount: 0,
+            message: null,
+            finishedAt: "2026-05-07T00:00:00Z",
+          },
+          {
+            source: "Ticket Pia",
+            status: "success",
+            fetchedCount: 30,
+            upsertedCount: 25,
+            skippedCount: 5,
+            message: null,
+            finishedAt: "2026-05-07T00:00:00Z",
+          },
+          {
+            source: "e+",
+            status: "success",
+            fetchedCount: 40,
+            upsertedCount: 35,
+            skippedCount: 5,
+            message: null,
+            finishedAt: "2026-05-07T00:00:00Z",
+          },
+        ],
+      },
+      "supabase",
+    ),
+  ).toBe("4개 출처 동기화 · Lawson Ticket, Creativeman, Ticket Pia 외 1개");
 });
 
 test("applies every checked-in Supabase migration", () => {

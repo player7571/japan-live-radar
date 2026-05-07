@@ -31,6 +31,7 @@ import { buildAlertEventSnapshot } from "./lib/alertSnapshot";
 import { calculateReminderAt, canScheduleReminder, normalizeAlertLeadTimeHours } from "./lib/alertSchedule";
 import { currentTokyoDay, getSaleStatus, type SaleStatus } from "./lib/saleStatus";
 import { eventSearchText, searchVariants } from "./lib/searchAliases";
+import { formatEventSyncLabel } from "./lib/syncRuns";
 import { registerServiceWorker } from "./registerServiceWorker";
 import type { Event, EventApiResponse, TicketAccess } from "./types/events";
 import "./styles.css";
@@ -482,13 +483,7 @@ function App() {
         if (!ignore && data.events.length > 0) {
           setEvents(data.events);
           setDataSource(data.source);
-          setLastSyncLabel(
-            data.meta?.lastSync
-              ? `${data.meta.lastSync.source} ${data.meta.lastSync.upsertedCount}건 동기화`
-              : data.source === "supabase"
-                ? "DB 데이터"
-                : "샘플 데이터",
-          );
+          setLastSyncLabel(formatEventSyncLabel(data.meta, data.source));
           setSelectedId((current) => {
             const linkedEventId = eventIdFromUrl();
             if (linkedEventId && data.events.some((event) => event.id === linkedEventId)) return linkedEventId;
