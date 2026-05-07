@@ -11,11 +11,21 @@ type PublicSyncStep = {
 export const publicSyncSteps: PublicSyncStep[] = [
   { key: "seed", label: "Seed events", script: "sync:seed", aliases: ["fallback"] },
   { key: "ticketmaster", label: "Ticketmaster", script: "sync:ticketmaster", aliases: ["tm"] },
-  { key: "eplus", label: "e+", script: "sync:eplus", aliases: ["e+", "イープラス"] },
-  { key: "lawson", label: "Lawson Ticket", script: "sync:lawson", aliases: ["l-tike", "ローチケ", "ローソン"] },
-  { key: "ticket-pia", label: "Ticket Pia", script: "sync:ticket-pia", aliases: ["pia", "チケットぴあ"] },
-  { key: "rakuten-ticket", label: "Rakuten Ticket", script: "sync:rakuten-ticket", aliases: ["rakuten", "楽天"] },
-  { key: "creativeman", label: "Creativeman", script: "sync:creativeman", aliases: ["creative man", "クリエイティブマン"] },
+  { key: "eplus", label: "e+", script: "sync:eplus", aliases: ["e+", "e plus", "イープラス"] },
+  { key: "lawson", label: "Lawson Ticket", script: "sync:lawson", aliases: ["lawson ticket", "l-tike", "ローチケ", "ローソン"] },
+  { key: "ticket-pia", label: "Ticket Pia", script: "sync:ticket-pia", aliases: ["ticket pia", "ticketpia", "pia", "チケットぴあ"] },
+  {
+    key: "rakuten-ticket",
+    label: "Rakuten Ticket",
+    script: "sync:rakuten-ticket",
+    aliases: ["rakuten ticket", "rakuten", "楽天チケット", "楽天"],
+  },
+  {
+    key: "creativeman",
+    label: "Creativeman",
+    script: "sync:creativeman",
+    aliases: ["creativeman productions", "creative man", "クリエイティブマン"],
+  },
 ];
 
 function normalizeToken(value: string) {
