@@ -54,6 +54,17 @@ jobs:
           EPLUS_ROW_LIMIT: ${{ vars.EPLUS_ROW_LIMIT || '80' }}
           EPLUS_FETCH_TIMEOUT_MS: ${{ vars.EPLUS_FETCH_TIMEOUT_MS || '12000' }}
 
+      - name: Sync Lawson Ticket events
+        run: npm run sync:lawson
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LAWSON_SEARCH_URLS: ${{ vars.LAWSON_SEARCH_URLS || '' }}
+          LAWSON_SYNC_KEYWORDS: ${{ vars.LAWSON_SYNC_KEYWORDS || 'J-POP,K-POP,ライブ,コンサート,フェス,ROCK,アジア' }}
+          LAWSON_PAGE_LIMIT: ${{ vars.LAWSON_PAGE_LIMIT || '1' }}
+          LAWSON_ROW_LIMIT: ${{ vars.LAWSON_ROW_LIMIT || '80' }}
+          LAWSON_FETCH_TIMEOUT_MS: ${{ vars.LAWSON_FETCH_TIMEOUT_MS || '12000' }}
+
       - name: Sync Ticket Pia events
         run: npm run sync:ticket-pia
         env:
@@ -74,6 +85,16 @@ jobs:
           RAKUTEN_TICKET_ROW_LIMIT: ${{ vars.RAKUTEN_TICKET_ROW_LIMIT || '60' }}
           RAKUTEN_TICKET_FETCH_TIMEOUT_MS: ${{ vars.RAKUTEN_TICKET_FETCH_TIMEOUT_MS || '12000' }}
 
+      - name: Sync Creativeman events
+        run: npm run sync:creativeman
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CREATIVEMAN_INDEX_URLS: ${{ vars.CREATIVEMAN_INDEX_URLS || '' }}
+          CREATIVEMAN_INDEX_LIMIT: ${{ vars.CREATIVEMAN_INDEX_LIMIT || '2' }}
+          CREATIVEMAN_ROW_LIMIT: ${{ vars.CREATIVEMAN_ROW_LIMIT || '60' }}
+          CREATIVEMAN_FETCH_TIMEOUT_MS: ${{ vars.CREATIVEMAN_FETCH_TIMEOUT_MS || '12000' }}
+
       - name: Create issue on failure
         if: failure()
         uses: actions/github-script@v9
@@ -85,7 +106,7 @@ jobs:
               "",
               `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               "",
-              "Codex should inspect API errors, e+/Ticket Pia page mapping changes, data mapping changes, or missing secrets."
+              "Codex should inspect API errors, source page mapping changes, data mapping changes, or missing secrets."
             ].join("\n");
             try {
               await github.rest.issues.createLabel({
