@@ -137,6 +137,7 @@ APP_BASE_URL
 VITE_USE_SEED_DATA
 TICKETMASTER_PAGE_LIMIT
 TICKETMASTER_FETCH_TIMEOUT_MS
+EVENT_API_LIMIT
 ALERT_WEBHOOK_ATTEMPTS
 ALERT_WEBHOOK_TIMEOUT_MS
 ALERT_WEBHOOK_SECRET
@@ -146,6 +147,7 @@ SYNC_STALE_AFTER_HOURS
 - `SUPABASE_URL` and `SUPABASE_ANON_KEY` are server-side fallbacks for the Vite-prefixed Supabase values.
 - `APP_BASE_URL` overrides the production URL used by health checks and alert dispatch scripts.
 - `VITE_USE_SEED_DATA=true` forces the frontend to use local seed data during development.
+- `EVENT_API_LIMIT` caps `/api/events` rows returned to the app. It defaults to `300`, is clamped from `50` to `500`, and should stay high enough to cover the current public-source catalog.
 - `TICKETMASTER_PAGE_LIMIT` caps Ticketmaster sync pagination per search profile. It defaults to `2` pages, is clamped from `1` to `5`, and can be set as a GitHub repository variable for the scheduled sync workflow.
 - `TICKETMASTER_FETCH_TIMEOUT_MS` controls each Ticketmaster API request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable for the scheduled sync workflow.
 - `EPLUS_SYNC_KEYWORDS` controls public e+ search keywords for the scheduled sync. It defaults to `J-POP,K-POP,ライブ,コンサート,フェス,ROCK`.
@@ -201,7 +203,7 @@ Normal development flow:
 4. Merge to `dev`.
 5. Let `Auto Release PR` update the open `dev` to `main` release PR.
 6. Leave the release PR open until the next release window. `Merge Release PR` runs at 09:00 and 21:00 KST, or can be run manually for an immediate production release. The workflow first reconciles `dev` with the latest `main` release commit when prior releases have made the branches diverge, merges the clean release PR, then fast-forwards `dev` to the new `main` release commit. If production deploy capacity is exhausted after merge, leave the matching automation issues open and let `Retry Production Deploy` finish the release later. While those blockers are open, automatic `main` push deploys are intentionally skipped to avoid spending more Vercel quota.
-7. Verify production with `npm run health:production` or `https://japan-live-radar.vercel.app/api/health`. The public health response includes `latestSyncBySource` so operators can confirm source-specific sync coverage without spending an admin request. With `ADMIN_API_TOKEN`, the script also verifies that alert queue tables are ready, alert errors are cleared, and sync health is current.
+7. Verify production with `npm run health:production` or `https://japan-live-radar.vercel.app/api/health`. The public health response includes `latestSyncBySource` so operators can confirm source-specific sync coverage without spending an admin request. `/api/events` also includes the same source summary in `meta.latestSyncBySource`, which powers the app's visible sync coverage label. With `ADMIN_API_TOKEN`, the script also verifies that alert queue tables are ready, alert errors are cleared, and sync health is current.
 
 If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, continue feature work on `dev` and avoid manual deploy retries until quota resets. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
 

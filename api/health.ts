@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { serverReadKey } from "../src/lib/supabaseServer.js";
+import { summarizeLatestSyncRuns, type SyncRunRow } from "../src/lib/syncRuns.js";
 
 type VercelRequest = {
   method?: string;
@@ -14,37 +15,6 @@ type VercelResponse = {
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-type SyncRunHealthRow = {
-  source: string | null;
-  status: string | null;
-  fetched_count: number | null;
-  upserted_count: number | null;
-  skipped_count: number | null;
-  message: string | null;
-  finished_at: string | null;
-};
-
-export function summarizeLatestSyncRuns(rows: SyncRunHealthRow[], maxSources = 8) {
-  const seen = new Set<string>();
-  return rows
-    .filter((row) => {
-      const source = row.source?.trim();
-      if (!source || seen.has(source)) return false;
-      seen.add(source);
-      return true;
-    })
-    .map((row) => ({
-      source: row.source?.trim() ?? "",
-      status: row.status ?? "unknown",
-      fetchedCount: row.fetched_count ?? 0,
-      upsertedCount: row.upserted_count ?? 0,
-      skippedCount: row.skipped_count ?? 0,
-      message: row.message,
-      finishedAt: row.finished_at,
-    }))
-    .slice(0, maxSources);
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
@@ -90,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const syncRows = syncRunsResult.error ? [] : ((syncRunsResult.data ?? []) as SyncRunHealthRow[]);
+  const syncRows = syncRunsResult.error ? [] : ((syncRunsResult.data ?? []) as SyncRunRow[]);
 
   res.status(200).json({
     ok: true,

@@ -83,8 +83,13 @@ async function fetchRakutenTicketPage(url: string) {
     signal: AbortSignal.timeout(rakutenTicketFetchTimeoutMs),
   });
 
+  if (response.status === 404) {
+    console.warn(`Skipping missing Rakuten Ticket page: ${url}`);
+    return null;
+  }
+
   if (!response.ok) {
-    throw new Error(`Rakuten Ticket request failed for ${url}: ${response.status} ${await response.text()}`);
+    throw new Error(`Rakuten Ticket request failed for ${url}: ${response.status} ${response.statusText}`);
   }
 
   return response.text();
@@ -93,10 +98,6 @@ async function fetchRakutenTicketPage(url: string) {
 function compactText(value: string | null | undefined) {
   if (!value) return "";
   return cheerio.load(value).text().normalize("NFKC").replace(/\s+/g, " ").trim();
-}
-
-function postgrestStringList(values: string[]) {
-  return `(${values.map((value) => `"${value.replaceAll('"', '\\"')}"`).join(",")})`;
 }
 
 function isRakutenTicketDetailUrl(url: URL) {
@@ -196,6 +197,7 @@ async function main() {
   const detailUrls = new Set<string>();
   for (const categoryUrl of rakutenTicketCategoryUrls()) {
     const html = await fetchRakutenTicketPage(categoryUrl);
+    if (!html) continue;
     for (const detailUrl of extractRakutenTicketDetailUrls(html, categoryUrl)) {
       detailUrls.add(detailUrl);
       if (detailUrls.size >= rakutenTicketRowLimit) break;
@@ -207,6 +209,7 @@ async function main() {
   let fetchedCount = 0;
   for (const detailUrl of detailUrls) {
     const html = await fetchRakutenTicketPage(detailUrl);
+    if (!html) continue;
     fetchedCount += 1;
     const row = toRakutenTicketEventRow(extractDraft(html, new URL(detailUrl)), detailUrl, startedAt);
     if (row) {
@@ -247,22 +250,47 @@ async function main() {
     throw new Error(`Supabase Rakuten Ticket upsert failed: ${error.message}`);
   }
 
-  const { error: staleError, count: staleDeletedCount } = await supabase
+  const currentSourceEventIds = new Set(rows.map((row) => row.source_event_id));
+  const { data: existingRows, error: existingRowsError } = await supabase
     .from("events")
-    .delete({ count: "exact" })
-    .eq("source", "Rakuten Ticket")
-    .not("source_event_id", "in", postgrestStringList(rows.map((row) => row.source_event_id)));
+    .select("id, source_event_id")
+    .eq("source", "Rakuten Ticket");
 
-  if (staleError) {
+  if (existingRowsError) {
     await recordSyncRun(supabase, {
       source: "Rakuten Ticket",
       status: "error",
       fetchedCount,
       skippedCount,
-      message: staleError.message,
+      message: existingRowsError.message,
       startedAt,
     });
-    throw new Error(`Supabase stale Rakuten Ticket cleanup failed: ${staleError.message}`);
+    throw new Error(`Supabase stale Rakuten Ticket lookup failed: ${existingRowsError.message}`);
+  }
+
+  const staleIds = (existingRows ?? [])
+    .filter((row) => !currentSourceEventIds.has(row.source_event_id as string))
+    .map((row) => row.id as string);
+
+  let staleDeletedCount = 0;
+  if (staleIds.length > 0) {
+    const { error: staleError, count } = await supabase
+      .from("events")
+      .delete({ count: "exact" })
+      .in("id", staleIds);
+
+    if (staleError) {
+      await recordSyncRun(supabase, {
+        source: "Rakuten Ticket",
+        status: "error",
+        fetchedCount,
+        skippedCount,
+        message: staleError.message,
+        startedAt,
+      });
+      throw new Error(`Supabase stale Rakuten Ticket cleanup failed: ${staleError.message}`);
+    }
+    staleDeletedCount = count ?? staleIds.length;
   }
 
   await recordSyncRun(supabase, {
@@ -271,11 +299,11 @@ async function main() {
     fetchedCount,
     upsertedCount: rows.length,
     skippedCount,
-    message: `Synced ${rows.length} Rakuten Ticket public category events. Removed ${staleDeletedCount ?? 0} stale Rakuten Ticket rows.`,
+    message: `Synced ${rows.length} Rakuten Ticket public category events. Removed ${staleDeletedCount} stale Rakuten Ticket rows.`,
     startedAt,
   });
   console.log(
-    `Synced ${rows.length} Rakuten Ticket events. Skipped ${skippedCount}. Removed ${staleDeletedCount ?? 0} stale rows.`,
+    `Synced ${rows.length} Rakuten Ticket events. Skipped ${skippedCount}. Removed ${staleDeletedCount} stale rows.`,
   );
 }
 

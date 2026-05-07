@@ -15,7 +15,7 @@ import {
   normalizeAlertContactEmail,
   normalizeAlertLeadTimeHours,
 } from "../api/alerts";
-import { seedResponse } from "../api/events";
+import { normalizeEventApiLimit, seedResponse } from "../api/events";
 import { assertPublicResolvedAddresses, extractDraft, safeUrl } from "../api/import-url";
 import { searchSources } from "../api/search-candidates";
 import { migrationFiles } from "../scripts/apply-migrations";
@@ -24,7 +24,7 @@ import {
   validateAdminStatsHealth,
   validateProductionHealth,
 } from "../scripts/check-production-health";
-import { summarizeLatestSyncRuns } from "../api/health";
+import { formatEventSyncLabel, summarizeLatestSyncRuns } from "../src/lib/syncRuns";
 import {
   normalizePublicSyncSelection,
   publicSyncPlanSummary,
@@ -105,6 +105,7 @@ import { seedEvents } from "../src/data/seedEvents";
 import { buildAlertEventSnapshot } from "../src/lib/alertSnapshot";
 import { splitCandidateRowsByExistingStatus } from "../src/lib/candidateDedupe";
 import { currentTokyoDay, getSaleStatus } from "../src/lib/saleStatus";
+import { isInDateWindow, isInSelectedDateRange, summerTravelRange } from "../src/lib/dateFilters";
 import { eventSearchText, searchVariants } from "../src/lib/searchAliases";
 
 test("extracts Japanese ticket page sales cues", () => {
@@ -2708,6 +2709,14 @@ test("serves the shared seed event catalog from the events API fallback", () => 
   });
 });
 
+test("normalizes the public events API row limit", () => {
+  expect(normalizeEventApiLimit(undefined)).toBe(300);
+  expect(normalizeEventApiLimit("178")).toBe(178);
+  expect(normalizeEventApiLimit("10")).toBe(50);
+  expect(normalizeEventApiLimit("900")).toBe(500);
+  expect(normalizeEventApiLimit("not-a-number")).toBe(300);
+});
+
 test("prefers the server key for protected server-side reads", () => {
   expect(serverReadKey("anon-key", "service-role-key")).toBe("service-role-key");
   expect(serverReadKey("anon-key")).toBe("anon-key");
@@ -3029,6 +3038,75 @@ test("summarizes latest public sync runs by source", () => {
       finishedAt: null,
     },
   ]);
+});
+
+test("formats event API sync labels with source coverage", () => {
+  expect(formatEventSyncLabel(undefined, "seed")).toBe("샘플 데이터");
+  expect(formatEventSyncLabel(undefined, "supabase")).toBe("DB 데이터");
+  expect(formatEventSyncLabel(undefined, "supabase", 178)).toBe("178개 공연 · DB 데이터");
+  expect(
+    formatEventSyncLabel(
+      {
+        lastSync: {
+          source: "Ticketmaster",
+          status: "success",
+          fetchedCount: 20,
+          upsertedCount: 18,
+          skippedCount: 2,
+          message: null,
+          finishedAt: "2026-05-07T00:00:00Z",
+        },
+      },
+      "supabase",
+      18,
+    ),
+  ).toBe("18개 공연 · Ticketmaster 18건 동기화");
+  expect(
+    formatEventSyncLabel(
+      {
+        latestSyncBySource: [
+          {
+            source: "Lawson Ticket",
+            status: "success",
+            fetchedCount: 12,
+            upsertedCount: 10,
+            skippedCount: 2,
+            message: null,
+            finishedAt: "2026-05-07T00:00:00Z",
+          },
+          {
+            source: "Creativeman",
+            status: "success",
+            fetchedCount: 8,
+            upsertedCount: 8,
+            skippedCount: 0,
+            message: null,
+            finishedAt: "2026-05-07T00:00:00Z",
+          },
+          {
+            source: "Ticket Pia",
+            status: "success",
+            fetchedCount: 30,
+            upsertedCount: 25,
+            skippedCount: 5,
+            message: null,
+            finishedAt: "2026-05-07T00:00:00Z",
+          },
+          {
+            source: "e+",
+            status: "success",
+            fetchedCount: 40,
+            upsertedCount: 35,
+            skippedCount: 5,
+            message: null,
+            finishedAt: "2026-05-07T00:00:00Z",
+          },
+        ],
+      },
+      "supabase",
+      178,
+    ),
+  ).toBe("178개 공연 · 4개 출처 동기화 · Lawson Ticket, Creativeman, Ticket Pia 외 1개");
 });
 
 test("applies every checked-in Supabase migration", () => {
@@ -3567,6 +3645,66 @@ test("expands promoter source aliases for Korean search", () => {
   expect(matches(creativemanEvent, "크리에이티브맨프로덕션")).toBe(true);
 });
 
+test("matches Japanese source labels with Korean ticket-site aliases", () => {
+  const lawsonEvent = {
+    ...seedEvents[0],
+    id: "source-lawson-ja",
+    source: "ローチケ",
+  };
+  const rakutenEvent = {
+    ...seedEvents[0],
+    id: "source-rakuten-ja",
+    source: "楽天チケット",
+  };
+  const creativemanEvent = {
+    ...seedEvents[0],
+    id: "source-creativeman-ja",
+    source: "クリエイティブマン",
+  };
+
+  const matches = (event: typeof seedEvents[number], query: string) => {
+    const text = eventSearchText(event);
+    return searchVariants(query).some((variant) => text.includes(variant));
+  };
+
+  expect(matches(lawsonEvent, "로치케")).toBe(true);
+  expect(matches(lawsonEvent, "로손티켓")).toBe(true);
+  expect(matches(rakutenEvent, "라쿠텐티켓")).toBe(true);
+  expect(matches(creativemanEvent, "크리에이티브맨")).toBe(true);
+});
+
+test("search text includes ticket detail fields for Korean trip planning", () => {
+  const matches = (event: typeof seedEvents[number], query: string) => {
+    const text = eventSearchText(event);
+    return searchVariants(query).some((variant) => text.includes(variant));
+  };
+
+  expect(matches(seedEvents[1], "스마치케")).toBe(true);
+  expect(matches(seedEvents[2], "앱스토어")).toBe(true);
+  expect(matches(seedEvents[3], "해외카드")).toBe(true);
+  expect(matches(seedEvents[0], "5.20")).toBe(true);
+  expect(matches(seedEvents[1], "2026-07-03")).toBe(true);
+  expect(matches(seedEvents[2], "12500")).toBe(true);
+});
+
+test("keeps travel date filters relative to the current season", () => {
+  const may2026 = new Date("2026-05-07T00:00:00+09:00");
+  const september2026 = new Date("2026-09-01T00:00:00+09:00");
+
+  expect(summerTravelRange(may2026)).toEqual({
+    start: new Date("2026-06-01T00:00:00+09:00"),
+    end: new Date("2026-08-31T23:59:59+09:00"),
+  });
+  expect(summerTravelRange(september2026)).toEqual({
+    start: new Date("2027-06-01T00:00:00+09:00"),
+    end: new Date("2027-08-31T23:59:59+09:00"),
+  });
+  expect(isInDateWindow("2026-07-15", "여름 원정", may2026)).toBe(true);
+  expect(isInDateWindow("2026-07-15", "여름 원정", september2026)).toBe(false);
+  expect(isInDateWindow("2027-07-15", "여름 원정", september2026)).toBe(true);
+  expect(isInSelectedDateRange("2026-10-10", "60일 이내", "2026-10-01", "2026-10-31", may2026)).toBe(true);
+});
+
 test("searches concerts and opens the detail panel", async ({ page }) => {
   await page.goto("/");
 
@@ -3620,8 +3758,10 @@ test("searches concerts with Japanese city and ticket-condition aliases", async 
   await expect(page.getByRole("button", { name: /RADWIMPS/ })).toBeVisible();
 
   await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("sms인증");
-  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByText("3개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /YOASOBI/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Ado/ })).toBeVisible();
 });
 
 test("opens shared event detail URLs and keeps the selected event in the URL", async ({ page }) => {
@@ -3657,6 +3797,11 @@ test("copies the selected concert detail link", async ({ page }) => {
 test("filters by city and ticket access without horizontal overflow", async ({ page }) => {
   await page.goto("/");
 
+  await expect(page.getByLabel("도시").locator("option[value='전체']")).toHaveText("전체 (5)");
+  await expect(page.getByLabel("도시").locator("option[value='오사카']")).toHaveText("오사카 (1)");
+  await expect(page.getByLabel("구매 조건").locator("option[value='전체']")).toHaveText("전체 (5)");
+  await expect(page.getByLabel("구매 조건").locator("option[value='일본 번호 필요']")).toHaveText("일본 번호 필요 (1)");
+
   await page.getByLabel("도시").selectOption("오사카");
   await page.getByLabel("구매 조건").selectOption("일본 번호 필요");
 
@@ -3677,6 +3822,9 @@ test("filters by city and ticket access without horizontal overflow", async ({ p
 test("filters concerts by artist", async ({ page }) => {
   await page.goto("/");
 
+  await expect(page.getByLabel("아티스트").locator("option[value='전체']")).toHaveText("전체 (5)");
+  await expect(page.getByLabel("아티스트").locator("option[value='Ado']")).toHaveText("Ado (1)");
+
   await page.getByLabel("아티스트").selectOption("Ado");
 
   await expect(page.getByText("1개 공연")).toBeVisible();
@@ -3690,6 +3838,9 @@ test("filters concerts by artist", async ({ page }) => {
 
 test("filters concerts by ticket source", async ({ page }) => {
   await page.goto("/");
+
+  await expect(page.getByLabel("출처").locator("option[value='전체']")).toHaveText("전체 (5)");
+  await expect(page.getByLabel("출처").locator("option[value='Lawson Ticket']")).toHaveText("Lawson Ticket (1)");
 
   await page.getByLabel("출처").selectOption("Lawson Ticket");
 
@@ -3705,12 +3856,24 @@ test("filters concerts by ticket source", async ({ page }) => {
 test("combines travel date and Korea-friendly filters", async ({ page }) => {
   await page.goto("/");
 
-  await page.getByLabel("기간").selectOption("여름 원정");
+  const summerButton = page.getByRole("button", { name: "여름 원정" });
+  await expect(page.getByLabel("기간").locator("option[value='전체']")).toHaveText("전체 (5)");
+  await expect(page.getByLabel("기간").locator("option[value='60일 이내']")).toHaveText("60일 이내 (2)");
+  await expect(page.getByLabel("기간").locator("option[value='90일 이내']")).toHaveText("90일 이내 (3)");
+  await expect(page.getByLabel("기간").locator("option[value='여름 원정']")).toHaveText("여름 원정 (4)");
+
+  await summerButton.click();
+  await expect(summerButton).toHaveClass(/active/);
+  await expect(page.getByLabel("기간")).toHaveValue("여름 원정");
+
   await page.getByRole("button", { name: /한국에서 예매 쉬운 공연/ }).click();
 
   await expect(page.getByText("1개 공연")).toBeVisible();
   await expect(page.getByRole("button", { name: /NewJeans/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "NewJeans" })).toBeVisible();
+
+  await page.getByRole("button", { name: "초기화" }).click();
+  await expect(summerButton).not.toHaveClass(/active/);
 });
 
 test("filters concerts by custom travel dates", async ({ page }) => {
@@ -3732,6 +3895,10 @@ test("filters concerts by custom travel dates", async ({ page }) => {
 test("filters concerts by sale schedule status", async ({ page }) => {
   await page.goto("/");
 
+  await expect(page.getByLabel("판매 상태").locator("option[value='전체']")).toHaveText("전체 (5)");
+  await expect(page.getByLabel("판매 상태").locator("option[value='오픈 예정']")).toHaveText("오픈 예정 (5)");
+  await expect(page.getByLabel("판매 상태").locator("option[value='판매 중']")).toHaveText("판매 중 (0)");
+
   await page.getByLabel("판매 상태").selectOption("오픈 예정");
   await expect(page.getByText("5개 공연")).toBeVisible();
   await expect(page.getByRole("button", { name: /YOASOBI/ })).toBeVisible();
@@ -3741,22 +3908,29 @@ test("filters concerts by sale schedule status", async ({ page }) => {
   await page.getByLabel("판매 상태").selectOption("판매 중");
   await expect(page.getByText("0개 공연")).toBeVisible();
   await expect(page.getByText("조건에 맞는 공연이 없어요")).toBeVisible();
+
+  await page.getByRole("button", { name: "필터 초기화" }).click();
+  await expect(page.getByLabel("판매 상태")).toHaveValue("전체");
+  await expect(page.getByText("5개 공연")).toBeVisible();
 });
 
 test("persists local alert selections", async ({ page }) => {
   await page.goto("/");
 
   await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await expect(page.getByLabel("공연 상세").getByRole("button", { name: "알림 설정" })).toBeVisible();
   await page.getByRole("button", { name: "일정 알림" }).click();
 
   await expect(page.getByRole("button", { name: "알림 2개" })).toBeVisible();
   await expect(page.getByRole("button", { name: "알림 설정됨" })).toBeVisible();
+  await expect(page.getByLabel("공연 상세").getByRole("button", { name: "알림 해제" })).toBeVisible();
 
   await page.reload();
   await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
 
   await expect(page.getByRole("button", { name: "알림 2개" })).toBeVisible();
   await expect(page.getByRole("button", { name: "알림 설정됨" })).toBeVisible();
+  await expect(page.getByLabel("공연 상세").getByRole("button", { name: "알림 해제" })).toBeVisible();
 });
 
 test("shows alert subscription sync feedback in the detail panel", async ({ page }) => {
