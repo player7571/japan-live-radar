@@ -3790,12 +3790,19 @@ test("filters concerts by ticket source", async ({ page }) => {
 test("combines travel date and Korea-friendly filters", async ({ page }) => {
   await page.goto("/");
 
-  await page.getByLabel("기간").selectOption("여름 원정");
+  const summerButton = page.getByRole("button", { name: "여름 원정" });
+  await summerButton.click();
+  await expect(summerButton).toHaveClass(/active/);
+  await expect(page.getByLabel("기간")).toHaveValue("여름 원정");
+
   await page.getByRole("button", { name: /한국에서 예매 쉬운 공연/ }).click();
 
   await expect(page.getByText("1개 공연")).toBeVisible();
   await expect(page.getByRole("button", { name: /NewJeans/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "NewJeans" })).toBeVisible();
+
+  await page.getByRole("button", { name: "초기화" }).click();
+  await expect(summerButton).not.toHaveClass(/active/);
 });
 
 test("filters concerts by custom travel dates", async ({ page }) => {
