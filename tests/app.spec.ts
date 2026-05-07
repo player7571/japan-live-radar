@@ -2747,6 +2747,38 @@ test("keeps Creativeman venue and sale windows scoped to ticket fields", () => {
   expect(rows[0].sale_window).not.toContain("@context");
 });
 
+test("uses the Creativeman page title when the artist heading is missing", () => {
+  const detailHtml = `
+    <html>
+      <head>
+        <title>LOUDNESS - CREATIVEMAN PRODUCTIONS</title>
+      </head>
+      <body>
+        <h2>TICKET INFORMATION</h2>
+        大阪 2026/5/8(金) Zepp Namba チケット発売中
+        ---
+        開場・開演 | OPEN 18:00 / START 19:00
+        チケット | 指定席￥11,000（税込/1Drink別）
+        期間：2026/4/13(月)15:00～2026/4/15(水)18:00
+      </body>
+    </html>
+  `;
+  const rows = extractCreativemanRows(
+    detailHtml,
+    "https://www.creativeman.co.jp/event/loudness-45th-anniversary/",
+    new Date("2026-05-01T00:00:00+09:00"),
+  );
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    source: "Creativeman",
+    artist: "LOUDNESS",
+    title: "LOUDNESS",
+    city: "오사카",
+    venue: "Zepp Namba",
+  });
+});
+
 test("maps Live Nation H.I.P. public pages to event rows", () => {
   const indexHtml = `
     <a href="https://www.livenationhip.co.jp/all-events/lany-tickets-ae771408">LANY</a>
