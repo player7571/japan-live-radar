@@ -458,7 +458,7 @@ function App() {
         if (!ignore && data.events.length > 0) {
           setEvents(data.events);
           setDataSource(data.source);
-          setLastSyncLabel(formatEventSyncLabel(data.meta, data.source));
+          setLastSyncLabel(formatEventSyncLabel(data.meta, data.source, data.events.length));
           setSelectedId((current) => {
             const linkedEventId = eventIdFromUrl();
             if (linkedEventId && data.events.some((event) => event.id === linkedEventId)) return linkedEventId;

@@ -3043,6 +3043,7 @@ test("summarizes latest public sync runs by source", () => {
 test("formats event API sync labels with source coverage", () => {
   expect(formatEventSyncLabel(undefined, "seed")).toBe("샘플 데이터");
   expect(formatEventSyncLabel(undefined, "supabase")).toBe("DB 데이터");
+  expect(formatEventSyncLabel(undefined, "supabase", 178)).toBe("178개 공연 · DB 데이터");
   expect(
     formatEventSyncLabel(
       {
@@ -3057,8 +3058,9 @@ test("formats event API sync labels with source coverage", () => {
         },
       },
       "supabase",
+      18,
     ),
-  ).toBe("Ticketmaster 18건 동기화");
+  ).toBe("18개 공연 · Ticketmaster 18건 동기화");
   expect(
     formatEventSyncLabel(
       {
@@ -3102,8 +3104,9 @@ test("formats event API sync labels with source coverage", () => {
         ],
       },
       "supabase",
+      178,
     ),
-  ).toBe("4개 출처 동기화 · Lawson Ticket, Creativeman, Ticket Pia 외 1개");
+  ).toBe("178개 공연 · 4개 출처 동기화 · Lawson Ticket, Creativeman, Ticket Pia 외 1개");
 });
 
 test("applies every checked-in Supabase migration", () => {
