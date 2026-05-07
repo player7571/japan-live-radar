@@ -3822,6 +3822,9 @@ test("filters by city and ticket access without horizontal overflow", async ({ p
 test("filters concerts by artist", async ({ page }) => {
   await page.goto("/");
 
+  await expect(page.getByLabel("아티스트").locator("option[value='전체']")).toHaveText("전체 (5)");
+  await expect(page.getByLabel("아티스트").locator("option[value='Ado']")).toHaveText("Ado (1)");
+
   await page.getByLabel("아티스트").selectOption("Ado");
 
   await expect(page.getByText("1개 공연")).toBeVisible();
