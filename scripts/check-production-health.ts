@@ -5,6 +5,14 @@ type HealthResponse = {
   database?: string;
   eventCount?: number;
   syncRunsAvailable?: boolean;
+  lastSync?: {
+    source?: string;
+    status?: string;
+    fetchedCount?: number;
+    upsertedCount?: number;
+    skippedCount?: number;
+    finishedAt?: string | null;
+  } | null;
   latestSyncBySource?: Array<{
     source?: string;
     status?: string;
@@ -63,6 +71,11 @@ export function validateProductionHealth(health: HealthResponse) {
   }
   if (health.syncRunsAvailable === false) {
     throw new Error("Sync run history is unavailable");
+  }
+  if (health.lastSync !== undefined && health.lastSync !== null) {
+    if (!health.lastSync.source || !health.lastSync.status) {
+      throw new Error("Production health last sync row is invalid");
+    }
   }
   if (health.latestSyncBySource !== undefined) {
     if (!Array.isArray(health.latestSyncBySource)) {
