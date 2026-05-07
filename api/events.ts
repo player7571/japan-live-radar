@@ -62,7 +62,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     syncSupabase
       .from("sync_runs")
       .select("source,status,fetched_count,upserted_count,skipped_count,message,finished_at")
-      .eq("status", "success")
       .order("finished_at", { ascending: false })
       .limit(30),
   ]);
