@@ -17,7 +17,7 @@ import {
 } from "../api/alerts";
 import { normalizeEventApiLimit, seedResponse } from "../api/events";
 import { assertPublicResolvedAddresses, extractDraft, safeUrl } from "../api/import-url";
-import { searchSources } from "../api/search-candidates";
+import { extractSearchCandidateUrls, searchSources } from "../api/search-candidates";
 import { migrationFiles } from "../scripts/apply-migrations";
 import {
   validateAdminAlertsHealth,
@@ -4237,6 +4237,28 @@ test("creates ticket source search URLs including additional Japanese sources", 
     "LiveFans",
     "Live Nation H.I.P.",
     "Creativeman",
+  ]);
+});
+
+test("extracts detail candidates from public artist search pages", () => {
+  const html = `
+    <a href="/event/loudness-45th-anniversary/">LOUDNESS Japan tour</a>
+    <a href="/contact/">Contact</a>
+    <a href="https://www.instagram.com/example">Instagram</a>
+    <a href="/event/loudness-45th-anniversary/">Duplicate</a>
+    <a href="/event/other-band/">Other band</a>
+  `;
+
+  const urls = extractSearchCandidateUrls(
+    html,
+    "https://www.creativeman.co.jp/upcoming/",
+    "LOUDNESS",
+    publicEventSources.find((source) => source.key === "creativeman")!,
+  );
+
+  expect(urls).toEqual([
+    "https://www.creativeman.co.jp/event/loudness-45th-anniversary/",
+    "https://www.creativeman.co.jp/event/other-band/",
   ]);
 });
 
