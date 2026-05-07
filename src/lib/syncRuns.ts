@@ -31,6 +31,9 @@ export type SyncRunInput = {
   startedAt: Date;
 };
 
+export const defaultLatestSyncSourceLimit = 12;
+export const defaultSyncRunLookupLimit = 80;
+
 export function rowToSyncRun(row: SyncRunRow): SyncRunSummary {
   const status = row.status === "success" || row.status === "error" ? row.status : "unknown";
   return {
@@ -44,7 +47,7 @@ export function rowToSyncRun(row: SyncRunRow): SyncRunSummary {
   };
 }
 
-export function summarizeLatestSyncRuns(rows: SyncRunRow[], maxSources = 8) {
+export function summarizeLatestSyncRuns(rows: SyncRunRow[], maxSources = defaultLatestSyncSourceLimit) {
   const seen = new Set<string>();
   return rows
     .filter((row) => {
@@ -64,13 +67,19 @@ export function formatEventSyncLabel(
 ) {
   const eventCountPrefix = typeof eventCount === "number" ? `${eventCount}개 공연 · ` : "";
   const latestBySource = meta?.latestSyncBySource?.filter((item) => item.source) ?? [];
+  const errorCount = latestBySource.filter((item) => item.status === "error").length;
+  const errorSuffix = errorCount > 0 ? ` · 오류 ${errorCount}개` : "";
   if (latestBySource.length > 1) {
     const sourceNames = latestBySource.slice(0, 3).map((item) => item.source);
     const suffix = latestBySource.length > sourceNames.length ? ` 외 ${latestBySource.length - sourceNames.length}개` : "";
-    return `${eventCountPrefix}${latestBySource.length}개 출처 동기화 · ${sourceNames.join(", ")}${suffix}`;
+    return `${eventCountPrefix}${latestBySource.length}개 출처 동기화 · ${sourceNames.join(", ")}${suffix}${errorSuffix}`;
   }
-  if (meta?.lastSync) {
-    return `${eventCountPrefix}${meta.lastSync.source} ${meta.lastSync.upsertedCount}건 동기화`;
+  const primarySync = meta?.lastSync ?? latestBySource[0];
+  if (primarySync) {
+    if (primarySync.status === "error") {
+      return `${eventCountPrefix}${primarySync.source} 동기화 오류`;
+    }
+    return `${eventCountPrefix}${primarySync.source} ${primarySync.upsertedCount}건 동기화`;
   }
   return source === "supabase" ? `${eventCountPrefix}DB 데이터` : `${eventCountPrefix}샘플 데이터`;
 }

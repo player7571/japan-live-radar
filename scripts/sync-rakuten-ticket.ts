@@ -153,6 +153,14 @@ function normalizeRakutenTicketTitle(title: string, artist: string) {
     .trim() || artist || title;
 }
 
+function normalizeRakutenTicketVenue(venue: string) {
+  const normalized = compactText(venue).replace(
+    /(?:販売終了|受付終了|販売中|発売中|予定枚数終了|売切|売り切れ|完売|sold\s*out)+$/i,
+    "",
+  ).trim();
+  return normalized || venue.trim();
+}
+
 export function toRakutenTicketEventRow(
   draft: ReturnType<typeof extractDraft>,
   sourceUrl: string,
@@ -170,7 +178,7 @@ export function toRakutenTicketEventRow(
     artist,
     title,
     city: draft.city || "도시 미정",
-    venue: draft.venue,
+    venue: normalizeRakutenTicketVenue(draft.venue),
     date: draft.date,
     time: draft.time || null,
     genre: "Music",

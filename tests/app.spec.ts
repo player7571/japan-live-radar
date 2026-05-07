@@ -22,9 +22,17 @@ import { migrationFiles } from "../scripts/apply-migrations";
 import {
   validateAdminAlertsHealth,
   validateAdminStatsHealth,
+  validateProductionEvents,
   validateProductionHealth,
 } from "../scripts/check-production-health";
-import { formatEventSyncLabel, summarizeLatestSyncRuns } from "../src/lib/syncRuns";
+import { reachableHealthResponse } from "../api/health";
+import { publicEventSources, publicSearchSources, trackedSyncSources } from "../src/lib/publicSources";
+import {
+  defaultLatestSyncSourceLimit,
+  defaultSyncRunLookupLimit,
+  formatEventSyncLabel,
+  summarizeLatestSyncRuns,
+} from "../src/lib/syncRuns";
 import {
   normalizePublicSyncSelection,
   publicSyncPlanSummary,
@@ -39,6 +47,24 @@ import {
   normalizeCreativemanIndexLimit,
   normalizeCreativemanRowLimit,
 } from "../scripts/sync-creativeman";
+import {
+  extractLiveNationHipDetailUrls,
+  extractLiveNationHipRows,
+  liveNationHipIndexUrls,
+  liveNationHipLogicalEventKey,
+  normalizeLiveNationHipFetchTimeoutMs,
+  normalizeLiveNationHipIndexLimit,
+  normalizeLiveNationHipRowLimit,
+} from "../scripts/sync-livenation-hip";
+import {
+  extractLiveFansDetailUrls,
+  extractLiveFansRows,
+  liveFansLogicalEventKey,
+  liveFansSearchUrls,
+  normalizeLiveFansFetchTimeoutMs,
+  normalizeLiveFansKeywordLimit,
+  normalizeLiveFansRowLimit,
+} from "../scripts/sync-livefans";
 import {
   eplusLogicalEventKey,
   eplusSearchUrls,
@@ -172,6 +198,79 @@ test("recognizes official promoter source pages during URL import", () => {
 
   expect(liveNationDraft.source).toBe("Live Nation H.I.P.");
   expect(creativemanDraft.source).toBe("Creativeman");
+});
+
+test("uses Live Nation H.I.P. schedule parser for URL import drafts", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>Charlie Puth - Whatever's Clever! World Tour Tickets, Tour and Concert Dates - www.livenationhip.co.jp</title>
+          <meta property="og:title" content="Charlie Puth - Whatever's Clever! World Tour Tickets, Tour and Concert Dates - www.livenationhip.co.jp">
+        </head>
+        <body>
+          <h1>Charlie Puth | チャーリー・プース</h1>
+          SCHEDULE
+          2026年10月16日(金)ぴあアリーナMMOPEN 18:00 / START 19:00
+          TICKETS
+          ■GOLD席 ¥98,800 ■S席 ¥19,800
+          オフィシャル1次抽選先行
+          <a href="https://w.pia.jp/t/charlieputh-2026/">4/27(月)正午12:00 ~ 5/10(日)23:59</a>
+        </body>
+      </html>
+    `,
+    new URL("https://www.livenationhip.co.jp/all-events/charlie-puth-tickets-ae809419"),
+  );
+
+  expect(draft).toMatchObject({
+    artist: "Charlie Puth",
+    title: "Charlie Puth - Whatever's Clever! World Tour",
+    city: "요코하마",
+    venue: "ぴあアリーナMM",
+    date: "2026-10-16",
+    time: "19:00",
+    source: "Live Nation H.I.P.",
+    saleType: "추첨 접수",
+    saleWindow: "受付期間: 4/27(月)正午12:00 ~ 5/10(日)23:59",
+    price: "¥98,800 / ¥19,800",
+    link: "https://w.pia.jp/t/charlieputh-2026/",
+  });
+});
+
+test("uses LiveFans event parser for URL import drafts", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>J-POP CLASSIC CLUB TOKYO ＠ 東京音楽大学 100周年記念ホール (東京都) (2026.03.19) | LiveFans</title>
+          <meta property="og:image" content="https://static.livefans.jp/event.jpg">
+        </head>
+        <body>
+          新規情報投稿
+          J-POP CLASSIC CLUB TOKYO J-POP CLASSIC CLUB TOKYO 2026卒業コンサート
+          クリップ0人 参加した0人 レビュー:--件 クリップ:0
+          2026/03/19 (木) 18:00 開演 @東京音楽大学 100周年記念ホール (東京都)
+          この公演情報を利用して新規投稿する
+          <a href="/tickets">チケット</a>
+        </body>
+      </html>
+    `,
+    new URL("https://www.livefans.jp/events/1904728"),
+  );
+
+  expect(draft).toMatchObject({
+    artist: "J-POP CLASSIC CLUB TOKYO 2026卒業コンサート",
+    title: "J-POP CLASSIC CLUB TOKYO 2026卒業コンサート",
+    city: "도쿄",
+    venue: "東京音楽大学 100周年記念ホール",
+    date: "2026-03-19",
+    time: "18:00",
+    source: "LiveFans",
+    saleType: "일반 판매",
+    ticketAccess: "확인 필요",
+    link: "https://www.livefans.jp/events/1904728",
+    image: "https://static.livefans.jp/event.jpg",
+  });
 });
 
 test("rejects private or local admin import URLs", () => {
@@ -1109,6 +1208,24 @@ test("classifies sale status from ISO sale windows", () => {
   expect(getSaleStatus(event, new Date("2026-06-10T15:01:00.000Z"))).toBe("판매 종료");
 });
 
+test("classifies active sale windows that only expose an end date", () => {
+  const ticketPiaEvent = {
+    ...seedEvents[0],
+    date: "2026-05-06",
+    saleWindow: "판매 중 종료: 2026.05.05 23:59",
+  };
+  const liveFansEvent = {
+    ...seedEvents[0],
+    date: "2026-03-19",
+    saleWindow: "一般発売発売中 ~2026-03-18 23:59",
+  };
+
+  expect(getSaleStatus(ticketPiaEvent, new Date("2026-05-05T14:58:00.000Z"))).toBe("판매 중");
+  expect(getSaleStatus(ticketPiaEvent, new Date("2026-05-05T15:01:00.000Z"))).toBe("판매 종료");
+  expect(getSaleStatus(liveFansEvent, new Date("2026-03-18T14:58:00.000Z"))).toBe("판매 중");
+  expect(getSaleStatus(liveFansEvent, new Date("2026-03-18T15:01:00.000Z"))).toBe("판매 종료");
+});
+
 test("extracts array-based JSON-LD event data", () => {
   const draft = extractDraft(
     `
@@ -1586,6 +1703,43 @@ test("schedules immediately for active sale cues and skips ended sales", () => {
   );
 });
 
+test("uses active end-only sale windows for alert reminders until the end date", () => {
+  const now = new Date("2026-05-04T00:00:00+09:00");
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "pia-active-end-only-2026",
+        date: "2026-05-06",
+        saleWindow: "판매 중 종료: 2026.05.05 23:59",
+      },
+      now,
+    ),
+  ).toBe(now.toISOString());
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "livefans-expired-end-only-2026",
+        date: "2026-03-19",
+        saleWindow: "一般発売発売中 ~2026-03-18 23:59",
+      },
+      new Date("2026-03-18T15:01:00.000Z"),
+    ),
+  ).toBeNull();
+
+  expect(
+    canScheduleReminder(
+      {
+        id: "livefans-expired-end-only-2026",
+        date: "2026-03-19",
+        saleWindow: "一般発売発売中 ~2026-03-18 23:59",
+      },
+      new Date("2026-03-18T15:01:00.000Z"),
+    ),
+  ).toBe(false);
+});
+
 test("formats Ticketmaster sale windows for alert parsing", () => {
   const saleWindow = formatSaleWindow({
     id: "tm-1",
@@ -1895,6 +2049,69 @@ test("flags stale and errored sync runs for admin stats", () => {
     staleSources: [],
     errorSources: [],
     emptySources: [],
+    missingSources: [],
+  });
+
+  expect(
+    summarizeSyncHealth(
+      [
+        {
+          source: "Ticket Pia",
+          status: "success",
+          fetched_count: 10,
+          upserted_count: 8,
+          skipped_count: 2,
+          message: null,
+          finished_at: "2026-05-05T10:00:00Z",
+        },
+      ],
+      new Date("2026-05-05T12:00:00Z"),
+      30,
+      ["Ticket Pia", "LiveFans"],
+    ),
+  ).toMatchObject({
+    status: "healthy",
+    missingSources: ["LiveFans"],
+  });
+
+  expect(
+    summarizeSyncHealth(
+      [
+        "Seed",
+        "Ticketmaster",
+        "e+",
+        "Lawson Ticket",
+        "Ticket Pia",
+        "Rakuten Ticket",
+        "Creativeman",
+        "Live Nation H.I.P.",
+        "LiveFans",
+      ].map((source, index) => ({
+        source,
+        status: "success" as const,
+        fetched_count: 10,
+        upserted_count: 8,
+        skipped_count: 2,
+        message: null,
+        finished_at: `2026-05-05T10:${String(index).padStart(2, "0")}:00Z`,
+      })),
+      new Date("2026-05-05T12:00:00Z"),
+      30,
+      [
+        "Seed",
+        "Ticketmaster",
+        "e+",
+        "Lawson Ticket",
+        "Ticket Pia",
+        "Rakuten Ticket",
+        "Creativeman",
+        "Live Nation H.I.P.",
+        "LiveFans",
+      ],
+    ),
+  ).toMatchObject({
+    status: "healthy",
+    missingSources: [],
   });
 
   expect(
@@ -1915,7 +2132,8 @@ test("flags stale and errored sync runs for admin stats", () => {
     ),
   ).toMatchObject({
     status: "empty",
-    emptySources: ["ticketmaster"],
+      emptySources: ["ticketmaster"],
+      missingSources: [],
   });
 
   expect(
@@ -2456,6 +2674,138 @@ test("maps Creativeman public detail pages to event rows", () => {
   ]);
 });
 
+test("maps Live Nation H.I.P. public pages to event rows", () => {
+  const indexHtml = `
+    <a href="https://www.livenationhip.co.jp/all-events/lany-tickets-ae771408">LANY</a>
+    <a href="/all-events/charlie-puth-tickets-ae809419">Charlie Puth</a>
+    <a href="https://www.livenationhip.co.jp/all-events/bus-tickets-ae1656613">bus transfer</a>
+    <a href="https://example.com/all-events/external-tickets-ae1">external</a>
+  `;
+  const detailUrl = "https://www.livenationhip.co.jp/all-events/lany-tickets-ae771408";
+  const detailHtml = `
+    <html>
+      <head>
+        <title>LANY: soft world tour Tickets, Tour and Concert Dates - www.livenationhip.co.jp</title>
+        <meta property="og:title" content="LANY: soft world tour Tickets, Tour and Concert Dates - www.livenationhip.co.jp">
+        <meta property="og:image" content="https://networksites.livenationinternational.com/networksites/p2hfko3k/lanyhpbanner.jpg">
+      </head>
+      <body>
+        <a href="#tickets">TICKETS</a>
+        <a href="#buy-tickets">BUY TICKETS</a>
+        <main>
+          LANY | レイニー soft world tour
+          SCHEDULE
+          【SOLD OUT】2026年10月5日(月)Zepp NambaOPEN 18:00 / START 19:00
+          【追加公演】2026年10月6日(火)Zepp NambaOPEN 18:00 / START 19:00
+          2026年10月7日(水)有明アリーナOPEN 17:30 / START 19:00
+          TICKETS
+          大阪公演 ■GOLDスタンディング ¥29,800 ■スタンディング ¥12,800
+          東京公演 ■PLATINUM席 ¥39,880
+          最速抽選先行は4/22(水)正午より受付開始
+        </main>
+      </body>
+    </html>
+  `;
+  const rows = extractLiveNationHipRows(detailHtml, detailUrl, new Date("2026-05-01T00:00:00+09:00"));
+
+  expect(extractLiveNationHipDetailUrls(indexHtml)).toEqual([
+    "https://www.livenationhip.co.jp/all-events/lany-tickets-ae771408",
+    "https://www.livenationhip.co.jp/all-events/charlie-puth-tickets-ae809419",
+    "https://www.livenationhip.co.jp/all-events/bus-tickets-ae1656613",
+  ]);
+  expect(rows).toHaveLength(3);
+  expect(rows[0]).toMatchObject({
+    source: "Live Nation H.I.P.",
+    artist: "LANY",
+    title: "LANY: soft world tour",
+    city: "오사카",
+    venue: "Zepp Namba",
+    date: "2026-10-05",
+    time: "19:00",
+    sale_type: "추첨 접수",
+    sale_window: "最速抽選先行は4/22(水)正午より受付開始",
+    price: "¥29,800 / ¥12,800 / ¥39,880",
+    ticket_access: "확인 필요",
+    phone_required: true,
+    link: detailUrl,
+    image: "https://networksites.livenationinternational.com/networksites/p2hfko3k/lanyhpbanner.jpg",
+  });
+  expect(rows[2]).toMatchObject({
+    city: "도쿄",
+    venue: "有明アリーナ",
+    date: "2026-10-07",
+    time: "19:00",
+  });
+  expect(liveNationHipLogicalEventKey(rows[0])).toBe(
+    "lany: soft world tour|2026-10-05|19:00|zepp namba|오사카",
+  );
+  expect(normalizeLiveNationHipRowLimit(undefined)).toBe(60);
+  expect(normalizeLiveNationHipRowLimit("200")).toBe(100);
+  expect(normalizeLiveNationHipIndexLimit(undefined)).toBe(1);
+  expect(normalizeLiveNationHipIndexLimit("20")).toBe(4);
+  expect(normalizeLiveNationHipFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeLiveNationHipFetchTimeoutMs("1000")).toBe(3000);
+  expect(liveNationHipIndexUrls()).toEqual(["https://www.livenationhip.co.jp/"]);
+});
+
+test("maps LiveFans public event pages to event rows", () => {
+  const searchHtml = `
+    <a href="/events/1904728">J-POP CLASSIC CLUB TOKYO 2026卒業コンサート</a>
+    <a href="https://www.livefans.jp/events/1944221">J-POP SOUND CAPSULE</a>
+    <a href="/artists/1756">ONE OK ROCK</a>
+  `;
+  const detailUrl = "https://www.livefans.jp/events/1904728";
+  const detailHtml = `
+    <html>
+      <head>
+        <title>J-POP CLASSIC CLUB TOKYO 2026卒業コンサート ＠ 東京音楽大学 100周年記念ホール (東京都) (2026.03.19) | LiveFans</title>
+        <meta property="og:image" content="https://cdn.livefans.jp/event.jpg">
+      </head>
+      <body>
+        J-POP CLASSIC CLUB TOKYO 2026卒業コンサート
+        クリップ0人 参加する0人 レビュー:--件 クリップ:0
+        2026/03/19 (木) 18:00 開演 @東京音楽大学 100周年記念ホール (東京都)[出演] J-POP CLASSIC CLUB TOKYO
+        この公演情報を利用して新規投稿する
+        広告・PRチケットぴあ 情報: 最終更新日:2026/01/20
+        発売種別・期間発売情報公演日会場 一般発売発売中 ~2026-03-18 23:59
+        <a href="http://click.linksynergy.com/fs-bin/click?RD_PARM1=http%253A%252F%252Fticket.pia.jp%252Fpia%252Fevent.do%253FeventCd%253D2600001">一般発売/J-POP CLASSIC CLUB TOKYO</a>
+      </body>
+    </html>
+  `;
+  const rows = extractLiveFansRows(detailHtml, detailUrl, new Date("2026-01-01T00:00:00+09:00"));
+
+  expect(extractLiveFansDetailUrls(searchHtml)).toEqual([
+    "https://www.livefans.jp/events/1904728",
+    "https://www.livefans.jp/events/1944221",
+  ]);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    source: "LiveFans",
+    artist: "J-POP CLASSIC CLUB TOKYO",
+    title: "J-POP CLASSIC CLUB TOKYO 2026卒業コンサート",
+    city: "도쿄",
+    venue: "東京音楽大学 100周年記念ホール",
+    date: "2026-03-19",
+    time: "18:00",
+    sale_type: "선착 판매",
+    sale_window: "一般発売発売中 ~2026-03-18 23:59",
+    ticket_access: "일본 번호 필요",
+    phone_required: true,
+    link: "https://ticket.pia.jp/pia/event.do?eventCd=2600001",
+    image: "https://cdn.livefans.jp/event.jpg",
+  });
+  expect(liveFansLogicalEventKey(rows[0])).toBe(
+    "j-pop classic club tokyo 2026卒業コンサート|2026-03-19|18:00|東京音楽大学 100周年記念ホール|도쿄",
+  );
+  expect(normalizeLiveFansRowLimit(undefined)).toBe(60);
+  expect(normalizeLiveFansRowLimit("200")).toBe(100);
+  expect(normalizeLiveFansKeywordLimit(undefined)).toBe(4);
+  expect(normalizeLiveFansKeywordLimit("20")).toBe(8);
+  expect(normalizeLiveFansFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeLiveFansFetchTimeoutMs("1000")).toBe(3000);
+  expect(liveFansSearchUrls()[0]).toBe("https://www.livefans.jp/search?option=3&keyword=K-POP");
+});
+
 test("maps Rakuten Ticket category pages and detail drafts to event rows", () => {
   const categoryHtml = `
     <a href="https://ticket.rakuten.co.jp/music/jpop/rtiz516/">さだまさし</a>
@@ -2477,7 +2827,7 @@ test("maps Rakuten Ticket category pages and detail drafts to event rows", () =>
           <div class='column-6'>2026年 05月 16日 (土)</div>
           <div class='column-2'>開場 16:00 / 開演 17:00</div>
           <div class='column-3'>千葉県</div>
-          <div class='column-4'>市川市文化会館 大ホール</div>
+          <div class='column-4'>市川市文化会館 大ホール販売終了</div>
         </div>
         <a href="https://ticket.rakuten.co.jp/">楽天チケット</a>
       </body>
@@ -2889,6 +3239,14 @@ test("validates production health with admin alert and sync coverage", () => {
       database: "reachable",
       eventCount: 3,
       syncRunsAvailable: true,
+      lastSync: {
+        source: "Lawson Ticket",
+        status: "success",
+        fetchedCount: 12,
+        upsertedCount: 10,
+        skippedCount: 2,
+        finishedAt: "2026-05-07T00:00:00Z",
+      },
       latestSyncBySource: [
         {
           source: "Lawson Ticket",
@@ -2908,6 +3266,14 @@ test("validates production health with admin alert and sync coverage", () => {
   expect(() =>
     validateProductionHealth({ ok: true, database: "reachable", eventCount: 3, syncRunsAvailable: false }),
   ).toThrow("Sync run history is unavailable");
+  expect(() =>
+    validateProductionHealth({
+      ok: true,
+      database: "reachable",
+      eventCount: 3,
+      lastSync: { source: "Lawson Ticket" },
+    }),
+  ).toThrow("Production health last sync row is invalid");
   expect(() =>
     validateProductionHealth({
       ok: true,
@@ -2975,7 +3341,103 @@ test("validates production health with admin alert and sync coverage", () => {
   ).not.toThrow();
 });
 
+test("normalizes public health last sync rows", () => {
+  expect(
+    reachableHealthResponse(
+      7,
+      [
+        {
+          source: "  Lawson Ticket ",
+          status: "success",
+          fetched_count: 12,
+          upserted_count: 10,
+          skipped_count: 2,
+          message: null,
+          finished_at: "2026-05-07T00:00:00Z",
+        },
+      ],
+      true,
+    ),
+  ).toMatchObject({
+    ok: true,
+    database: "reachable",
+    eventCount: 7,
+    syncRunsAvailable: true,
+    lastSync: {
+      source: "Lawson Ticket",
+      status: "success",
+      fetchedCount: 12,
+      upsertedCount: 10,
+      skippedCount: 2,
+      finishedAt: "2026-05-07T00:00:00Z",
+    },
+    latestSyncBySource: [
+      {
+        source: "Lawson Ticket",
+        status: "success",
+        fetchedCount: 12,
+        upsertedCount: 10,
+        skippedCount: 2,
+        finishedAt: "2026-05-07T00:00:00Z",
+      },
+    ],
+  });
+});
+
+test("validates production events API coverage", () => {
+  expect(() =>
+    validateProductionEvents({
+      source: "supabase",
+      events: [
+        {
+          artist: "Ado",
+          title: "Blue Flame Tour",
+          city: "요코하마",
+          venue: "K-Arena Yokohama",
+          date: "2026-11-12",
+          source: "Lawson Ticket",
+          ticketAccess: "일본 번호 필요",
+          saleType: "일반 판매",
+          saleWindow: "일반 판매: 2026.05.20 10:00",
+          phoneRequired: true,
+          foreignerNote: "로치케 계정, 결제, 수령 제한을 확인하세요.",
+          link: "https://l-tike.com/concert/example/",
+        },
+      ],
+      meta: {
+        latestSyncBySource: [{ source: "Lawson Ticket", status: "success" }],
+      },
+    }),
+  ).not.toThrow();
+  expect(() => validateProductionEvents({ source: "seed", events: [] })).toThrow(
+    "Production events API is using seed data",
+  );
+  expect(() =>
+    validateProductionEvents({
+      source: "supabase",
+      events: [
+        {
+          artist: "Ado",
+          title: "Blue Flame Tour",
+          city: "요코하마",
+          venue: "K-Arena Yokohama",
+          date: "2026-11-12",
+          source: "Lawson Ticket",
+          ticketAccess: "일본 번호 필요",
+          saleType: "일반 판매",
+          saleWindow: "일반 판매: 2026.05.20 10:00",
+          phoneRequired: true,
+          foreignerNote: "로치케 계정, 결제, 수령 제한을 확인하세요.",
+          link: "not-a-url",
+        },
+      ],
+    }),
+  ).toThrow("Production events API contains an event with an invalid source link");
+});
+
 test("summarizes latest public sync runs by source", () => {
+  expect(defaultLatestSyncSourceLimit).toBeGreaterThanOrEqual(publicSyncSteps.length);
+
   expect(
     summarizeLatestSyncRuns(
       [
@@ -3038,6 +3500,51 @@ test("summarizes latest public sync runs by source", () => {
       finishedAt: null,
     },
   ]);
+
+  expect(
+    summarizeLatestSyncRuns(
+      [
+        "Seed",
+        "Ticketmaster",
+        "e+",
+        "Lawson Ticket",
+        "Ticket Pia",
+        "Rakuten Ticket",
+        "Creativeman",
+        "Live Nation H.I.P.",
+        "LiveFans",
+      ].map((source, index) => ({
+        source,
+        status: "success",
+        fetched_count: 10,
+        upserted_count: 8,
+        skipped_count: 2,
+        message: null,
+        finished_at: `2026-05-07T10:${String(index).padStart(2, "0")}:00Z`,
+      })),
+    ).map((row) => row.source),
+  ).toEqual([
+    "Seed",
+    "Ticketmaster",
+    "e+",
+    "Lawson Ticket",
+    "Ticket Pia",
+    "Rakuten Ticket",
+    "Creativeman",
+    "Live Nation H.I.P.",
+    "LiveFans",
+  ]);
+});
+
+test("keeps sync run lookup windows wide enough for current public sources", () => {
+  const eventApiSource = readFileSync("api/events.ts", "utf8");
+  const healthApiSource = readFileSync("api/health.ts", "utf8");
+  const adminStatsSource = readFileSync("api/admin-stats.ts", "utf8");
+
+  expect(defaultSyncRunLookupLimit).toBeGreaterThanOrEqual(publicSyncSteps.length * 6);
+  expect(eventApiSource).toContain("limit(defaultSyncRunLookupLimit)");
+  expect(healthApiSource).toContain("limit(defaultSyncRunLookupLimit)");
+  expect(adminStatsSource).toContain("limit(defaultSyncRunLookupLimit)");
 });
 
 test("formats event API sync labels with source coverage", () => {
@@ -3085,11 +3592,11 @@ test("formats event API sync labels with source coverage", () => {
           },
           {
             source: "Ticket Pia",
-            status: "success",
+            status: "error",
             fetchedCount: 30,
             upsertedCount: 25,
             skippedCount: 5,
-            message: null,
+            message: "Ticket Pia request failed",
             finishedAt: "2026-05-07T00:00:00Z",
           },
           {
@@ -3106,7 +3613,43 @@ test("formats event API sync labels with source coverage", () => {
       "supabase",
       178,
     ),
-  ).toBe("178개 공연 · 4개 출처 동기화 · Lawson Ticket, Creativeman, Ticket Pia 외 1개");
+  ).toBe("178개 공연 · 4개 출처 동기화 · Lawson Ticket, Creativeman, Ticket Pia 외 1개 · 오류 1개");
+  expect(
+    formatEventSyncLabel(
+      {
+        latestSyncBySource: [
+          {
+            source: "Ticket Pia",
+            status: "error",
+            fetchedCount: 0,
+            upsertedCount: 0,
+            skippedCount: 0,
+            message: "Ticket Pia request failed",
+            finishedAt: "2026-05-07T00:00:00Z",
+          },
+        ],
+      },
+      "supabase",
+      178,
+    ),
+  ).toBe("178개 공연 · Ticket Pia 동기화 오류");
+  expect(
+    formatEventSyncLabel(
+      {
+        lastSync: {
+          source: "Ticket Pia",
+          status: "error",
+          fetchedCount: 0,
+          upsertedCount: 0,
+          skippedCount: 0,
+          message: "Ticket Pia request failed",
+          finishedAt: "2026-05-07T00:00:00Z",
+        },
+      },
+      "supabase",
+      178,
+    ),
+  ).toBe("178개 공연 · Ticket Pia 동기화 오류");
 });
 
 test("applies every checked-in Supabase migration", () => {
@@ -3541,6 +4084,9 @@ test("keeps approved or rejected candidate URLs out of pending upserts", () => {
 });
 
 test("creates ticket source search URLs including additional Japanese sources", () => {
+  expect(searchSources("Ado 東京").map((source) => source.source)).toEqual(
+    publicSearchSources.map((source) => source.syncRunSource),
+  );
   expect(searchSources("Ado 東京")).toEqual(
     expect.arrayContaining([
       {
@@ -3578,6 +4124,22 @@ test("creates ticket source search URLs including additional Japanese sources", 
 });
 
 test("plans public event source syncs without running network jobs", () => {
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+    scripts?: Record<string, string>;
+  };
+
+  expect(publicSyncSteps).toBe(publicEventSources);
+  expect(trackedSyncSources).toEqual([
+    "Seed",
+    "Ticketmaster",
+    "e+",
+    "Lawson Ticket",
+    "Ticket Pia",
+    "Rakuten Ticket",
+    "Creativeman",
+    "Live Nation H.I.P.",
+    "LiveFans",
+  ]);
   expect(normalizePublicSyncSelection(undefined).map((step) => step.script)).toEqual([
     "sync:seed",
     "sync:ticketmaster",
@@ -3586,13 +4148,36 @@ test("plans public event source syncs without running network jobs", () => {
     "sync:ticket-pia",
     "sync:rakuten-ticket",
     "sync:creativeman",
+    "sync:livenation-hip",
+    "sync:livefans",
   ]);
   expect(normalizePublicSyncSelection("lawson, pia, lawson").map((step) => step.script)).toEqual([
     "sync:lawson",
     "sync:ticket-pia",
   ]);
+  expect(
+    normalizePublicSyncSelection("Lawson Ticket, ticket pia, Rakuten Ticket, creative man, live nation hip, livefans").map(
+      (step) => step.script,
+    ),
+  ).toEqual([
+    "sync:lawson",
+    "sync:ticket-pia",
+    "sync:rakuten-ticket",
+    "sync:creativeman",
+    "sync:livenation-hip",
+    "sync:livefans",
+  ]);
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Lawson Ticket (sync:lawson)");
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Creativeman (sync:creativeman)");
+  expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Live Nation H.I.P. (sync:livenation-hip)");
+  expect(publicSyncPlanSummary(publicSyncSteps)).toContain("LiveFans (sync:livefans)");
+  for (const source of publicSyncSteps) {
+    const scriptCommand = packageJson.scripts?.[source.script];
+    expect(scriptCommand, `${source.script} must be defined in package.json`).toBeTruthy();
+    const scriptPath = scriptCommand?.match(/^tsx\s+(.+)$/)?.[1];
+    expect(scriptPath, `${source.script} should run a tsx script`).toBeTruthy();
+    expect(existsSync(scriptPath ?? ""), `${source.script} target should exist`).toBe(true);
+  }
   expect(() => normalizePublicSyncSelection("unknown-source")).toThrow("Unknown sync source");
 });
 
@@ -3994,7 +4579,6 @@ test("persists an alert lead time in the saved alerts panel", async ({ page }) =
   await page.getByRole("button", { name: "알림 2개" }).click();
 
   await page.getByLabel("알림 시점").selectOption("24");
-  await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
   await expect(page.getByLabel("저장한 알림").getByRole("status")).toHaveText("알림 시점을 저장했어요.");
   await expect(page.getByLabel("저장한 알림").getByText(/알림 예정 ·/).first()).toBeVisible();
 
@@ -4327,6 +4911,7 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
           staleAfterHours: 30,
           errorSources: [],
           staleSources: [],
+          missingSources: ["Live Nation H.I.P.", "LiveFans"],
         },
         bySource: [{ label: "Ticket Pia", count: 3 }],
         qualityBySource: [
@@ -4360,7 +4945,7 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
   await expect(page.getByLabel("데이터 품질").getByText("다음 알림")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("알림 오류")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("동기화 상태")).toBeVisible();
-  await expect(page.getByLabel("데이터 품질").getByText("정상")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("정상 · 미실행 Live Nation H.I.P., LiveFans")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("동기화", { exact: true })).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("출처별 품질")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText(/Ticket Pia · 3개 · 일정 2 · 가격 1 · 조건 2 · 링크 1/)).toBeVisible();

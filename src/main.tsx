@@ -114,6 +114,7 @@ type AdminStats = {
     errorSources: string[];
     staleSources: string[];
     emptySources?: string[];
+    missingSources?: string[];
   } | null;
   quality: {
     missingLink: number;
@@ -191,6 +192,11 @@ function formatAdminSyncHealth(syncHealth: AdminStats["syncHealth"]) {
   }
   if (syncHealth.status === "empty") {
     return `빈 결과 · ${syncHealth.emptySources?.join(", ") || "출처 미정"}`;
+  }
+  if ((syncHealth.missingSources?.length ?? 0) > 0) {
+    return `정상 · 미실행 ${syncHealth.missingSources?.slice(0, 2).join(", ")}${
+      (syncHealth.missingSources?.length ?? 0) > 2 ? ` 외 ${(syncHealth.missingSources?.length ?? 0) - 2}개` : ""
+    }`;
   }
   return "정상";
 }
@@ -610,7 +616,11 @@ function App() {
     setKoreaFriendlyOnly(false);
   };
 
-  const syncAlertSubscription = async (event: Event, active: boolean) => {
+  const syncAlertSubscription = async (
+    event: Event,
+    active: boolean,
+    options: { contactEmail?: string; remindBeforeHours?: number } = {},
+  ) => {
     if (useSeedData) return true;
     try {
       const response = await fetch("/api/alerts", {
@@ -621,8 +631,8 @@ function App() {
         body: JSON.stringify({
           clientId: alertClientId,
           active,
-          contactEmail: alertEmail.trim(),
-          remindBeforeHours: alertLeadTimeHours,
+          contactEmail: options.contactEmail ?? alertEmail.trim(),
+          remindBeforeHours: options.remindBeforeHours ?? alertLeadTimeHours,
           event: buildAlertEventSnapshot(event),
         }),
       });
@@ -676,11 +686,19 @@ function App() {
   };
 
   const updateAlertLeadTime = (leadTimeHours: number) => {
-    setAlertLeadTimeHours(normalizeAlertLeadTimeHours(leadTimeHours));
-    setAlertEmailFeedback({ status: "idle", message: "" });
+    const normalizedLeadTime = normalizeAlertLeadTimeHours(leadTimeHours);
+    setAlertLeadTimeHours(normalizedLeadTime);
+    if (savedEventItems.length === 0) {
+      setAlertEmailFeedback({ status: "idle", message: "" });
+      return;
+    }
+    void saveAlertSettings({
+      remindBeforeHours: normalizedLeadTime,
+      successMessage: "알림 시점을 저장했어요.",
+    });
   };
 
-  const saveAlertEmail = async () => {
+  const saveAlertSettings = async (options: { remindBeforeHours?: number; successMessage?: string } = {}) => {
     const trimmedEmail = alertEmail.trim();
     if (trimmedEmail && !validAlertEmail(trimmedEmail)) {
       setAlertEmailFeedback({ status: "error", message: "이메일 형식을 확인해 주세요." });
@@ -689,11 +707,16 @@ function App() {
     if (savedEventItems.length === 0) return;
 
     setAlertEmailFeedback({ status: "saving", message: "알림 정보를 저장하는 중" });
-    const results = await Promise.all(savedEventItems.map((event) => syncAlertSubscription(event, true)));
+    const remindBeforeHours = options.remindBeforeHours ?? alertLeadTimeHours;
+    const results = await Promise.all(
+      savedEventItems.map((event) =>
+        syncAlertSubscription(event, true, { contactEmail: trimmedEmail, remindBeforeHours }),
+      ),
+    );
     if (results.every(Boolean)) {
       setAlertEmailFeedback({
         status: "saved",
-        message: trimmedEmail ? "알림 이메일을 저장했어요." : "알림 시점을 저장했어요.",
+        message: options.successMessage ?? (trimmedEmail ? "알림 이메일을 저장했어요." : "알림 시점을 저장했어요."),
       });
     } else {
       setAlertEmailFeedback({
@@ -702,6 +725,8 @@ function App() {
       });
     }
   };
+
+  const saveAlertEmail = async () => saveAlertSettings();
 
   if (route === "admin") {
     return <AdminPage />;

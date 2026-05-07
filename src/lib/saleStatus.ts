@@ -6,6 +6,7 @@ const endedStatusCue =
   /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|公演中止|開催中止|中止|취소|공연\s*취소|판매\s*종료|sold\s*out|cancelled|canceled|closed|ended)/i;
 const activeStatusCue = /(販売中(?!止)|受付中|発売中|申込受付中|チケット発売中|판매\s*중|on\s*sale|available\s*now|now\s*on\s*sale)/i;
 const upcomingStatusCue = /(販売予定|受付予定|発売予定|近日発売|準備中|오픈\s*예정|coming\s*soon)/i;
+const endOnlyStatusCue = /([~〜～]|終了|締切|しめきり|まで|迄|종료|마감|until|through|ends?|ending)/i;
 
 export function currentTokyoDay(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -65,11 +66,20 @@ function getSaleWindowCueStatus(saleWindow: string): Exclude<SaleStatus, "전체
   return null;
 }
 
+function isActiveEndOnlySaleWindow(saleWindow: string, dates: Date[]) {
+  return dates.length === 1 && activeStatusCue.test(saleWindow) && endOnlyStatusCue.test(normalizeFullWidth(saleWindow));
+}
+
 export function getSaleStatus(event: Event, referenceDate = currentTokyoDay()): Exclude<SaleStatus, "전체"> {
   const saleWindow = event.saleWindow.trim();
   if (!saleWindow) return "확인 필요";
 
-  const [startDate, endDate] = getSaleWindowDates(saleWindow, event.date, referenceDate);
+  const saleWindowDates = getSaleWindowDates(saleWindow, event.date, referenceDate);
+  const [startDate, endDate] = saleWindowDates;
+  if (startDate && isActiveEndOnlySaleWindow(saleWindow, saleWindowDates)) {
+    return referenceDate > startDate ? "판매 종료" : "판매 중";
+  }
+
   if (startDate) {
     if (referenceDate < startDate) return "오픈 예정";
     if (endDate && referenceDate > endDate) return "판매 종료";

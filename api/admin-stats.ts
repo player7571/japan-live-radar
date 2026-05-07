@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+import { trackedSyncSources } from "../src/lib/publicSources.js";
+import { defaultSyncRunLookupLimit } from "../src/lib/syncRuns.js";
 
 type VercelRequest = {
   method?: string;
@@ -181,6 +183,10 @@ export function summarizeSyncRuns(rows: SyncRunStatsRow[]) {
 }
 
 export function summarizeSyncRunsAt(rows: SyncRunStatsRow[], now = new Date()) {
+  return latestSyncRunsAt(rows, now).slice(0, 6);
+}
+
+function latestSyncRunsAt(rows: SyncRunStatsRow[], now = new Date()) {
   const seen = new Set<string>();
   return rows
     .filter((row) => {
@@ -197,8 +203,7 @@ export function summarizeSyncRunsAt(rows: SyncRunStatsRow[], now = new Date()) {
       message: row.message,
       finishedAt: row.finished_at,
       ageHours: syncRunAgeHours(row.finished_at, now),
-    }))
-    .slice(0, 6);
+    }));
 }
 
 function syncRunAgeHours(finishedAt: string | null, now = new Date()) {
@@ -218,10 +223,13 @@ export function summarizeSyncHealth(
   staleAfterHours = Number.isFinite(syncStaleAfterHours) && syncStaleAfterHours > 0
     ? syncStaleAfterHours
     : defaultSyncStaleAfterHours,
+  expectedSources: string[] = [],
 ) {
-  const latestRuns = summarizeSyncRunsAt(rows, now);
+  const latestRuns = latestSyncRunsAt(rows, now);
   const nowTime = now.getTime();
   const staleAfterMs = staleAfterHours * 60 * 60 * 1000;
+  const latestSourceNames = new Set(latestRuns.map((row) => row.source.toLowerCase()));
+  const missingSources = expectedSources.filter((source) => !latestSourceNames.has(source.toLowerCase()));
 
   if (latestRuns.length === 0) {
     return {
@@ -231,6 +239,7 @@ export function summarizeSyncHealth(
       errorSources: [] as string[],
       staleSources: [] as string[],
       emptySources: [] as string[],
+      missingSources,
     };
   }
 
@@ -266,6 +275,7 @@ export function summarizeSyncHealth(
     errorSources,
     staleSources,
     emptySources,
+    missingSources,
   };
 }
 
@@ -315,7 +325,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from("sync_runs")
       .select("source,status,fetched_count,upserted_count,skipped_count,message,finished_at")
       .order("finished_at", { ascending: false })
-      .limit(20),
+      .limit(defaultSyncRunLookupLimit),
   ]);
 
   if (eventsResult.error) {
@@ -345,7 +355,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? null
       : summarizeAlertQueue((alertsResult.data ?? []) as AlertStatsRow[]),
     syncRuns: missingSyncRunTable(syncRunsResult.error) ? null : summarizeSyncRuns(syncRows),
-    syncHealth: missingSyncRunTable(syncRunsResult.error) ? null : summarizeSyncHealth(syncRows),
+    syncHealth: missingSyncRunTable(syncRunsResult.error) ? null : summarizeSyncHealth(syncRows, new Date(), undefined, trackedSyncSources),
     quality: {
       missingLink,
       missingSaleWindow,

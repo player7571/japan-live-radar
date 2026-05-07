@@ -1,22 +1,10 @@
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import { publicEventSources, type PublicEventSource } from "../src/lib/publicSources";
 
-type PublicSyncStep = {
-  key: string;
-  label: string;
-  script: string;
-  aliases: string[];
-};
+type PublicSyncStep = PublicEventSource;
 
-export const publicSyncSteps: PublicSyncStep[] = [
-  { key: "seed", label: "Seed events", script: "sync:seed", aliases: ["fallback"] },
-  { key: "ticketmaster", label: "Ticketmaster", script: "sync:ticketmaster", aliases: ["tm"] },
-  { key: "eplus", label: "e+", script: "sync:eplus", aliases: ["e+", "イープラス"] },
-  { key: "lawson", label: "Lawson Ticket", script: "sync:lawson", aliases: ["l-tike", "ローチケ", "ローソン"] },
-  { key: "ticket-pia", label: "Ticket Pia", script: "sync:ticket-pia", aliases: ["pia", "チケットぴあ"] },
-  { key: "rakuten-ticket", label: "Rakuten Ticket", script: "sync:rakuten-ticket", aliases: ["rakuten", "楽天"] },
-  { key: "creativeman", label: "Creativeman", script: "sync:creativeman", aliases: ["creative man", "クリエイティブマン"] },
-];
+export const publicSyncSteps: PublicSyncStep[] = publicEventSources;
 
 function normalizeToken(value: string) {
   return value.trim().toLowerCase();

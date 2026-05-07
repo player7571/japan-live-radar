@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { serverReadKey } from "../src/lib/supabaseServer.js";
-import { summarizeLatestSyncRuns, type SyncRunRow } from "../src/lib/syncRuns.js";
+import { defaultSyncRunLookupLimit, rowToSyncRun, summarizeLatestSyncRuns, type SyncRunRow } from "../src/lib/syncRuns.js";
 
 type VercelRequest = {
   method?: string;
@@ -15,6 +15,17 @@ type VercelResponse = {
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+export function reachableHealthResponse(eventCount: number, syncRows: SyncRunRow[], syncRunsAvailable: boolean) {
+  return {
+    ok: true,
+    database: "reachable",
+    eventCount,
+    lastSync: syncRows[0] ? rowToSyncRun(syncRows[0]) : null,
+    latestSyncBySource: summarizeLatestSyncRuns(syncRows),
+    syncRunsAvailable,
+  };
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
@@ -44,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from("sync_runs")
       .select("source,status,fetched_count,upserted_count,skipped_count,message,finished_at")
       .order("finished_at", { ascending: false })
-      .limit(30),
+      .limit(defaultSyncRunLookupLimit),
   ]);
 
   if (eventsResult.error) {
@@ -62,12 +73,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const syncRows = syncRunsResult.error ? [] : ((syncRunsResult.data ?? []) as SyncRunRow[]);
 
-  res.status(200).json({
-    ok: true,
-    database: "reachable",
-    eventCount: eventsResult.count ?? 0,
-    lastSync: syncRows[0] ?? null,
-    latestSyncBySource: summarizeLatestSyncRuns(syncRows),
-    syncRunsAvailable: !syncRunsResult.error,
-  });
+  res.status(200).json(reachableHealthResponse(eventsResult.count ?? 0, syncRows, !syncRunsResult.error));
 }

@@ -5,6 +5,14 @@ type HealthResponse = {
   database?: string;
   eventCount?: number;
   syncRunsAvailable?: boolean;
+  lastSync?: {
+    source?: string;
+    status?: string;
+    fetchedCount?: number;
+    upsertedCount?: number;
+    skippedCount?: number;
+    finishedAt?: string | null;
+  } | null;
   latestSyncBySource?: Array<{
     source?: string;
     status?: string;
@@ -33,7 +41,29 @@ type AdminStatsResponse = {
     errorSources?: string[];
     staleSources?: string[];
     emptySources?: string[];
+    missingSources?: string[];
   } | null;
+};
+
+type EventsResponse = {
+  events?: Array<{
+    artist?: string;
+    title?: string;
+    city?: string;
+    venue?: string;
+    date?: string;
+    source?: string;
+    ticketAccess?: string;
+    saleType?: string;
+    saleWindow?: string;
+    phoneRequired?: boolean;
+    foreignerNote?: string;
+    link?: string;
+  }>;
+  source?: string;
+  meta?: {
+    latestSyncBySource?: HealthResponse["latestSyncBySource"];
+  };
 };
 
 const appBaseUrl = (process.env.APP_BASE_URL ?? "https://japan-live-radar.vercel.app").replace(/\/$/, "");
@@ -64,6 +94,11 @@ export function validateProductionHealth(health: HealthResponse) {
   if (health.syncRunsAvailable === false) {
     throw new Error("Sync run history is unavailable");
   }
+  if (health.lastSync !== undefined && health.lastSync !== null) {
+    if (!health.lastSync.source || !health.lastSync.status) {
+      throw new Error("Production health last sync row is invalid");
+    }
+  }
   if (health.latestSyncBySource !== undefined) {
     if (!Array.isArray(health.latestSyncBySource)) {
       throw new Error("Production health sync summary is invalid");
@@ -73,6 +108,40 @@ export function validateProductionHealth(health: HealthResponse) {
         throw new Error("Production health sync summary contains an invalid source row");
       }
     }
+  }
+}
+
+export function validateProductionEvents(response: EventsResponse) {
+  if (response.source !== "supabase") {
+    throw new Error(`Production events API is using ${response.source ?? "unknown"} data`);
+  }
+  if (!Array.isArray(response.events) || response.events.length < 1) {
+    throw new Error("Production events API returned no events");
+  }
+
+  for (const event of response.events.slice(0, 10)) {
+    if (!event.artist || !event.title || !event.city || !event.venue || !event.date || !event.source) {
+      throw new Error("Production events API contains an event with missing display fields");
+    }
+    if (!event.ticketAccess || !event.saleType || !event.saleWindow || typeof event.phoneRequired !== "boolean") {
+      throw new Error("Production events API contains an event with missing ticket fields");
+    }
+    if (!event.foreignerNote) {
+      throw new Error("Production events API contains an event with missing foreigner guidance");
+    }
+    if (!event.link) {
+      throw new Error("Production events API contains an event with no source link");
+    }
+    try {
+      new URL(event.link);
+    } catch {
+      throw new Error("Production events API contains an event with an invalid source link");
+    }
+  }
+
+  const latestSyncBySource = response.meta?.latestSyncBySource;
+  if (latestSyncBySource !== undefined && !Array.isArray(latestSyncBySource)) {
+    throw new Error("Production events API sync summary is invalid");
   }
 }
 
@@ -110,6 +179,9 @@ export function validateAdminStatsHealth(stats: AdminStatsResponse) {
     console.warn(`Sync health produced no usable rows: ${syncHealth.emptySources?.join(", ") || "source unknown"}`);
     return;
   }
+  if ((syncHealth.missingSources?.length ?? 0) > 0) {
+    console.warn(`Sync health has sources without run history: ${syncHealth.missingSources?.join(", ")}`);
+  }
   if (syncHealth.status !== "healthy") {
     throw new Error(`Sync health status is ${syncHealth.status ?? "unknown"}`);
   }
@@ -118,6 +190,9 @@ export function validateAdminStatsHealth(stats: AdminStatsResponse) {
 async function main() {
   const health = await getJson<HealthResponse>("/api/health");
   validateProductionHealth(health);
+
+  const events = await getJson<EventsResponse>("/api/events");
+  validateProductionEvents(events);
 
   if (adminApiToken) {
     const adminHeaders = {
@@ -130,7 +205,7 @@ async function main() {
     validateAdminStatsHealth(stats);
   }
 
-  console.log(`Production healthy: ${health.eventCount} event(s), database ${health.database}.`);
+  console.log(`Production healthy: ${health.eventCount} health event(s), ${events.events?.length ?? 0} API event(s), database ${health.database}.`);
 }
 
 function isDirectRun() {
