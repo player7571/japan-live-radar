@@ -1208,6 +1208,24 @@ test("classifies sale status from ISO sale windows", () => {
   expect(getSaleStatus(event, new Date("2026-06-10T15:01:00.000Z"))).toBe("판매 종료");
 });
 
+test("classifies active sale windows that only expose an end date", () => {
+  const ticketPiaEvent = {
+    ...seedEvents[0],
+    date: "2026-05-06",
+    saleWindow: "판매 중 종료: 2026.05.05 23:59",
+  };
+  const liveFansEvent = {
+    ...seedEvents[0],
+    date: "2026-03-19",
+    saleWindow: "一般発売発売中 ~2026-03-18 23:59",
+  };
+
+  expect(getSaleStatus(ticketPiaEvent, new Date("2026-05-05T14:58:00.000Z"))).toBe("판매 중");
+  expect(getSaleStatus(ticketPiaEvent, new Date("2026-05-05T15:01:00.000Z"))).toBe("판매 종료");
+  expect(getSaleStatus(liveFansEvent, new Date("2026-03-18T14:58:00.000Z"))).toBe("판매 중");
+  expect(getSaleStatus(liveFansEvent, new Date("2026-03-18T15:01:00.000Z"))).toBe("판매 종료");
+});
+
 test("extracts array-based JSON-LD event data", () => {
   const draft = extractDraft(
     `
@@ -1683,6 +1701,43 @@ test("schedules immediately for active sale cues and skips ended sales", () => {
   expect(canScheduleReminder({ id: "ticketmaster-cancelled-2026", date: "2026-08-08", saleWindow: "공연 취소" }, now)).toBe(
     false,
   );
+});
+
+test("uses active end-only sale windows for alert reminders until the end date", () => {
+  const now = new Date("2026-05-04T00:00:00+09:00");
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "pia-active-end-only-2026",
+        date: "2026-05-06",
+        saleWindow: "판매 중 종료: 2026.05.05 23:59",
+      },
+      now,
+    ),
+  ).toBe(now.toISOString());
+
+  expect(
+    calculateReminderAt(
+      {
+        id: "livefans-expired-end-only-2026",
+        date: "2026-03-19",
+        saleWindow: "一般発売発売中 ~2026-03-18 23:59",
+      },
+      new Date("2026-03-18T15:01:00.000Z"),
+    ),
+  ).toBeNull();
+
+  expect(
+    canScheduleReminder(
+      {
+        id: "livefans-expired-end-only-2026",
+        date: "2026-03-19",
+        saleWindow: "一般発売発売中 ~2026-03-18 23:59",
+      },
+      new Date("2026-03-18T15:01:00.000Z"),
+    ),
+  ).toBe(false);
 });
 
 test("formats Ticketmaster sale windows for alert parsing", () => {
