@@ -1988,6 +1988,29 @@ test("flags stale and errored sync runs for admin stats", () => {
     staleSources: [],
     errorSources: [],
     emptySources: [],
+    missingSources: [],
+  });
+
+  expect(
+    summarizeSyncHealth(
+      [
+        {
+          source: "Ticket Pia",
+          status: "success",
+          fetched_count: 10,
+          upserted_count: 8,
+          skipped_count: 2,
+          message: null,
+          finished_at: "2026-05-05T10:00:00Z",
+        },
+      ],
+      new Date("2026-05-05T12:00:00Z"),
+      30,
+      ["Ticket Pia", "LiveFans"],
+    ),
+  ).toMatchObject({
+    status: "healthy",
+    missingSources: ["LiveFans"],
   });
 
   expect(
@@ -2008,7 +2031,8 @@ test("flags stale and errored sync runs for admin stats", () => {
     ),
   ).toMatchObject({
     status: "empty",
-    emptySources: ["ticketmaster"],
+      emptySources: ["ticketmaster"],
+      missingSources: [],
   });
 
   expect(
@@ -4713,6 +4737,7 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
           staleAfterHours: 30,
           errorSources: [],
           staleSources: [],
+          missingSources: ["Live Nation H.I.P.", "LiveFans"],
         },
         bySource: [{ label: "Ticket Pia", count: 3 }],
         qualityBySource: [
@@ -4746,7 +4771,7 @@ test("creates keyword candidates and shows quality stats", async ({ page }) => {
   await expect(page.getByLabel("데이터 품질").getByText("다음 알림")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("알림 오류")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("동기화 상태")).toBeVisible();
-  await expect(page.getByLabel("데이터 품질").getByText("정상")).toBeVisible();
+  await expect(page.getByLabel("데이터 품질").getByText("정상 · 미실행 Live Nation H.I.P., LiveFans")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("동기화", { exact: true })).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText("출처별 품질")).toBeVisible();
   await expect(page.getByLabel("데이터 품질").getByText(/Ticket Pia · 3개 · 일정 2 · 가격 1 · 조건 2 · 링크 1/)).toBeVisible();
