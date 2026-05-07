@@ -122,6 +122,8 @@ import {
   normalizeTicketmasterPageLimit,
   searchProfiles,
   shouldDeleteStaleTicketmasterRows,
+  summarizeTicketmasterSkipReasons,
+  ticketmasterSkipReason,
   toTicketmasterEventRow,
 } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
@@ -1891,6 +1893,40 @@ test("preserves Ticketmaster rows when a sync produces zero usable rows", () => 
   expect(shouldDeleteStaleTicketmasterRows(3, ["music-keyword"])).toBe(false);
 });
 
+test("summarizes Ticketmaster skipped event reasons for sync diagnostics", () => {
+  const missingDateEvent = {
+    id: "tm-missing-date",
+    name: "YOASOBI Arena",
+    classifications: [{ segment: { name: "Music" } }],
+  };
+  const sportsEvent = {
+    id: "tm-sports",
+    name: "B League Osaka",
+    dates: { start: { localDate: "2026-09-12" } },
+    classifications: [{ segment: { name: "Sports" }, genre: { name: "Basketball" } }],
+  };
+  const vagueEvent = {
+    id: "tm-vague",
+    name: "Tokyo Fan Meeting",
+    dates: { start: { localDate: "2026-09-13" } },
+    classifications: [{ segment: { name: "Miscellaneous" }, genre: { name: "Community" } }],
+  };
+  const concertEvent = {
+    id: "tm-concert",
+    name: "Ado Live",
+    dates: { start: { localDate: "2026-09-14" } },
+    classifications: [{ segment: { name: "Music" }, genre: { name: "J-Pop" } }],
+  };
+
+  expect(ticketmasterSkipReason(missingDateEvent)).toBe("missing date");
+  expect(ticketmasterSkipReason(sportsEvent)).toBe("non-concert signal: sports");
+  expect(ticketmasterSkipReason(vagueEvent)).toBe("missing concert signal");
+  expect(ticketmasterSkipReason(concertEvent)).toBeNull();
+  expect(summarizeTicketmasterSkipReasons([missingDateEvent, sportsEvent, vagueEvent, sportsEvent, concertEvent])).toBe(
+    "non-concert signal: sports: 2; missing concert signal: 1; missing date: 1",
+  );
+});
+
 test("summarizes latest sync run per source for admin quality checks", () => {
   expect(
     summarizeSyncRunsAt(
@@ -2672,6 +2708,43 @@ test("maps Creativeman public detail pages to event rows", () => {
     "https://www.creativeman.co.jp/upcoming/",
     "https://www.creativeman.co.jp/event/",
   ]);
+});
+
+test("keeps Creativeman venue and sale windows scoped to ticket fields", () => {
+  const detailHtml = `
+    <html>
+      <head><title>REIKO - CREATIVEMAN PRODUCTIONS</title></head>
+      <body>
+        <h1>REIKO</h1>
+        LIVE INFORMATION
+        東京 2026/6/1(月) 渋谷WWW 出演者 REIKO / Guest Band 公演
+        開場・開演 | OPEN 18:00 / START 19:00
+        チケット発売日 | 4/18(土)10:00〜
+        プレイガイド ローソンチケット
+        注意事項 ・未就学児童入場不可
+        INFO クリエイティブマン:03-3499-6669
+        {"@context":"https://schema.org","@type":"WebPage"}
+      </body>
+    </html>
+  `;
+  const rows = extractCreativemanRows(
+    detailHtml,
+    "https://www.creativeman.co.jp/event/reiko-voice26/",
+    new Date("2026-05-01T00:00:00+09:00"),
+  );
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    source: "Creativeman",
+    artist: "REIKO",
+    venue: "渋谷WWW",
+    date: "2026-06-01",
+    time: "19:00",
+    sale_window: "発売日: 4/18(土)10:00〜",
+  });
+  expect(rows[0].venue).not.toContain("出演者");
+  expect(rows[0].sale_window).not.toContain("プレイガイド");
+  expect(rows[0].sale_window).not.toContain("@context");
 });
 
 test("maps Live Nation H.I.P. public pages to event rows", () => {

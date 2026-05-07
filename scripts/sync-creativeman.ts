@@ -173,14 +173,24 @@ function saleTypeFromBlock(value: string) {
 }
 
 function saleWindowFromBlock(value: string) {
-  const window = value.match(/期間[:：]\s*([^\n]+?)(?=\s*(?:チケット発売日|注意事項|INFO|プレイガイド|$))/);
+  const boundary =
+    String.raw`(?:チケット発売日|注意事項|INFO|プレイガイド|主催|企画|制作|ARTIST|こちらもチェック|ACCESS\s+RANKING|FAQ|NEWS|UPCOMING|FESTIVALS|COMPANY|PRIVACY\s+POLICY|©|var\s|window\.|\{"@context"|$)`;
+  const window = value.match(new RegExp(`期間[:：]\\s*(.+?)(?=\\s*${boundary})`));
   if (window) return `受付期間: ${compactText(window[1])}`;
-  const saleDate = value.match(/チケット発売日\s*[|｜]?\s*([^\n]+)/);
+  const saleDate = value.match(new RegExp(`チケット発売日\\s*[|｜]?\\s*(.+?)(?=\\s*${boundary})`));
   if (saleDate) return `発売日: ${compactText(saleDate[1])}`;
   if (value.includes("当日券")) return "当日券あり";
   if (value.includes("SOLD OUT")) return "SOLD OUT";
   if (value.includes("発売中")) return "発売中";
   return null;
+}
+
+function normalizeCreativemanVenue(value: string) {
+  const normalized = compactText(value)
+    .replace(/\s+(?:出演者|ACT|GUEST|ゲスト|サポートアクト)\s+.*$/i, "")
+    .replace(/(?:チケット)?(?:販売終了|受付終了|販売中|発売中|予定枚数終了|売切|売り切れ|完売|SOLD OUT|当日券|残りわずか)+$/i, "")
+    .trim();
+  return normalized || compactText(value);
 }
 
 function ticketAccessFromPage(pageText: string) {
@@ -247,12 +257,12 @@ export function extractCreativemanRows(html: string, sourceUrl: string, now = ne
   const rows: CreativemanEventRow[] = [];
 
   for (const block of lines) {
-    const header = block.match(/^(東京|大阪|神奈川|千葉|愛知|福岡|北海道|宮城|石川|広島|京都|兵庫|沖縄)\s+(20\d{2}[/.年]\s*\d{1,2}[/.月]\s*\d{1,2}(?:日)?[^\s]*)\s+(.+?)(?=\s+(?:チケット|SOLD OUT|当日券|残りわずか|開場|OPEN|---)|$)/);
+    const header = block.match(/^(東京|大阪|神奈川|千葉|愛知|福岡|北海道|宮城|石川|広島|京都|兵庫|沖縄)\s+(20\d{2}[/.年]\s*\d{1,2}[/.月]\s*\d{1,2}(?:日)?[^\s]*)\s+(.+?)(?=\s+(?:チケット|SOLD OUT|当日券|残りわずか|出演者|ACT|GUEST|ゲスト|サポートアクト|開場|OPEN|---)|$)/);
     if (!header) continue;
 
     const [, cityLabel, rawDate, rawVenue] = header;
     const date = formatCreativemanDate(rawDate);
-    const venue = compactText(rawVenue);
+    const venue = normalizeCreativemanVenue(rawVenue);
     const searchText = `${artist} ${title} ${block}`;
     if (!date || !venue || !isLikelyCreativemanConcert(searchText)) continue;
     if (new Date(`${date}T23:59:59+09:00`).getTime() < now.getTime()) continue;

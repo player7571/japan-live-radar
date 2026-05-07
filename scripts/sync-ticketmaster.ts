@@ -497,6 +497,39 @@ export function isLikelyConcert(event: TicketmasterEvent) {
   return concertSignals.some((signal) => text.includes(signal));
 }
 
+function hasTicketmasterDate(event: TicketmasterEvent) {
+  return Boolean(event.dates?.start?.localDate ?? formatTicketmasterDate(event.dates?.start?.dateTime));
+}
+
+export function ticketmasterSkipReason(event: TicketmasterEvent) {
+  if (!hasTicketmasterDate(event)) return "missing date";
+
+  const text = eventSearchText(event);
+  if (!text) return "missing classification text";
+
+  const nonConcertSignal = nonConcertSignals.find((signal) => text.includes(signal));
+  if (nonConcertSignal) return `non-concert signal: ${nonConcertSignal}`;
+
+  if (!concertSignals.some((signal) => text.includes(signal))) return "missing concert signal";
+  return null;
+}
+
+export function summarizeTicketmasterSkipReasons(events: TicketmasterEvent[]) {
+  const counts = new Map<string, number>();
+  for (const event of events) {
+    const reason = ticketmasterSkipReason(event);
+    if (!reason) continue;
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+
+  if (counts.size === 0) return null;
+  return [...counts.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 3)
+    .map(([reason, count]) => `${reason}: ${count}`)
+    .join("; ");
+}
+
 function postgrestStringList(values: string[]) {
   return `(${values.map((value) => `"${value.replaceAll('"', '\\"')}"`).join(",")})`;
 }
@@ -604,13 +637,20 @@ async function main() {
   const mappedRows = [...collected.values()].map(toTicketmasterEventRow);
   const rows = mappedRows.filter((row): row is EventUpsertRow => row !== null && isLikelyConcert(row.raw));
   const skippedCount = mappedRows.length - rows.length;
+  const skipSummary = summarizeTicketmasterSkipReasons([...collected.values()]);
 
   if (rows.length === 0) {
     const staleDeletedCount = await deleteStaleTicketmasterRows(supabase, rows, skippedProfiles);
     const message =
       skippedProfiles.length > 0
         ? `No usable dated events. Rate-limited profiles: ${skippedProfiles.join(", ")}.`
-        : "No concert-like Ticketmaster JP events were found. Preserved existing Ticketmaster rows because this sync produced zero usable rows.";
+        : [
+            "No concert-like Ticketmaster JP events were found.",
+            skipSummary ? `Skipped reasons: ${skipSummary}.` : null,
+            "Preserved existing Ticketmaster rows because this sync produced zero usable rows.",
+          ]
+            .filter(Boolean)
+            .join(" ");
     await recordSyncRun(supabase, {
       source: "Ticketmaster",
       status: "success",
@@ -650,7 +690,13 @@ async function main() {
     message:
       skippedProfiles.length > 0
         ? `Ran ${searchProfiles.length} JP search profiles. Rate-limited profiles: ${skippedProfiles.join(", ")}.`
-        : `Ran ${searchProfiles.length} JP search profiles. Removed ${staleDeletedCount} stale Ticketmaster rows.`,
+        : [
+            `Ran ${searchProfiles.length} JP search profiles.`,
+            skipSummary ? `Skipped reasons: ${skipSummary}.` : null,
+            `Removed ${staleDeletedCount} stale Ticketmaster rows.`,
+          ]
+            .filter(Boolean)
+            .join(" "),
     startedAt,
   });
 
