@@ -538,6 +538,19 @@ function App() {
     }
   };
 
+  const resetFilters = () => {
+    setQuery("");
+    setArtist("전체");
+    setCity("전체");
+    setSource("전체");
+    setAccess("전체");
+    setDateWindow("전체");
+    setDateFrom("");
+    setDateTo("");
+    setSaleStatus("전체");
+    setKoreaFriendlyOnly(false);
+  };
+
   const syncAlertSubscription = async (event: Event, active: boolean) => {
     if (useSeedData) return true;
     try {
@@ -830,18 +843,7 @@ function App() {
           </button>
           <button
             type="button"
-            onClick={() => {
-              setQuery("");
-              setArtist("전체");
-              setCity("전체");
-              setSource("전체");
-              setAccess("전체");
-              setDateWindow("전체");
-              setDateFrom("");
-              setDateTo("");
-              setSaleStatus("전체");
-              setKoreaFriendlyOnly(false);
-            }}
+            onClick={resetFilters}
           >
             <SlidersHorizontal size={16} />
             초기화
@@ -862,6 +864,10 @@ function App() {
               <div className="empty-state">
                 <strong>조건에 맞는 공연이 없어요</strong>
                 <span>기간이나 티켓 조건을 넓혀 다시 찾아보세요.</span>
+                <button className="secondary-button" type="button" onClick={resetFilters}>
+                  <SlidersHorizontal size={16} />
+                  필터 초기화
+                </button>
               </div>
             )}
             {filteredEvents.map((event) => (

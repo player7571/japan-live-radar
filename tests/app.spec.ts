@@ -3833,6 +3833,10 @@ test("filters concerts by sale schedule status", async ({ page }) => {
   await page.getByLabel("판매 상태").selectOption("판매 중");
   await expect(page.getByText("0개 공연")).toBeVisible();
   await expect(page.getByText("조건에 맞는 공연이 없어요")).toBeVisible();
+
+  await page.getByRole("button", { name: "필터 초기화" }).click();
+  await expect(page.getByLabel("판매 상태")).toHaveValue("전체");
+  await expect(page.getByText("5개 공연")).toBeVisible();
 });
 
 test("persists local alert selections", async ({ page }) => {
