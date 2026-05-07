@@ -231,6 +231,42 @@ test("uses Live Nation H.I.P. schedule parser for URL import drafts", () => {
   });
 });
 
+test("uses LiveFans event parser for URL import drafts", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>J-POP CLASSIC CLUB TOKYO ＠ 東京音楽大学 100周年記念ホール (東京都) (2026.03.19) | LiveFans</title>
+          <meta property="og:image" content="https://static.livefans.jp/event.jpg">
+        </head>
+        <body>
+          新規情報投稿
+          J-POP CLASSIC CLUB TOKYO J-POP CLASSIC CLUB TOKYO 2026卒業コンサート
+          クリップ0人 参加した0人 レビュー:--件 クリップ:0
+          2026/03/19 (木) 18:00 開演 @東京音楽大学 100周年記念ホール (東京都)
+          この公演情報を利用して新規投稿する
+          <a href="/tickets">チケット</a>
+        </body>
+      </html>
+    `,
+    new URL("https://www.livefans.jp/events/1904728"),
+  );
+
+  expect(draft).toMatchObject({
+    artist: "J-POP CLASSIC CLUB TOKYO 2026卒業コンサート",
+    title: "J-POP CLASSIC CLUB TOKYO 2026卒業コンサート",
+    city: "도쿄",
+    venue: "東京音楽大学 100周年記念ホール",
+    date: "2026-03-19",
+    time: "18:00",
+    source: "LiveFans",
+    saleType: "일반 판매",
+    ticketAccess: "확인 필요",
+    link: "https://www.livefans.jp/events/1904728",
+    image: "https://static.livefans.jp/event.jpg",
+  });
+});
+
 test("rejects private or local admin import URLs", () => {
   expect(() => safeUrl("https://example.com/ticket")).not.toThrow();
   expect(() => safeUrl("https://fc2.com/ticket")).not.toThrow();
