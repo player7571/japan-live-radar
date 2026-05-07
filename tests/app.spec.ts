@@ -105,6 +105,7 @@ import { seedEvents } from "../src/data/seedEvents";
 import { buildAlertEventSnapshot } from "../src/lib/alertSnapshot";
 import { splitCandidateRowsByExistingStatus } from "../src/lib/candidateDedupe";
 import { currentTokyoDay, getSaleStatus } from "../src/lib/saleStatus";
+import { isInDateWindow, isInSelectedDateRange, summerTravelRange } from "../src/lib/dateFilters";
 import { eventSearchText, searchVariants } from "../src/lib/searchAliases";
 
 test("extracts Japanese ticket page sales cues", () => {
@@ -3631,6 +3632,24 @@ test("expands promoter source aliases for Korean search", () => {
   expect(matches(liveNationEvent, "힙재팬")).toBe(true);
   expect(matches(creativemanEvent, "크리에이티브맨")).toBe(true);
   expect(matches(creativemanEvent, "크리에이티브맨프로덕션")).toBe(true);
+});
+
+test("keeps travel date filters relative to the current season", () => {
+  const may2026 = new Date("2026-05-07T00:00:00+09:00");
+  const september2026 = new Date("2026-09-01T00:00:00+09:00");
+
+  expect(summerTravelRange(may2026)).toEqual({
+    start: new Date("2026-06-01T00:00:00+09:00"),
+    end: new Date("2026-08-31T23:59:59+09:00"),
+  });
+  expect(summerTravelRange(september2026)).toEqual({
+    start: new Date("2027-06-01T00:00:00+09:00"),
+    end: new Date("2027-08-31T23:59:59+09:00"),
+  });
+  expect(isInDateWindow("2026-07-15", "여름 원정", may2026)).toBe(true);
+  expect(isInDateWindow("2026-07-15", "여름 원정", september2026)).toBe(false);
+  expect(isInDateWindow("2027-07-15", "여름 원정", september2026)).toBe(true);
+  expect(isInSelectedDateRange("2026-10-10", "60일 이내", "2026-10-01", "2026-10-31", may2026)).toBe(true);
 });
 
 test("searches concerts and opens the detail panel", async ({ page }) => {

@@ -29,6 +29,7 @@ import {
 import { seedEvents } from "./data/seedEvents";
 import { buildAlertEventSnapshot } from "./lib/alertSnapshot";
 import { calculateReminderAt, canScheduleReminder, normalizeAlertLeadTimeHours } from "./lib/alertSchedule";
+import { dateWindowOptions, isInSelectedDateRange, type DateWindow } from "./lib/dateFilters";
 import { currentTokyoDay, getSaleStatus, type SaleStatus } from "./lib/saleStatus";
 import { eventSearchText, searchVariants } from "./lib/searchAliases";
 import { formatEventSyncLabel } from "./lib/syncRuns";
@@ -36,7 +37,6 @@ import { registerServiceWorker } from "./registerServiceWorker";
 import type { Event, EventApiResponse, TicketAccess } from "./types/events";
 import "./styles.css";
 
-type DateWindow = "전체" | "60일 이내" | "90일 이내" | "여름 원정";
 type Route = "app" | "admin";
 type AdminEventDraft = {
   artist: string;
@@ -235,7 +235,6 @@ const accessOptions: Array<TicketAccess | "전체"> = [
   "일본 번호 필요",
   "확인 필요",
 ];
-const dateWindowOptions: DateWindow[] = ["전체", "60일 이내", "90일 이내", "여름 원정"];
 const saleStatusOptions: SaleStatus[] = ["전체", "오픈 예정", "판매 중", "판매 종료", "확인 필요"];
 const today = currentTokyoDay();
 const useSeedData = import.meta.env.VITE_USE_SEED_DATA === "true";
@@ -399,30 +398,6 @@ function urlsFromText(value: string) {
     .slice(0, 10);
 }
 
-function isInDateWindow(date: string, dateWindow: DateWindow) {
-  if (dateWindow === "전체") return true;
-
-  const eventDate = new Date(`${date}T00:00:00+09:00`);
-  if (dateWindow === "여름 원정") {
-    return eventDate >= new Date("2026-06-01T00:00:00+09:00") &&
-      eventDate <= new Date("2026-08-31T23:59:59+09:00");
-  }
-
-  const limitDays = dateWindow === "60일 이내" ? 60 : 90;
-  const limit = new Date(today);
-  limit.setDate(today.getDate() + limitDays);
-  return eventDate >= today && eventDate <= limit;
-}
-
-function isInSelectedDateRange(date: string, dateWindow: DateWindow, dateFrom: string, dateTo: string) {
-  if (!dateFrom && !dateTo) return isInDateWindow(date, dateWindow);
-
-  const eventDate = new Date(`${date}T00:00:00+09:00`);
-  const startDate = dateFrom ? new Date(`${dateFrom}T00:00:00+09:00`) : null;
-  const endDate = dateTo ? new Date(`${dateTo}T23:59:59+09:00`) : null;
-  return (!startDate || eventDate >= startDate) && (!endDate || eventDate <= endDate);
-}
-
 function App() {
   const [route, setRoute] = useState<Route>(currentRoute);
   const [events, setEvents] = useState<Event[]>(seedEvents);
@@ -534,7 +509,7 @@ function App() {
       const cityMatch = city === "전체" || event.city === city;
       const sourceMatch = source === "전체" || event.source === source;
       const accessMatch = access === "전체" || event.ticketAccess === access;
-      const dateMatch = isInSelectedDateRange(event.date, dateWindow, dateFrom, dateTo);
+      const dateMatch = isInSelectedDateRange(event.date, dateWindow, dateFrom, dateTo, today);
       const saleStatusMatch = saleStatus === "전체" || getSaleStatus(event, today) === saleStatus;
       const koreaFriendlyMatch =
         !koreaFriendlyOnly || (event.ticketAccess === "한국 구매 가능" && !event.phoneRequired);
