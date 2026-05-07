@@ -3032,8 +3032,14 @@ test("keeps automatic CI and scheduled operations within Actions minute budget",
   expect(syncWorkflow).toContain('cron: "17 18 * * 1,4"');
   expect(syncWorkflow).toContain("npm run sync:eplus");
   expect(syncWorkflow).toContain("EPLUS_SYNC_KEYWORDS");
+  expect(syncWorkflow).toContain("npm run sync:lawson");
+  expect(syncWorkflow).toContain("LAWSON_SYNC_KEYWORDS");
   expect(syncWorkflow).toContain("npm run sync:ticket-pia");
   expect(syncWorkflow).toContain("TICKET_PIA_SYNC_KEYWORDS");
+  expect(syncWorkflow).toContain("npm run sync:rakuten-ticket");
+  expect(syncWorkflow).toContain("RAKUTEN_TICKET_ROW_LIMIT");
+  expect(syncWorkflow).toContain("npm run sync:creativeman");
+  expect(syncWorkflow).toContain("CREATIVEMAN_ROW_LIMIT");
 });
 
 test("summarizes alert dispatch failures for workflow visibility", () => {

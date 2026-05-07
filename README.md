@@ -91,7 +91,7 @@ GitHub Actions is the long-running automation layer so Codex heartbeat runs do n
 - `Merge Release PR`: merges the open `dev` to `main` release PR after all PR checks finish successfully during the 09:00 and 21:00 KST release windows. It can also be run manually with `workflow_dispatch` when an immediate production release is desired.
 - `Retry Production Deploy`: when production deploy or health automation issues are open, retries the main production deploy once daily and closes the blockers after health passes.
 - `Supabase Migrate`: applies migrations automatically when migration files land on `main`, and can also be run manually.
-- `Sync External Events`: refreshes seed, Ticketmaster, e+ public search, Ticket Pia public search, and Rakuten Ticket public category data twice weekly while Actions minutes are constrained. The workflow uses a single concurrency group so scheduled and manual syncs do not overlap.
+- `Sync External Events`: refreshes seed, Ticketmaster, e+ public search, Lawson Ticket public HTML, Ticket Pia public search, Rakuten Ticket public category, and Creativeman public schedule data twice weekly while Actions minutes are constrained. The workflow uses a single concurrency group so scheduled and manual syncs do not overlap.
 - `Dispatch Due Alerts`: checks the protected alert queue twice daily and dispatches via `ALERT_WEBHOOK_URL` when configured. The workflow uses a single concurrency group so scheduled and manual runs do not overlap and double-send the same due alert.
 - `Production Health Check`: checks `/api/health`, the protected alert queue, and admin alert/sync stats once daily.
 
