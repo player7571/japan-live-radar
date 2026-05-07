@@ -192,6 +192,10 @@ export function summarizeSyncRuns(rows: SyncRunStatsRow[]) {
 }
 
 export function summarizeSyncRunsAt(rows: SyncRunStatsRow[], now = new Date()) {
+  return latestSyncRunsAt(rows, now).slice(0, 6);
+}
+
+function latestSyncRunsAt(rows: SyncRunStatsRow[], now = new Date()) {
   const seen = new Set<string>();
   return rows
     .filter((row) => {
@@ -208,8 +212,7 @@ export function summarizeSyncRunsAt(rows: SyncRunStatsRow[], now = new Date()) {
       message: row.message,
       finishedAt: row.finished_at,
       ageHours: syncRunAgeHours(row.finished_at, now),
-    }))
-    .slice(0, 6);
+    }));
 }
 
 function syncRunAgeHours(finishedAt: string | null, now = new Date()) {
@@ -231,7 +234,7 @@ export function summarizeSyncHealth(
     : defaultSyncStaleAfterHours,
   expectedSources: string[] = [],
 ) {
-  const latestRuns = summarizeSyncRunsAt(rows, now);
+  const latestRuns = latestSyncRunsAt(rows, now);
   const nowTime = now.getTime();
   const staleAfterMs = staleAfterHours * 60 * 60 * 1000;
   const latestSourceNames = new Set(latestRuns.map((row) => row.source.toLowerCase()));
