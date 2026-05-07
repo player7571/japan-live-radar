@@ -46,6 +46,7 @@ npx playwright test
 - Stable fallback data is synced with `npm run sync:seed`.
 - All configured public source syncs can be run in sequence with `npm run sync:public-sources`. Set `SYNC_PUBLIC_SOURCES=lawson,ticket-pia` to run a subset, or `SYNC_CONTINUE_ON_ERROR=true` to collect failures across sources during manual operations.
 - Creativeman public schedule ingestion runs with `npm run sync:creativeman`, follows public upcoming/schedule links into event detail pages, and preserves existing Creativeman rows when a run finds no usable public schedule rows.
+- Live Nation H.I.P. public schedule ingestion runs with `npm run sync:livenation-hip`, follows public `all-events/*-tickets-ae*` pages from the home page, extracts visible Japanese schedule rows, and preserves existing Live Nation H.I.P. rows when a run finds no usable public schedule rows.
 - Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
 - e+ public search ingestion runs with `npm run sync:eplus`, maps usable public concert rows into the live catalog, merges duplicate ticket-phase listings for the same performance, and removes stale e+ rows only after a successful usable sync.
 - Lawson Ticket / ローチケ public HTML ingestion runs with `npm run sync:lawson`, reads public concert category/search pages plus `concert/mevent/?mid=...` detail pages, maps JSON-LD Event and visible search result rows into the live catalog, and removes stale Lawson Ticket rows only after a successful usable sync.
@@ -197,6 +198,10 @@ SYNC_STALE_AFTER_HOURS
 - `CREATIVEMAN_INDEX_LIMIT` caps Creativeman index pages fetched per run. It defaults to `2`, is clamped from `1` to `6`, and can be set as a GitHub repository variable.
 - `CREATIVEMAN_ROW_LIMIT` caps Creativeman rows inserted per run. It defaults to `60`, is clamped from `1` to `100`, and can be set as a GitHub repository variable.
 - `CREATIVEMAN_FETCH_TIMEOUT_MS` controls each Creativeman page request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable.
+- `LIVENATION_HIP_INDEX_URLS` optionally overrides the public Live Nation H.I.P. index pages used by `npm run sync:livenation-hip`.
+- `LIVENATION_HIP_INDEX_LIMIT` caps Live Nation H.I.P. index pages fetched per run. It defaults to `1`, is clamped from `1` to `4`, and can be set as a GitHub repository variable.
+- `LIVENATION_HIP_ROW_LIMIT` caps Live Nation H.I.P. rows inserted per run. It defaults to `60`, is clamped from `1` to `100`, and can be set as a GitHub repository variable.
+- `LIVENATION_HIP_FETCH_TIMEOUT_MS` controls each Live Nation H.I.P. page request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable.
 - `ALERT_WEBHOOK_ATTEMPTS` controls retry attempts for transient alert webhook HTTP failures and network exceptions. It defaults to `3`, is clamped from `1` to `5`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `ALERT_WEBHOOK_TIMEOUT_MS` controls each alert webhook request timeout. It defaults to `10000`, is clamped from `1000` to `30000`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `ALERT_WEBHOOK_SECRET` optionally signs alert webhook payloads so downstream delivery workers can reject spoofed requests before processing.
@@ -215,6 +220,7 @@ Supported automated sources:
 - `Lawson Ticket`: public `cdn.l-tike.com` concert/category/search HTML and public `concert/mevent/?mid=...` detail HTML. The sync prefers visible JSON-LD Event data and visible ticket-list/search-result metadata, stores the original `https://l-tike.com/order/...` ticket URL, and records runs under `Lawson Ticket`.
 - `Rakuten Ticket`: public music category/detail HTML.
 - `Creativeman`: public upcoming/schedule/detail HTML from `https://www.creativeman.co.jp/`.
+- `Live Nation H.I.P.`: public home page links and visible public artist/event schedule HTML from `https://www.livenationhip.co.jp/`.
 
 Lawson Ticket limitations:
 
