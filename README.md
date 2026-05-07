@@ -97,7 +97,7 @@ GitHub Actions is the long-running automation layer so Codex heartbeat runs do n
 
 Scheduled workflows create one open `automation` issue when they fail, so Codex can pick up the issue/logs and continue without waiting for a local heartbeat to have elevated permissions.
 
-Required GitHub repository secrets:
+GitHub repository secrets and deployment credentials:
 
 ```text
 VITE_SUPABASE_URL
@@ -107,6 +107,7 @@ TICKETMASTER_API_KEY
 SUPABASE_DB_URL
 ADMIN_API_TOKEN
 ALERT_WEBHOOK_URL
+ALERT_WEBHOOK_SECRET
 VERCEL_ORG_ID
 VERCEL_PROJECT_ID
 VERCEL_TOKEN
@@ -117,6 +118,7 @@ VERCEL_TOKEN
 - `SUPABASE_DB_URL` is used only by migration automation.
 - `ADMIN_API_TOKEN` protects the admin import, candidate, quality, and alert queue APIs.
 - `ALERT_WEBHOOK_URL` is optional until real alert delivery is connected; without it, due alerts are marked `error` instead of pretending they were sent.
+- `ALERT_WEBHOOK_SECRET` is optional and signs alert webhook payloads for downstream delivery workers.
 - `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, and `VERCEL_TOKEN` allow GitHub Actions to sync Vercel environments, build, deploy, and retry production after quota resets.
 
 Vercel runtime environments are synced by GitHub Actions from the repository secrets above. The app expects these runtime variables in both preview and production:
@@ -138,9 +140,34 @@ VITE_USE_SEED_DATA
 TICKETMASTER_PAGE_LIMIT
 TICKETMASTER_FETCH_TIMEOUT_MS
 EVENT_API_LIMIT
+EPLUS_SYNC_KEYWORDS
+EPLUS_ROW_LIMIT
+EPLUS_FETCH_TIMEOUT_MS
+LAWSON_SEARCH_URLS
+LAWSON_SYNC_KEYWORDS
+LAWSON_PAGE_LIMIT
+LAWSON_ROW_LIMIT
+LAWSON_FETCH_TIMEOUT_MS
+TICKET_PIA_SYNC_KEYWORDS
+TICKET_PIA_PAGE_LIMIT
+TICKET_PIA_ROW_LIMIT
+TICKET_PIA_FETCH_TIMEOUT_MS
+RAKUTEN_TICKET_CATEGORY_URLS
+RAKUTEN_TICKET_CATEGORY_LIMIT
+RAKUTEN_TICKET_ROW_LIMIT
+RAKUTEN_TICKET_FETCH_TIMEOUT_MS
+CREATIVEMAN_INDEX_URLS
+CREATIVEMAN_INDEX_LIMIT
+CREATIVEMAN_ROW_LIMIT
+CREATIVEMAN_FETCH_TIMEOUT_MS
 ALERT_WEBHOOK_ATTEMPTS
 ALERT_WEBHOOK_TIMEOUT_MS
 ALERT_WEBHOOK_SECRET
+ALERT_QUEUE_CONNECT_TIMEOUT_SECONDS
+ALERT_QUEUE_MAX_TIME_SECONDS
+ALERT_QUEUE_RETRY_ATTEMPTS
+SYNC_PUBLIC_SOURCES
+SYNC_CONTINUE_ON_ERROR
 SYNC_STALE_AFTER_HOURS
 ```
 
@@ -174,6 +201,8 @@ SYNC_STALE_AFTER_HOURS
 - `ALERT_WEBHOOK_TIMEOUT_MS` controls each alert webhook request timeout. It defaults to `10000`, is clamped from `1000` to `30000`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `ALERT_WEBHOOK_SECRET` optionally signs alert webhook payloads so downstream delivery workers can reject spoofed requests before processing.
 - `ALERT_QUEUE_CONNECT_TIMEOUT_SECONDS`, `ALERT_QUEUE_MAX_TIME_SECONDS`, and `ALERT_QUEUE_RETRY_ATTEMPTS` control the lightweight due-alert precheck in GitHub Actions. They default to `10`, `30`, and `2` so a transient Vercel or network hang cannot consume the full job timeout.
+- `SYNC_PUBLIC_SOURCES` limits `npm run sync:public-sources` to a comma-separated subset such as `lawson,pia`.
+- `SYNC_CONTINUE_ON_ERROR=true` lets source sync orchestration continue later sources after an earlier source fails.
 - `SYNC_STALE_AFTER_HOURS` controls when the admin stats API marks the latest sync run as delayed. It defaults to `108` hours to cover the constrained twice-weekly Ticketmaster schedule with slack.
 
 ## External Source Notes
