@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { AdminEventInput } from "../src/lib/adminEventRows.js";
 import { splitCandidateRowsByExistingStatus } from "../src/lib/candidateDedupe.js";
+import { publicSearchSources } from "../src/lib/publicSources.js";
 
 type VercelRequest = {
   method?: string;
@@ -60,40 +61,10 @@ function missingCandidateTable(error: { code?: string; message?: string } | null
 
 export function searchSources(keyword: string) {
   const encoded = encodeURIComponent(keyword);
-  return [
-    {
-      source: "Ticket Pia",
-      url: `https://t.pia.jp/en/pia/search_dtl_input.do?keyword=${encoded}`,
-    },
-    {
-      source: "e+",
-      url: `https://eplus.jp/sf/word?keyword=${encoded}`,
-    },
-    {
-      source: "Lawson Ticket",
-      url: `https://l-tike.com/search/?keyword=${encoded}`,
-    },
-    {
-      source: "Ticketmaster",
-      url: `https://www.ticketmaster.com/search?q=${encoded}&sort=date%2Casc&country=jp`,
-    },
-    {
-      source: "Rakuten Ticket",
-      url: `https://ticket.rakuten.co.jp/?q=${encoded}`,
-    },
-    {
-      source: "LiveFans",
-      url: `https://www.livefans.jp/search?option=3&keyword=${encoded}`,
-    },
-    {
-      source: "Live Nation H.I.P.",
-      url: "https://www.livenationhip.co.jp/",
-    },
-    {
-      source: "Creativeman",
-      url: "https://www.creativeman.co.jp/upcoming/",
-    },
-  ];
+  return publicSearchSources.map((source) => ({
+    source: source.syncRunSource,
+    url: source.searchUrl?.(encoded) ?? "",
+  }));
 }
 
 function candidateDraft(keyword: string, source: string, url: string): AdminEventInput {
