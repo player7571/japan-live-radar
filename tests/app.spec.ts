@@ -4069,6 +4069,10 @@ test("creates ticket source search URLs including additional Japanese sources", 
 });
 
 test("plans public event source syncs without running network jobs", () => {
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+    scripts?: Record<string, string>;
+  };
+
   expect(publicSyncSteps).toBe(publicEventSources);
   expect(trackedSyncSources).toEqual([
     "Seed",
@@ -4112,6 +4116,13 @@ test("plans public event source syncs without running network jobs", () => {
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Creativeman (sync:creativeman)");
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Live Nation H.I.P. (sync:livenation-hip)");
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("LiveFans (sync:livefans)");
+  for (const source of publicSyncSteps) {
+    const scriptCommand = packageJson.scripts?.[source.script];
+    expect(scriptCommand, `${source.script} must be defined in package.json`).toBeTruthy();
+    const scriptPath = scriptCommand?.match(/^tsx\s+(.+)$/)?.[1];
+    expect(scriptPath, `${source.script} should run a tsx script`).toBeTruthy();
+    expect(existsSync(scriptPath ?? ""), `${source.script} target should exist`).toBe(true);
+  }
   expect(() => normalizePublicSyncSelection("unknown-source")).toThrow("Unknown sync source");
 });
 
