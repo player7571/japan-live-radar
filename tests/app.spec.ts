@@ -3085,11 +3085,11 @@ test("formats event API sync labels with source coverage", () => {
           },
           {
             source: "Ticket Pia",
-            status: "success",
+            status: "error",
             fetchedCount: 30,
             upsertedCount: 25,
             skippedCount: 5,
-            message: null,
+            message: "Ticket Pia request failed",
             finishedAt: "2026-05-07T00:00:00Z",
           },
           {
@@ -3106,7 +3106,43 @@ test("formats event API sync labels with source coverage", () => {
       "supabase",
       178,
     ),
-  ).toBe("178개 공연 · 4개 출처 동기화 · Lawson Ticket, Creativeman, Ticket Pia 외 1개");
+  ).toBe("178개 공연 · 4개 출처 동기화 · Lawson Ticket, Creativeman, Ticket Pia 외 1개 · 오류 1개");
+  expect(
+    formatEventSyncLabel(
+      {
+        latestSyncBySource: [
+          {
+            source: "Ticket Pia",
+            status: "error",
+            fetchedCount: 0,
+            upsertedCount: 0,
+            skippedCount: 0,
+            message: "Ticket Pia request failed",
+            finishedAt: "2026-05-07T00:00:00Z",
+          },
+        ],
+      },
+      "supabase",
+      178,
+    ),
+  ).toBe("178개 공연 · Ticket Pia 동기화 오류");
+  expect(
+    formatEventSyncLabel(
+      {
+        lastSync: {
+          source: "Ticket Pia",
+          status: "error",
+          fetchedCount: 0,
+          upsertedCount: 0,
+          skippedCount: 0,
+          message: "Ticket Pia request failed",
+          finishedAt: "2026-05-07T00:00:00Z",
+        },
+      },
+      "supabase",
+      178,
+    ),
+  ).toBe("178개 공연 · Ticket Pia 동기화 오류");
 });
 
 test("applies every checked-in Supabase migration", () => {
