@@ -57,17 +57,22 @@ export function summarizeLatestSyncRuns(rows: SyncRunRow[], maxSources = 8) {
     .slice(0, maxSources);
 }
 
-export function formatEventSyncLabel(meta: EventApiResponse["meta"], source: EventApiResponse["source"]) {
+export function formatEventSyncLabel(
+  meta: EventApiResponse["meta"],
+  source: EventApiResponse["source"],
+  eventCount?: number,
+) {
+  const eventCountPrefix = typeof eventCount === "number" ? `${eventCount}개 공연 · ` : "";
   const latestBySource = meta?.latestSyncBySource?.filter((item) => item.source) ?? [];
   if (latestBySource.length > 1) {
     const sourceNames = latestBySource.slice(0, 3).map((item) => item.source);
     const suffix = latestBySource.length > sourceNames.length ? ` 외 ${latestBySource.length - sourceNames.length}개` : "";
-    return `${latestBySource.length}개 출처 동기화 · ${sourceNames.join(", ")}${suffix}`;
+    return `${eventCountPrefix}${latestBySource.length}개 출처 동기화 · ${sourceNames.join(", ")}${suffix}`;
   }
   if (meta?.lastSync) {
-    return `${meta.lastSync.source} ${meta.lastSync.upsertedCount}건 동기화`;
+    return `${eventCountPrefix}${meta.lastSync.source} ${meta.lastSync.upsertedCount}건 동기화`;
   }
-  return source === "supabase" ? "DB 데이터" : "샘플 데이터";
+  return source === "supabase" ? `${eventCountPrefix}DB 데이터` : `${eventCountPrefix}샘플 데이터`;
 }
 
 export async function recordSyncRun(supabase: SupabaseClient, input: SyncRunInput) {
