@@ -434,10 +434,20 @@ function App() {
     () => ["전체", ...Array.from(new Set(events.map((event) => event.artist))).sort((a, b) => a.localeCompare(b, "ko"))],
     [events],
   );
-  const sourceOptions = useMemo(
-    () => ["전체", ...Array.from(new Set(events.map((event) => event.source))).sort((a, b) => a.localeCompare(b, "ko"))],
-    [events],
-  );
+  const sourceOptions = useMemo(() => {
+    const counts = events.reduce<Map<Event["source"], number>>((acc, event) => {
+      acc.set(event.source, (acc.get(event.source) ?? 0) + 1);
+      return acc;
+    }, new Map());
+    const sources = Array.from(counts.keys()).sort((a, b) => a.localeCompare(b, "ko"));
+    return [
+      { value: "전체" as const, label: `전체 (${events.length})` },
+      ...sources.map((sourceValue) => ({
+        value: sourceValue,
+        label: `${sourceValue} (${counts.get(sourceValue) ?? 0})`,
+      })),
+    ];
+  }, [events]);
 
   useEffect(() => {
     const handleHashChange = () => setRoute(currentRoute());
@@ -747,7 +757,7 @@ function App() {
                 aria-label="출처"
               >
                 {sourceOptions.map((option) => (
-                  <option key={option}>{option}</option>
+                  <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
             </label>

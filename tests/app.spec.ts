@@ -3831,6 +3831,9 @@ test("filters concerts by artist", async ({ page }) => {
 test("filters concerts by ticket source", async ({ page }) => {
   await page.goto("/");
 
+  await expect(page.getByLabel("출처").locator("option[value='전체']")).toHaveText("전체 (5)");
+  await expect(page.getByLabel("출처").locator("option[value='Lawson Ticket']")).toHaveText("Lawson Ticket (1)");
+
   await page.getByLabel("출처").selectOption("Lawson Ticket");
 
   await expect(page.getByText("1개 공연")).toBeVisible();
