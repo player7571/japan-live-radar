@@ -32,6 +32,7 @@ export const publicSyncSteps: PublicSyncStep[] = [
     script: "sync:livenation-hip",
     aliases: ["live nation hip", "live nation h.i.p.", "livenation hip", "hip"],
   },
+  { key: "livefans", label: "LiveFans", script: "sync:livefans", aliases: ["live fans", "ライブファンズ"] },
 ];
 
 function normalizeToken(value: string) {
