@@ -24,6 +24,7 @@ import {
   validateAdminStatsHealth,
   validateProductionHealth,
 } from "../scripts/check-production-health";
+import { reachableHealthResponse } from "../api/health";
 import { formatEventSyncLabel, summarizeLatestSyncRuns } from "../src/lib/syncRuns";
 import {
   normalizePublicSyncSelection,
@@ -2889,6 +2890,14 @@ test("validates production health with admin alert and sync coverage", () => {
       database: "reachable",
       eventCount: 3,
       syncRunsAvailable: true,
+      lastSync: {
+        source: "Lawson Ticket",
+        status: "success",
+        fetchedCount: 12,
+        upsertedCount: 10,
+        skippedCount: 2,
+        finishedAt: "2026-05-07T00:00:00Z",
+      },
       latestSyncBySource: [
         {
           source: "Lawson Ticket",
@@ -2908,6 +2917,14 @@ test("validates production health with admin alert and sync coverage", () => {
   expect(() =>
     validateProductionHealth({ ok: true, database: "reachable", eventCount: 3, syncRunsAvailable: false }),
   ).toThrow("Sync run history is unavailable");
+  expect(() =>
+    validateProductionHealth({
+      ok: true,
+      database: "reachable",
+      eventCount: 3,
+      lastSync: { source: "Lawson Ticket" },
+    }),
+  ).toThrow("Production health last sync row is invalid");
   expect(() =>
     validateProductionHealth({
       ok: true,
@@ -2973,6 +2990,49 @@ test("validates production health with admin alert and sync coverage", () => {
       },
     }),
   ).not.toThrow();
+});
+
+test("normalizes public health last sync rows", () => {
+  expect(
+    reachableHealthResponse(
+      7,
+      [
+        {
+          source: "  Lawson Ticket ",
+          status: "success",
+          fetched_count: 12,
+          upserted_count: 10,
+          skipped_count: 2,
+          message: null,
+          finished_at: "2026-05-07T00:00:00Z",
+        },
+      ],
+      true,
+    ),
+  ).toMatchObject({
+    ok: true,
+    database: "reachable",
+    eventCount: 7,
+    syncRunsAvailable: true,
+    lastSync: {
+      source: "Lawson Ticket",
+      status: "success",
+      fetchedCount: 12,
+      upsertedCount: 10,
+      skippedCount: 2,
+      finishedAt: "2026-05-07T00:00:00Z",
+    },
+    latestSyncBySource: [
+      {
+        source: "Lawson Ticket",
+        status: "success",
+        fetchedCount: 12,
+        upsertedCount: 10,
+        skippedCount: 2,
+        finishedAt: "2026-05-07T00:00:00Z",
+      },
+    ],
+  });
 });
 
 test("summarizes latest public sync runs by source", () => {
