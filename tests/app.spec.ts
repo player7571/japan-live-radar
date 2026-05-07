@@ -26,6 +26,7 @@ import {
   validateProductionHealth,
 } from "../scripts/check-production-health";
 import { reachableHealthResponse } from "../api/health";
+import { publicEventSources, trackedSyncSources } from "../src/lib/publicSources";
 import {
   defaultLatestSyncSourceLimit,
   defaultSyncRunLookupLimit,
@@ -4065,6 +4066,18 @@ test("creates ticket source search URLs including additional Japanese sources", 
 });
 
 test("plans public event source syncs without running network jobs", () => {
+  expect(publicSyncSteps).toBe(publicEventSources);
+  expect(trackedSyncSources).toEqual([
+    "Seed",
+    "Ticketmaster",
+    "e+",
+    "Lawson Ticket",
+    "Ticket Pia",
+    "Rakuten Ticket",
+    "Creativeman",
+    "Live Nation H.I.P.",
+    "LiveFans",
+  ]);
   expect(normalizePublicSyncSelection(undefined).map((step) => step.script)).toEqual([
     "sync:seed",
     "sync:ticketmaster",
