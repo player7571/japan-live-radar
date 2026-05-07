@@ -2016,6 +2016,46 @@ test("flags stale and errored sync runs for admin stats", () => {
   expect(
     summarizeSyncHealth(
       [
+        "Seed",
+        "Ticketmaster",
+        "e+",
+        "Lawson Ticket",
+        "Ticket Pia",
+        "Rakuten Ticket",
+        "Creativeman",
+        "Live Nation H.I.P.",
+        "LiveFans",
+      ].map((source, index) => ({
+        source,
+        status: "success" as const,
+        fetched_count: 10,
+        upserted_count: 8,
+        skipped_count: 2,
+        message: null,
+        finished_at: `2026-05-05T10:${String(index).padStart(2, "0")}:00Z`,
+      })),
+      new Date("2026-05-05T12:00:00Z"),
+      30,
+      [
+        "Seed",
+        "Ticketmaster",
+        "e+",
+        "Lawson Ticket",
+        "Ticket Pia",
+        "Rakuten Ticket",
+        "Creativeman",
+        "Live Nation H.I.P.",
+        "LiveFans",
+      ],
+    ),
+  ).toMatchObject({
+    status: "healthy",
+    missingSources: [],
+  });
+
+  expect(
+    summarizeSyncHealth(
+      [
         {
           source: "ticketmaster",
           status: "success",
