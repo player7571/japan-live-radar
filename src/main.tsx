@@ -426,10 +426,20 @@ function App() {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
 
-  const cityOptions = useMemo(
-    () => ["전체", ...Array.from(new Set(events.map((event) => event.city))).sort((a, b) => a.localeCompare(b, "ko"))],
-    [events],
-  );
+  const cityOptions = useMemo(() => {
+    const counts = events.reduce<Map<Event["city"], number>>((acc, event) => {
+      acc.set(event.city, (acc.get(event.city) ?? 0) + 1);
+      return acc;
+    }, new Map());
+    const cities = Array.from(counts.keys()).sort((a, b) => a.localeCompare(b, "ko"));
+    return [
+      { value: "전체" as const, label: `전체 (${events.length})` },
+      ...cities.map((cityValue) => ({
+        value: cityValue,
+        label: `${cityValue} (${counts.get(cityValue) ?? 0})`,
+      })),
+    ];
+  }, [events]);
   const artistOptions = useMemo(
     () => ["전체", ...Array.from(new Set(events.map((event) => event.artist))).sort((a, b) => a.localeCompare(b, "ko"))],
     [events],
@@ -766,7 +776,7 @@ function App() {
                 aria-label="도시"
               >
                 {cityOptions.map((option) => (
-                  <option key={option}>{option}</option>
+                  <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
             </label>
