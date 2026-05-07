@@ -44,7 +44,7 @@ export function rowToSyncRun(row: SyncRunRow): SyncRunSummary {
   };
 }
 
-export function summarizeLatestSyncRuns(rows: SyncRunRow[], maxSources = 8) {
+export function summarizeLatestSyncRuns(rows: SyncRunRow[], maxSources = 12) {
   const seen = new Set<string>();
   return rows
     .filter((row) => {
