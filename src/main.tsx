@@ -448,6 +448,16 @@ function App() {
       })),
     ];
   }, [events]);
+  const accessFilterOptions = useMemo(() => {
+    const counts = events.reduce<Map<TicketAccess, number>>((acc, event) => {
+      acc.set(event.ticketAccess, (acc.get(event.ticketAccess) ?? 0) + 1);
+      return acc;
+    }, new Map());
+    return accessOptions.map((option) => ({
+      value: option,
+      label: option === "전체" ? `전체 (${events.length})` : `${option} (${counts.get(option) ?? 0})`,
+    }));
+  }, [events]);
 
   useEffect(() => {
     const handleHashChange = () => setRoute(currentRoute());
@@ -768,8 +778,8 @@ function App() {
                 onChange={(event) => setAccess(event.target.value as TicketAccess | "전체")}
                 aria-label="구매 조건"
               >
-                {accessOptions.map((option) => (
-                  <option key={option}>{option}</option>
+                {accessFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
             </label>
