@@ -185,6 +185,43 @@ test("recognizes official promoter source pages during URL import", () => {
   expect(creativemanDraft.source).toBe("Creativeman");
 });
 
+test("uses Live Nation H.I.P. schedule parser for URL import drafts", () => {
+  const draft = extractDraft(
+    `
+      <html>
+        <head>
+          <title>Charlie Puth - Whatever's Clever! World Tour Tickets, Tour and Concert Dates - www.livenationhip.co.jp</title>
+          <meta property="og:title" content="Charlie Puth - Whatever's Clever! World Tour Tickets, Tour and Concert Dates - www.livenationhip.co.jp">
+        </head>
+        <body>
+          <h1>Charlie Puth | チャーリー・プース</h1>
+          SCHEDULE
+          2026年10月16日(金)ぴあアリーナMMOPEN 18:00 / START 19:00
+          TICKETS
+          ■GOLD席 ¥98,800 ■S席 ¥19,800
+          オフィシャル1次抽選先行
+          <a href="https://w.pia.jp/t/charlieputh-2026/">4/27(月)正午12:00 ~ 5/10(日)23:59</a>
+        </body>
+      </html>
+    `,
+    new URL("https://www.livenationhip.co.jp/all-events/charlie-puth-tickets-ae809419"),
+  );
+
+  expect(draft).toMatchObject({
+    artist: "Charlie Puth",
+    title: "Charlie Puth - Whatever's Clever! World Tour",
+    city: "요코하마",
+    venue: "ぴあアリーナMM",
+    date: "2026-10-16",
+    time: "19:00",
+    source: "Live Nation H.I.P.",
+    saleType: "추첨 접수",
+    saleWindow: "受付期間: 4/27(月)正午12:00 ~ 5/10(日)23:59",
+    price: "¥98,800 / ¥19,800",
+    link: "https://w.pia.jp/t/charlieputh-2026/",
+  });
+});
+
 test("rejects private or local admin import URLs", () => {
   expect(() => safeUrl("https://example.com/ticket")).not.toThrow();
   expect(() => safeUrl("https://fc2.com/ticket")).not.toThrow();

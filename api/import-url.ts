@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { lookup } from "node:dns/promises";
+import { extractLiveNationHipRows } from "../scripts/sync-livenation-hip";
 
 type VercelRequest = {
   method?: string;
@@ -725,6 +726,24 @@ function sourceFromHostname(hostname: string) {
   return hostname.replace(/^www\./, "");
 }
 
+function toTicketAccess(value: string | undefined): ImportedDraft["ticketAccess"] | null {
+  if (value === "한국 구매 가능" || value === "일본 번호 필요" || value === "확인 필요") return value;
+  return null;
+}
+
+function toSaleType(value: string | undefined): ImportedDraft["saleType"] | null {
+  if (
+    value === "추첨 접수" ||
+    value === "일반 판매" ||
+    value === "선착 판매" ||
+    value === "해외 판매" ||
+    value === "리세일"
+  ) {
+    return value;
+  }
+  return null;
+}
+
 function ticketLinkScore(url: URL, label: string) {
   const hostname = url.hostname.toLowerCase();
   const text = normalizeFullWidth(`${label} ${url.pathname} ${url.search}`);
@@ -950,6 +969,9 @@ function firstRakutenPerformance($: cheerio.CheerioAPI) {
 export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   const $ = cheerio.load(html);
   const pageText = compactWhitespace($("body").text());
+  const liveNationHipRow = sourceUrl.hostname.toLowerCase().includes("livenationhip.co.jp")
+    ? extractLiveNationHipRows(html, sourceUrl.toString(), new Date(0))[0]
+    : null;
   const jsonLdItems = $("script[type='application/ld+json']")
     .toArray()
     .flatMap((element) => {
@@ -1020,21 +1042,24 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
 
   return {
     ...fallbackDraft,
-    artist: firstString(performer.name, artistFromTitle(title), title),
-    title,
-    city: cityFromText(textForCity),
-    venue,
-    date: eventDate,
-    time: normalizeTime(firstString(rakutenPerformance?.time, dateSource)),
-    source: sourceFromHostname(ticketLink.hostname),
-    ticketAccess: access.ticketAccess,
-    saleType: saleTypeFromText(`${description} ${pageText}`),
-    saleWindow,
-    price,
-    phoneRequired: access.phoneRequired,
-    foreignerNote: importForeignerNote(description, access.foreignerNote, pageText),
-    link: ticketLink.toString(),
-    image: firstString(image, propertyContent($, "meta[property='og:image']")),
+    artist: firstString(liveNationHipRow?.artist, performer.name, artistFromTitle(title), title),
+    title: firstString(liveNationHipRow?.title, title),
+    city: liveNationHipRow?.city ?? cityFromText(textForCity),
+    venue: firstString(liveNationHipRow?.venue, venue),
+    date: firstString(liveNationHipRow?.date, eventDate),
+    time: firstString(liveNationHipRow?.time, normalizeTime(firstString(rakutenPerformance?.time, dateSource))),
+    source: liveNationHipRow?.source ?? sourceFromHostname(ticketLink.hostname),
+    ticketAccess: toTicketAccess(liveNationHipRow?.ticket_access) ?? access.ticketAccess,
+    saleType: toSaleType(liveNationHipRow?.sale_type) ?? saleTypeFromText(`${description} ${pageText}`),
+    saleWindow: firstString(liveNationHipRow?.sale_window, saleWindow),
+    price: firstString(liveNationHipRow?.price, price),
+    phoneRequired: liveNationHipRow?.phone_required ?? access.phoneRequired,
+    foreignerNote: firstString(
+      liveNationHipRow?.foreigner_note,
+      importForeignerNote(description, access.foreignerNote, pageText),
+    ),
+    link: firstString(liveNationHipRow?.link, ticketLink.toString()),
+    image: firstString(liveNationHipRow?.image, image, propertyContent($, "meta[property='og:image']")),
   };
 }
 
