@@ -9,6 +9,7 @@ const activeSaleCue =
   /(販売中(?!止)|受付中|発売中|申込受付中|チケット発売中|판매\s*중|on\s*sale|available\s*now|now\s*on\s*sale)/i;
 const endedSaleCue =
   /(販売終了|受付終了|申込終了|募集終了|終了しました|予定枚数終了|売切|売り切れ|完売|公演中止|開催中止|中止|취소|공연\s*취소|판매\s*종료|sold\s*out|cancelled|canceled|closed|ended)/i;
+const endOnlySaleDateCue = /([~〜～]|終了|締切|しめきり|まで|迄|종료|마감|until|through|ends?|ending)/i;
 
 export function normalizeAlertLeadTimeHours(value: unknown) {
   const parsed = typeof value === "string" || typeof value === "number" ? Number(value) : Number.NaN;
@@ -73,6 +74,41 @@ function uniqueDates(dates: Date[]) {
   });
 }
 
+function saleWindowEndOnlyCandidate(value: unknown, fallbackYear?: string) {
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/[！-～]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0));
+  if (!activeSaleCue.test(normalized) || !endOnlySaleDateCue.test(normalized)) return null;
+
+  const candidates: Date[] = [];
+  const isoDateTimePattern =
+    /\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?/g;
+  for (const match of normalized.matchAll(isoDateTimePattern)) {
+    const parsed = new Date(match[0]);
+    if (!Number.isNaN(parsed.getTime())) candidates.push(parsed);
+  }
+
+  const dateTimePattern =
+    /(?:(\d{4})[./年-]\s*)?(\d{1,2})[./月-]\s*(\d{1,2})(?:日)?(?:\([^)]*\))?\s*([01]?\d|2[0-3])(?::([0-5]\d)|時\s*([0-5]\d)?\s*分?)/g;
+  for (const match of normalized.matchAll(dateTimePattern)) {
+    const year = match[1] ?? fallbackYear;
+    if (!year) continue;
+    const minute = match[5] ?? match[6] ?? "00";
+    candidates.push(
+      new Date(
+        `${year}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}T${match[4].padStart(2, "0")}:${minute}:00+09:00`,
+      ),
+    );
+  }
+
+  if (candidates.length === 0) {
+    const parsedDate = parseDate(normalized);
+    if (parsedDate) candidates.push(parsedDate);
+  }
+
+  const unique = uniqueDates(candidates).filter((date) => !Number.isNaN(date.getTime()));
+  return unique.length === 1 ? unique[0] : null;
+}
+
 function saleWindowStartCandidates(value: unknown, fallbackYear?: string) {
   if (typeof value !== "string") return null;
   const normalized = value.replace(/[！-～]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0));
@@ -126,7 +162,13 @@ function saleWindowStartCandidates(value: unknown, fallbackYear?: string) {
 
 export function calculateReminderAt(snapshot: EventSnapshot, now = new Date(), leadTimeHours = defaultAlertLeadTimeHours) {
   const saleWindow = typeof snapshot.saleWindow === "string" ? snapshot.saleWindow : "";
-  const saleStart = (saleWindowStartCandidates(snapshot.saleWindow, eventYearFromSnapshot(snapshot)) ?? [])
+  const fallbackYear = eventYearFromSnapshot(snapshot);
+  const activeEndOnlySaleEndsAt = saleWindowEndOnlyCandidate(snapshot.saleWindow, fallbackYear);
+  if (activeEndOnlySaleEndsAt) {
+    return now > activeEndOnlySaleEndsAt ? null : now.toISOString();
+  }
+
+  const saleStart = (saleWindowStartCandidates(snapshot.saleWindow, fallbackYear) ?? [])
     .filter((candidate) => candidate > now)
     .sort((left, right) => left.getTime() - right.getTime())[0];
   if (saleStart && saleStart > now) {
