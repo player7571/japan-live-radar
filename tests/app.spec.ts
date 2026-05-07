@@ -24,6 +24,7 @@ import {
   validateAdminStatsHealth,
   validateProductionHealth,
 } from "../scripts/check-production-health";
+import { summarizeLatestSyncRuns } from "../api/health";
 import {
   normalizePublicSyncSelection,
   publicSyncPlanSummary,
@@ -2878,12 +2879,34 @@ test("validates production health with admin alert and sync coverage", () => {
       ok: true,
       database: "reachable",
       eventCount: 3,
+      syncRunsAvailable: true,
+      latestSyncBySource: [
+        {
+          source: "Lawson Ticket",
+          status: "success",
+          fetchedCount: 12,
+          upsertedCount: 10,
+          skippedCount: 2,
+          finishedAt: "2026-05-07T00:00:00Z",
+        },
+      ],
     }),
   ).not.toThrow();
 
   expect(() => validateProductionHealth({ ok: true, database: "missing", eventCount: 3 })).toThrow(
     "Database is missing",
   );
+  expect(() =>
+    validateProductionHealth({ ok: true, database: "reachable", eventCount: 3, syncRunsAvailable: false }),
+  ).toThrow("Sync run history is unavailable");
+  expect(() =>
+    validateProductionHealth({
+      ok: true,
+      database: "reachable",
+      eventCount: 3,
+      latestSyncBySource: [{ source: "Lawson Ticket" }],
+    }),
+  ).toThrow("Production health sync summary contains an invalid source row");
   expect(() => validateAdminAlertsHealth({ configured: true, alerts: [] })).not.toThrow();
   expect(() => validateAdminAlertsHealth({ configured: false, alerts: [] })).toThrow(
     "Admin alerts API is not configured",
@@ -2941,6 +2964,71 @@ test("validates production health with admin alert and sync coverage", () => {
       },
     }),
   ).not.toThrow();
+});
+
+test("summarizes latest public sync runs by source", () => {
+  expect(
+    summarizeLatestSyncRuns(
+      [
+        {
+          source: "Lawson Ticket",
+          status: "success",
+          fetched_count: 12,
+          upserted_count: 10,
+          skipped_count: 2,
+          message: null,
+          finished_at: "2026-05-07T00:00:00Z",
+        },
+        {
+          source: "Lawson Ticket",
+          status: "error",
+          fetched_count: 0,
+          upserted_count: 0,
+          skipped_count: 0,
+          message: "older failure",
+          finished_at: "2026-05-06T00:00:00Z",
+        },
+        {
+          source: "  Creativeman  ",
+          status: "success",
+          fetched_count: null,
+          upserted_count: null,
+          skipped_count: null,
+          message: null,
+          finished_at: null,
+        },
+        {
+          source: "",
+          status: "success",
+          fetched_count: 1,
+          upserted_count: 1,
+          skipped_count: 0,
+          message: null,
+          finished_at: "2026-05-07T00:00:00Z",
+        },
+      ],
+      3,
+    ),
+  ).toEqual([
+    {
+      source: "Lawson Ticket",
+      status: "success",
+      fetchedCount: 12,
+      upsertedCount: 10,
+      skippedCount: 2,
+      message: null,
+      finishedAt: "2026-05-07T00:00:00Z",
+    },
+    {
+      source: "Creativeman",
+      status: "success",
+      fetchedCount: 0,
+      upsertedCount: 0,
+      skippedCount: 0,
+      message: null,
+      finishedAt: null,
+    },
+  ]);
 });
 
 test("applies every checked-in Supabase migration", () => {

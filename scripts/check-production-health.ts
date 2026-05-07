@@ -4,6 +4,15 @@ type HealthResponse = {
   ok?: boolean;
   database?: string;
   eventCount?: number;
+  syncRunsAvailable?: boolean;
+  latestSyncBySource?: Array<{
+    source?: string;
+    status?: string;
+    fetchedCount?: number;
+    upsertedCount?: number;
+    skippedCount?: number;
+    finishedAt?: string | null;
+  }>;
   message?: string;
 };
 
@@ -51,6 +60,19 @@ export function validateProductionHealth(health: HealthResponse) {
   }
   if (typeof health.eventCount !== "number" || health.eventCount < 1) {
     throw new Error("Production has no events");
+  }
+  if (health.syncRunsAvailable === false) {
+    throw new Error("Sync run history is unavailable");
+  }
+  if (health.latestSyncBySource !== undefined) {
+    if (!Array.isArray(health.latestSyncBySource)) {
+      throw new Error("Production health sync summary is invalid");
+    }
+    for (const row of health.latestSyncBySource) {
+      if (!row.source || !row.status) {
+        throw new Error("Production health sync summary contains an invalid source row");
+      }
+    }
   }
 }
 

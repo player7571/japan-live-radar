@@ -15,6 +15,37 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+type SyncRunHealthRow = {
+  source: string | null;
+  status: string | null;
+  fetched_count: number | null;
+  upserted_count: number | null;
+  skipped_count: number | null;
+  message: string | null;
+  finished_at: string | null;
+};
+
+export function summarizeLatestSyncRuns(rows: SyncRunHealthRow[], maxSources = 8) {
+  const seen = new Set<string>();
+  return rows
+    .filter((row) => {
+      const source = row.source?.trim();
+      if (!source || seen.has(source)) return false;
+      seen.add(source);
+      return true;
+    })
+    .map((row) => ({
+      source: row.source?.trim() ?? "",
+      status: row.status ?? "unknown",
+      fetchedCount: row.fetched_count ?? 0,
+      upsertedCount: row.upserted_count ?? 0,
+      skippedCount: row.skipped_count ?? 0,
+      message: row.message,
+      finishedAt: row.finished_at,
+    }))
+    .slice(0, maxSources);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
 
@@ -29,20 +60,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       database: "not_configured",
       eventCount: 0,
       lastSync: null,
+      latestSyncBySource: [],
+      syncRunsAvailable: false,
     });
     return;
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
   const syncSupabase = createClient(supabaseUrl, serverReadKey(supabaseAnonKey, serviceRoleKey));
-  const [eventsResult, syncResult] = await Promise.all([
+  const [eventsResult, syncRunsResult] = await Promise.all([
     supabase.from("events").select("id", { count: "exact", head: true }),
     syncSupabase
       .from("sync_runs")
       .select("source,status,fetched_count,upserted_count,skipped_count,message,finished_at")
       .order("finished_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(30),
   ]);
 
   if (eventsResult.error) {
@@ -51,16 +83,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       database: "error",
       eventCount: 0,
       lastSync: null,
+      latestSyncBySource: [],
+      syncRunsAvailable: !syncRunsResult.error,
       message: eventsResult.error.message,
     });
     return;
   }
 
+  const syncRows = syncRunsResult.error ? [] : ((syncRunsResult.data ?? []) as SyncRunHealthRow[]);
+
   res.status(200).json({
     ok: true,
     database: "reachable",
     eventCount: eventsResult.count ?? 0,
-    lastSync: syncResult.error ? null : (syncResult.data ?? null),
-    syncRunsAvailable: !syncResult.error,
+    lastSync: syncRows[0] ?? null,
+    latestSyncBySource: summarizeLatestSyncRuns(syncRows),
+    syncRunsAvailable: !syncRunsResult.error,
   });
 }
