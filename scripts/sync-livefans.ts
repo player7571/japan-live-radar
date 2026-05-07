@@ -220,6 +220,9 @@ function formatTime(value: string | undefined) {
 
 function saleWindowFromText(text: string) {
   const normalized = compactText(text);
+  const datedSale = normalized.match(/(抽選|先行|一般発売|リセール)[^。]{0,60}?(20\d{2}[-/]\d{1,2}[-/]\d{1,2}\s+\d{1,2}:\d{2})/);
+  if (datedSale) return compactText(datedSale[0]);
+
   const sale = normalized.match(/(抽選|先行|一般発売|リセール)[^ ]{0,30}(発売中|受付中)?\s*(?:[~〜～]\s*)?(20\d{2}[-/]\d{1,2}[-/]\d{1,2}\s+\d{1,2}:\d{2})?/);
   if (!sale) return null;
   return compactText(sale[0]);
