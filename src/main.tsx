@@ -405,6 +405,15 @@ function urlsFromText(value: string) {
     .slice(0, 10);
 }
 
+async function readApiJson<T>(response: Response, fallbackMessage: string) {
+  const text = await response.text();
+  try {
+    return (text ? JSON.parse(text) : {}) as T;
+  } catch {
+    throw new Error(text.trim() || fallbackMessage);
+  }
+}
+
 function App() {
   const [route, setRoute] = useState<Route>(currentRoute);
   const [events, setEvents] = useState<Event[]>(seedEvents);
@@ -1455,12 +1464,12 @@ function AdminPage() {
         },
         body: JSON.stringify({ keyword: searchKeyword }),
       });
-      const payload = (await response.json()) as {
+      const payload = await readApiJson<{
         configured?: boolean;
         candidates?: CandidateApiItem[];
         skippedCandidates?: CandidateApiItem[];
         error?: string;
-      };
+      }>(response, "검색 후보 생성 실패");
       if (!response.ok || !payload.candidates) {
         throw new Error(payload.error ?? "검색 후보 생성 실패");
       }
