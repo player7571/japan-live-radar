@@ -458,6 +458,17 @@ function App() {
       label: option === "전체" ? `전체 (${events.length})` : `${option} (${counts.get(option) ?? 0})`,
     }));
   }, [events]);
+  const saleStatusFilterOptions = useMemo(() => {
+    const counts = events.reduce<Map<Exclude<SaleStatus, "전체">, number>>((acc, event) => {
+      const status = getSaleStatus(event, today);
+      acc.set(status, (acc.get(status) ?? 0) + 1);
+      return acc;
+    }, new Map());
+    return saleStatusOptions.map((option) => ({
+      value: option,
+      label: option === "전체" ? `전체 (${events.length})` : `${option} (${counts.get(option) ?? 0})`,
+    }));
+  }, [events]);
 
   useEffect(() => {
     const handleHashChange = () => setRoute(currentRoute());
@@ -806,8 +817,8 @@ function App() {
                 onChange={(event) => setSaleStatus(event.target.value as SaleStatus)}
                 aria-label="판매 상태"
               >
-                {saleStatusOptions.map((option) => (
-                  <option key={option}>{option}</option>
+                {saleStatusFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
             </label>

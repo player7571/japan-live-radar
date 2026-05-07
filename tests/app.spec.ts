@@ -3885,6 +3885,10 @@ test("filters concerts by custom travel dates", async ({ page }) => {
 test("filters concerts by sale schedule status", async ({ page }) => {
   await page.goto("/");
 
+  await expect(page.getByLabel("판매 상태").locator("option[value='전체']")).toHaveText("전체 (5)");
+  await expect(page.getByLabel("판매 상태").locator("option[value='오픈 예정']")).toHaveText("오픈 예정 (5)");
+  await expect(page.getByLabel("판매 상태").locator("option[value='판매 중']")).toHaveText("판매 중 (0)");
+
   await page.getByLabel("판매 상태").selectOption("오픈 예정");
   await expect(page.getByText("5개 공연")).toBeVisible();
   await expect(page.getByRole("button", { name: /YOASOBI/ })).toBeVisible();
