@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import * as cheerio from "cheerio";
-import { extractDraft } from "./import-url.js";
 import type { AdminEventInput } from "../src/lib/adminEventRows.js";
 import { splitCandidateRowsByExistingStatus } from "../src/lib/candidateDedupe.js";
 import { publicSearchSources, type PublicEventSource } from "../src/lib/publicSources.js";
@@ -32,10 +31,10 @@ type CandidateRow = {
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const adminApiToken = process.env.ADMIN_API_TOKEN;
-const keywordSearchFetchTimeoutMs = 10_000;
-const keywordDetailFetchTimeoutMs = 12_000;
-const keywordSourceCandidateLimit = 5;
-const keywordTotalCandidateLimit = 24;
+const keywordSearchFetchTimeoutMs = 3_500;
+const keywordDetailFetchTimeoutMs = 4_500;
+const keywordSourceCandidateLimit = 2;
+const keywordTotalCandidateLimit = 10;
 
 function headerValue(req: VercelRequest, name: string) {
   const value = req.headers?.[name] ?? req.headers?.[name.toLowerCase()];
@@ -84,6 +83,13 @@ function normalizedKeyword(value: string) {
 
 function inputString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function firstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) return compactText(value);
+  }
+  return "";
 }
 
 function searchHeaders() {
@@ -184,6 +190,142 @@ function draftLooksUsable(draft: AdminEventInput, keyword: string) {
   return Boolean(title && date && venue && (keywordMatch || artist));
 }
 
+function flattenJsonLd(value: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(value)) return value.flatMap(flattenJsonLd);
+  if (!value || typeof value !== "object") return [];
+
+  const item = value as Record<string, unknown>;
+  const graph = Array.isArray(item["@graph"]) ? item["@graph"].flatMap(flattenJsonLd) : [];
+  return [item, ...graph];
+}
+
+function jsonString(value: unknown) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.find((item): item is string => typeof item === "string") ?? "";
+  return "";
+}
+
+function jsonObject(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function normalizeDate(value: string) {
+  const normalized = value.normalize("NFKC");
+  const isoDate = normalized.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  if (isoDate) return isoDate;
+
+  const jpDate = normalized.match(/(\d{4})[./年-]\s*(\d{1,2})[./月-]\s*(\d{1,2})/)?.slice(1);
+  if (!jpDate || jpDate.length !== 3) return "";
+  const [year, month, day] = jpDate;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
+function normalizeTime(value: string) {
+  const normalized = value.normalize("NFKC");
+  const isoTime = normalized.match(/T([01]\d|2[0-3]):([0-5]\d)/);
+  if (isoTime) return `${isoTime[1]}:${isoTime[2]}`;
+  const labeled = normalized.match(/(?:開演|START)\s*[:：]?\s*([01]?\d|2[0-3])(?::([0-5]\d)|時\s*([0-5]\d)?)/i);
+  if (labeled) return `${labeled[1].padStart(2, "0")}:${(labeled[2] ?? labeled[3] ?? "00").padStart(2, "0")}`;
+  const plain = normalized.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+  return plain ? `${plain[1].padStart(2, "0")}:${plain[2]}` : "";
+}
+
+function cityFromText(value: string) {
+  const signals: Array<[string[], string]> = [
+    [["東京", "Tokyo", "日本武道館", "有明アリーナ", "東京ドーム"], "도쿄"],
+    [["大阪", "Osaka", "大阪城ホール"], "오사카"],
+    [["神奈川", "横浜", "Yokohama", "K-Arena", "Kアリーナ", "ぴあアリーナ"], "요코하마"],
+    [["愛知", "名古屋", "Nagoya"], "나고야"],
+    [["福岡", "Fukuoka"], "후쿠오카"],
+    [["北海道", "札幌", "Sapporo"], "삿포로"],
+    [["宮城", "仙台", "Sendai"], "센다이"],
+    [["千葉", "幕張", "Chiba"], "치바"],
+    [["京都", "Kyoto"], "교토"],
+    [["兵庫", "神戸", "Kobe"], "고베"],
+    [["石川", "金沢"], "가나자와"],
+    [["沖縄", "那覇", "Okinawa"], "오키나와"],
+  ];
+  return signals.find(([items]) => items.some((item) => value.includes(item)))?.[1] ?? "도쿄";
+}
+
+function sourceFromHostname(hostname: string) {
+  const host = hostname.toLowerCase();
+  if (host.includes("l-tike.com")) return "Lawson Ticket";
+  if (host.includes("eplus.jp")) return "e+";
+  if (host.includes("pia.jp")) return "Ticket Pia";
+  if (host.includes("rakuten.co.jp")) return "Rakuten Ticket";
+  if (host.includes("ticketmaster.com")) return "Ticketmaster";
+  if (host.includes("creativeman.co.jp")) return "Creativeman";
+  if (host.includes("livenationhip.co.jp")) return "Live Nation H.I.P.";
+  if (host.includes("livefans.jp")) return "LiveFans";
+  return "Artist Search";
+}
+
+function metaContent($: cheerio.CheerioAPI, selector: string) {
+  return inputString($(selector).first().attr("content"));
+}
+
+function titleFromPage($: cheerio.CheerioAPI, sourceUrl: URL) {
+  return firstString(
+    metaContent($, "meta[property='og:title']"),
+    metaContent($, "meta[name='twitter:title']"),
+    $("h1").first().text(),
+    $("title").first().text(),
+  )
+    .replace(/\s*[|｜-]\s*(チケットぴあ|e\+|イープラス|ローチケ|ローソンチケット|楽天チケット|Ticketmaster|LiveFans|CREATIVEMAN PRODUCTIONS).*$/i, "")
+    .replace(new RegExp(`\\s*[|｜-]\\s*${sourceUrl.hostname.replace(/^www\\./, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*$`, "i"), "")
+    .trim();
+}
+
+export function draftFromSearchDetail(html: string, sourceUrl: URL, keyword: string): AdminEventInput {
+  const $ = cheerio.load(html);
+  const pageText = compactText($("body").text());
+  const jsonLdItems = $("script[type='application/ld+json']")
+    .toArray()
+    .flatMap((element) => {
+      try {
+        return flattenJsonLd(JSON.parse($(element).text()));
+      } catch {
+        return [];
+      }
+    });
+  const eventJson = jsonLdItems.find((item) => {
+    const type = item["@type"];
+    return type === "Event" || (Array.isArray(type) && type.includes("Event"));
+  });
+  const location = jsonObject(eventJson?.location);
+  const address = jsonObject(location.address);
+  const performer = jsonObject(eventJson?.performer);
+  const title = firstString(jsonString(eventJson?.name), titleFromPage($, sourceUrl), keyword);
+  const dateText = firstString(jsonString(eventJson?.startDate), pageText);
+  const venue = firstString(jsonString(location.name), pageText.match(/(?:会場|Venue|場所)[:：]?\s*([^\n\r]{2,80})/)?.[1]);
+  const cityText = [jsonString(address.addressLocality), jsonString(address.addressRegion), venue, pageText].join(" ");
+  const price = firstString(pageText.match(/[￥¥]\s*[\d,]+(?:\s*[～~-]\s*[￥¥]?\s*[\d,]+)?/)?.[0]);
+  const source = sourceFromHostname(sourceUrl.hostname);
+
+  return {
+    artist: firstString(jsonString(performer.name), keyword, title),
+    title,
+    city: cityFromText(cityText),
+    venue,
+    date: normalizeDate(dateText),
+    time: normalizeTime(dateText),
+    genre: "Music",
+    source,
+    ticketAccess: source === "Ticketmaster" || source === "Creativeman" ? "한국 구매 가능" : "확인 필요",
+    saleType: /(抽選|先行|プレリザーブ|プレオーダー)/.test(pageText) ? "추첨 접수" : "일반 판매",
+    saleWindow: firstString(pageText.match(/(?:受付期間|販売期間|申込期間|発売日)[:：]?\s*([^\n\r]{4,120})/)?.[1]),
+    price,
+    phoneRequired: source !== "Ticketmaster" && source !== "Creativeman",
+    foreignerNote:
+      source === "Ticketmaster" || source === "Creativeman"
+        ? "원본 페이지에서 해외 구매 가능 여부와 결제/수령 조건을 다시 확인하세요."
+        : "일본 계정, 전화번호 인증, 결제/수령 제한이 있을 수 있으니 원본 페이지에서 확인하세요.",
+    link: sourceUrl.toString(),
+    image: firstString(metaContent($, "meta[property='og:image']"), metaContent($, "meta[name='twitter:image']")),
+  };
+}
+
 async function fetchHtml(url: string, timeoutMs: number) {
   const response = await fetch(url, {
     headers: searchHeaders(),
@@ -231,7 +373,7 @@ async function parsedKeywordCandidateRows(keyword: string) {
         if (rows.length >= keywordTotalCandidateLimit) break;
         try {
           const detailHtml = await fetchHtml(url, keywordDetailFetchTimeoutMs);
-          const draft = extractDraft(detailHtml.slice(0, 2_000_000), new URL(url));
+          const draft = draftFromSearchDetail(detailHtml.slice(0, 1_000_000), new URL(url), keyword);
           if (!draftLooksUsable(draft, keyword)) continue;
           const draftLink = inputString(draft.link);
           const draftSource = inputString(draft.source);
@@ -310,25 +452,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const keywords = keywordsFromBody(parseBody(req.body));
-  if (keywords.length === 0) {
-    res.status(400).json({ error: "keyword is required" });
-    return;
-  }
+  try {
+    const keywords = keywordsFromBody(parseBody(req.body));
+    if (keywords.length === 0) {
+      res.status(400).json({ error: "keyword is required" });
+      return;
+    }
 
-  const rows = (await Promise.all(keywords.map(parsedKeywordCandidateRows))).flat().slice(0, keywordTotalCandidateLimit);
+    const rows = (await Promise.all(keywords.map(parsedKeywordCandidateRows))).flat().slice(0, keywordTotalCandidateLimit);
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
-  const sourceUrls = Array.from(new Set(rows.map((row) => row.source_url).filter(Boolean))) as string[];
-  let existingRows: CandidateRow[] = [];
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const sourceUrls = Array.from(new Set(rows.map((row) => row.source_url).filter(Boolean))) as string[];
+    let existingRows: CandidateRow[] = [];
 
-  if (sourceUrls.length > 0) {
-    const { data: existingData, error: existingError } = await supabase
-      .from("event_candidates")
-      .select("id,source,source_url,draft,status,rejection_reason,approved_event_id,created_at,updated_at")
-      .in("source_url", sourceUrls);
+    if (sourceUrls.length > 0) {
+      const { data: existingData, error: existingError } = await supabase
+        .from("event_candidates")
+        .select("id,source,source_url,draft,status,rejection_reason,approved_event_id,created_at,updated_at")
+        .in("source_url", sourceUrls);
 
-    if (missingCandidateTable(existingError)) {
+      if (missingCandidateTable(existingError)) {
+        res.status(200).json({
+          configured: false,
+          candidates: rows.map((row, index) => ({
+            id: `generated-${Date.now()}-${index}`,
+            source: row.source,
+            sourceUrl: row.source_url,
+            draft: row.draft,
+            status: row.status,
+            createdAt: new Date().toISOString(),
+          })),
+        });
+        return;
+      }
+
+      if (existingError) {
+        res.status(500).json({ error: existingError.message });
+        return;
+      }
+
+      existingRows = (existingData ?? []) as CandidateRow[];
+    }
+
+    const { upsertRows, skippedRows } = splitCandidateRowsByExistingStatus(rows, existingRows);
+    const { data, error } = upsertRows.length > 0
+      ? await supabase
+        .from("event_candidates")
+        .upsert(upsertRows, { onConflict: "source_url" })
+        .select("id,source,source_url,draft,status,rejection_reason,approved_event_id,created_at,updated_at")
+      : { data: [], error: null };
+
+    if (missingCandidateTable(error)) {
       res.status(200).json({
         configured: false,
         candidates: rows.map((row, index) => ({
@@ -343,46 +517,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    if (existingError) {
-      res.status(500).json({ error: existingError.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
       return;
     }
 
-    existingRows = (existingData ?? []) as CandidateRow[];
-  }
-
-  const { upsertRows, skippedRows } = splitCandidateRowsByExistingStatus(rows, existingRows);
-  const { data, error } = upsertRows.length > 0
-    ? await supabase
-      .from("event_candidates")
-      .upsert(upsertRows, { onConflict: "source_url" })
-      .select("id,source,source_url,draft,status,rejection_reason,approved_event_id,created_at,updated_at")
-    : { data: [], error: null };
-
-  if (missingCandidateTable(error)) {
     res.status(200).json({
-      configured: false,
-      candidates: rows.map((row, index) => ({
-        id: `generated-${Date.now()}-${index}`,
-        source: row.source,
-        sourceUrl: row.source_url,
-        draft: row.draft,
-        status: row.status,
-        createdAt: new Date().toISOString(),
-      })),
+      ok: true,
+      configured: true,
+      candidates: ((data ?? []) as CandidateRow[]).map(toPublicCandidate),
+      skippedCandidates: skippedRows.map(toPublicCandidate),
     });
-    return;
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Search candidate API failed",
+    });
   }
-
-  if (error) {
-    res.status(500).json({ error: error.message });
-    return;
-  }
-
-  res.status(200).json({
-    ok: true,
-    configured: true,
-    candidates: ((data ?? []) as CandidateRow[]).map(toPublicCandidate),
-    skippedCandidates: skippedRows.map(toPublicCandidate),
-  });
 }
