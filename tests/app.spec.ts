@@ -3857,6 +3857,11 @@ test("combines travel date and Korea-friendly filters", async ({ page }) => {
   await page.goto("/");
 
   const summerButton = page.getByRole("button", { name: "여름 원정" });
+  await expect(page.getByLabel("기간").locator("option[value='전체']")).toHaveText("전체 (5)");
+  await expect(page.getByLabel("기간").locator("option[value='60일 이내']")).toHaveText("60일 이내 (2)");
+  await expect(page.getByLabel("기간").locator("option[value='90일 이내']")).toHaveText("90일 이내 (3)");
+  await expect(page.getByLabel("기간").locator("option[value='여름 원정']")).toHaveText("여름 원정 (4)");
+
   await summerButton.click();
   await expect(summerButton).toHaveClass(/active/);
   await expect(page.getByLabel("기간")).toHaveValue("여름 원정");
