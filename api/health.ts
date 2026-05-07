@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { serverReadKey } from "../src/lib/supabaseServer.js";
+import { summarizeLatestSyncRuns, type SyncRunRow } from "../src/lib/syncRuns.js";
 
 type VercelRequest = {
   method?: string;
@@ -29,20 +30,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       database: "not_configured",
       eventCount: 0,
       lastSync: null,
+      latestSyncBySource: [],
+      syncRunsAvailable: false,
     });
     return;
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
   const syncSupabase = createClient(supabaseUrl, serverReadKey(supabaseAnonKey, serviceRoleKey));
-  const [eventsResult, syncResult] = await Promise.all([
+  const [eventsResult, syncRunsResult] = await Promise.all([
     supabase.from("events").select("id", { count: "exact", head: true }),
     syncSupabase
       .from("sync_runs")
       .select("source,status,fetched_count,upserted_count,skipped_count,message,finished_at")
       .order("finished_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(30),
   ]);
 
   if (eventsResult.error) {
@@ -51,16 +53,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       database: "error",
       eventCount: 0,
       lastSync: null,
+      latestSyncBySource: [],
+      syncRunsAvailable: !syncRunsResult.error,
       message: eventsResult.error.message,
     });
     return;
   }
 
+  const syncRows = syncRunsResult.error ? [] : ((syncRunsResult.data ?? []) as SyncRunRow[]);
+
   res.status(200).json({
     ok: true,
     database: "reachable",
     eventCount: eventsResult.count ?? 0,
-    lastSync: syncResult.error ? null : (syncResult.data ?? null),
-    syncRunsAvailable: !syncResult.error,
+    lastSync: syncRows[0] ?? null,
+    latestSyncBySource: summarizeLatestSyncRuns(syncRows),
+    syncRunsAvailable: !syncRunsResult.error,
   });
 }
