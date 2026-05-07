@@ -25,6 +25,20 @@ import {
   validateProductionHealth,
 } from "../scripts/check-production-health";
 import {
+  normalizePublicSyncSelection,
+  publicSyncPlanSummary,
+  publicSyncSteps,
+} from "../scripts/sync-public-sources";
+import {
+  creativemanIndexUrls,
+  creativemanLogicalEventKey,
+  extractCreativemanDetailUrls,
+  extractCreativemanRows,
+  normalizeCreativemanFetchTimeoutMs,
+  normalizeCreativemanIndexLimit,
+  normalizeCreativemanRowLimit,
+} from "../scripts/sync-creativeman";
+import {
   eplusLogicalEventKey,
   eplusSearchUrls,
   extractEplusPayload,
@@ -42,6 +56,15 @@ import {
   ticketPiaLogicalEventKey,
   ticketPiaSearchUrls,
 } from "../scripts/sync-ticket-pia";
+import {
+  extractLawsonDetailRows,
+  extractLawsonSearchRows,
+  lawsonLogicalEventKey,
+  lawsonSearchUrls,
+  normalizeLawsonFetchTimeoutMs,
+  normalizeLawsonPageLimit,
+  normalizeLawsonRowLimit,
+} from "../scripts/sync-lawson";
 import {
   extractRakutenTicketDetailUrls,
   normalizeRakutenTicketCategoryLimit,
@@ -115,6 +138,38 @@ test("extracts Japanese ticket page sales cues", () => {
   expect(draft.price).toBe("¥9,800 - ¥14,800");
   expect(draft.ticketAccess).toBe("일본 번호 필요");
   expect(draft.phoneRequired).toBe(true);
+});
+
+test("recognizes official promoter source pages during URL import", () => {
+  const liveNationDraft = extractDraft(
+    `
+      <html>
+        <head><title>Charlie Puth Whatever's Clever! World Tour | LIVE NATION H.I.P.</title></head>
+        <body>
+          <h1>Charlie Puth Whatever's Clever! World Tour</h1>
+          <p>2026年10月16日(金) 東京ガーデンシアター</p>
+          <p>チケット先行は4/13(月)正午より受付を開始します。</p>
+        </body>
+      </html>
+    `,
+    new URL("https://www.livenationhip.co.jp/events/charlie-puth"),
+  );
+  const creativemanDraft = extractDraft(
+    `
+      <html>
+        <head><title>LOUDNESS | CREATIVEMAN PRODUCTIONS</title></head>
+        <body>
+          <h1>LOUDNESS</h1>
+          <p>2026年5月6日(水) 東京</p>
+          <p>発売中</p>
+        </body>
+      </html>
+    `,
+    new URL("https://www.creativeman.co.jp/event/loudness2026/"),
+  );
+
+  expect(liveNationDraft.source).toBe("Live Nation H.I.P.");
+  expect(creativemanDraft.source).toBe("Creativeman");
 });
 
 test("rejects private or local admin import URLs", () => {
@@ -2261,6 +2316,144 @@ test("maps Ticket Pia rlsInfo search HTML to Korea-friendly event rows", () => {
   );
 });
 
+test("maps Lawson Ticket public HTML fixtures to Korea-friendly event rows", () => {
+  const searchHtml = readFileSync(new URL("./fixtures/lawson-search.html", import.meta.url), "utf8");
+  const detailHtml = readFileSync(new URL("./fixtures/lawson-detail.html", import.meta.url), "utf8");
+  const now = new Date("2026-05-06T00:00:00+09:00");
+  const searchRows = extractLawsonSearchRows(searchHtml, now);
+  const detailRows = extractLawsonDetailRows(
+    detailHtml,
+    "https://l-tike.com/concert/mevent/?mid=583255",
+    now,
+  );
+
+  expect(searchRows).toHaveLength(1);
+  expect(searchRows[0]).toMatchObject({
+    source: "Lawson Ticket",
+    source_event_id: expect.stringContaining("https://l-tike.com/order/?gLcode=56605"),
+    artist: "METROCK OSAKA 2026",
+    title: "METROCK OSAKA 2026",
+    city: "오사카",
+    venue: "堺市・海とのふれあい広場",
+    date: "2026-05-30",
+    time: null,
+    genre: "Music",
+    ticket_access: "일본 번호 필요",
+    sale_type: "선착 판매",
+    phone_required: true,
+    country_code: "JP",
+  });
+  expect(searchRows[0].sale_window).toBe("접수기간: 2026.04.18 10:00 - 2026.05.14 22:00");
+  expect(searchRows[0].foreigner_note).toContain("로치케 계정");
+
+  expect(detailRows).toHaveLength(1);
+  expect(detailRows[0]).toMatchObject({
+    source: "Lawson Ticket",
+    source_event_id: "https://l-tike.com/order/?gLcode=94264&gScheduleNo=80",
+    artist: "Ado",
+    title: "Ado",
+    city: "요코하마",
+    venue: "日産スタジアム",
+    date: "2026-07-04",
+    sale_type: "추첨 접수",
+    phone_required: true,
+    link: "https://l-tike.com/order/?gLcode=94264&gScheduleNo=80",
+  });
+  expect(detailRows[0].sale_window).toBe("접수기간: 2026.04.13 10:00 - 2026.05.06 23:59");
+  expect(lawsonLogicalEventKey(detailRows[0])).toBe("ado|2026-07-04||日産スタジアム|요코하마");
+  expect(normalizeLawsonRowLimit(undefined)).toBe(80);
+  expect(normalizeLawsonRowLimit("200")).toBe(120);
+  expect(normalizeLawsonPageLimit(undefined)).toBe(1);
+  expect(normalizeLawsonPageLimit("8")).toBe(3);
+  expect(normalizeLawsonFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeLawsonFetchTimeoutMs("1000")).toBe(3000);
+  expect(lawsonSearchUrls()).toEqual(
+    expect.arrayContaining([
+      "https://cdn.l-tike.com/concert/",
+      "https://cdn.l-tike.com/search/?keyword=J-POP",
+      "https://cdn.l-tike.com/search/?keyword=K-POP",
+      "https://cdn.l-tike.com/search/?keyword=%E3%83%A9%E3%82%A4%E3%83%96",
+    ]),
+  );
+});
+
+test("maps Creativeman public detail pages to event rows", () => {
+  const indexHtml = `
+    <a href="/event/loudness-45th-anniversary/">LOUDNESS</a>
+    <a href="https://www.creativeman.co.jp/event/hot-milk-2026/">HOT MILK</a>
+    <a href="https://example.com/event/external/">external</a>
+    <a href="/2026/05/03/news/">news</a>
+  `;
+  const detailHtml = `
+    <html>
+      <head>
+        <title>LOUDNESS - CREATIVEMAN PRODUCTIONS</title>
+        <meta property="og:image" content="https://www.creativeman.co.jp/loudness.jpg">
+      </head>
+      <body>
+        <h1>LOUDNESS</h1>
+        <h2>TICKET INFORMATION</h2>
+        東京 2026/5/3(日) Zepp DiverCity Tokyo 追加公演
+        ---
+        開場・開演 | OPEN 17:00 / START 18:00
+        チケット | 1F指定席￥11,000（税込/全席指定/1Drink別）
+        チケット先行 | オフィシャル先行
+        期間：2026/4/6(月)12:00～2026/4/8(水)23:59
+        チケット発売日 | 4/11(土)10:00am～
+        福岡 2026/5/6(水・休) Zepp Fukuoka チケット発売中
+        ---
+        開場・開演 | OPEN 17:00 / START 18:00
+        チケット | 1F指定席￥11,000（税込/全席指定/1Drink別）
+        プレイガイド | チケットぴあ イープラス ローソンチケット
+        Purchasing Tickets from Overseas
+        TICKETS ON SALE：MAR 28 sat
+        https://w.pia.jp/a/loudness26eng45th/
+      </body>
+    </html>
+  `;
+  const detailUrl = "https://www.creativeman.co.jp/event/loudness-45th-anniversary/";
+  const rows = extractCreativemanRows(detailHtml, detailUrl, new Date("2026-05-01T00:00:00+09:00"));
+
+  expect(extractCreativemanDetailUrls(indexHtml)).toEqual([
+    "https://www.creativeman.co.jp/event/loudness-45th-anniversary/",
+    "https://www.creativeman.co.jp/event/hot-milk-2026/",
+  ]);
+  expect(rows).toHaveLength(2);
+  expect(rows[0]).toMatchObject({
+    source: "Creativeman",
+    artist: "LOUDNESS",
+    title: "LOUDNESS",
+    city: "도쿄",
+    venue: "Zepp DiverCity Tokyo 追加公演",
+    date: "2026-05-03",
+    time: "18:00",
+    sale_type: "추첨 접수",
+    sale_window: "受付期間: 2026/4/6(月)12:00~2026/4/8(水)23:59",
+    price: "¥11,000",
+    ticket_access: "한국 구매 가능",
+    phone_required: false,
+    link: detailUrl,
+    image: "https://www.creativeman.co.jp/loudness.jpg",
+  });
+  expect(rows[1]).toMatchObject({
+    city: "후쿠오카",
+    venue: "Zepp Fukuoka",
+    date: "2026-05-06",
+    sale_type: "선착 판매",
+  });
+  expect(creativemanLogicalEventKey(rows[0])).toBe("loudness|2026-05-03|18:00|zepp divercity tokyo 追加公演|도쿄");
+  expect(normalizeCreativemanRowLimit(undefined)).toBe(60);
+  expect(normalizeCreativemanRowLimit("200")).toBe(100);
+  expect(normalizeCreativemanIndexLimit(undefined)).toBe(2);
+  expect(normalizeCreativemanIndexLimit("20")).toBe(6);
+  expect(normalizeCreativemanFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeCreativemanFetchTimeoutMs("1000")).toBe(3000);
+  expect(creativemanIndexUrls()).toEqual([
+    "https://www.creativeman.co.jp/upcoming/",
+    "https://www.creativeman.co.jp/event/",
+  ]);
+});
+
 test("maps Rakuten Ticket category pages and detail drafts to event rows", () => {
   const categoryHtml = `
     <a href="https://ticket.rakuten.co.jp/music/jpop/rtiz516/">さだまさし</a>
@@ -3190,6 +3383,14 @@ test("creates ticket source search URLs including additional Japanese sources", 
         source: "LiveFans",
         url: "https://www.livefans.jp/search?option=3&keyword=Ado%20%E6%9D%B1%E4%BA%AC",
       },
+      {
+        source: "Live Nation H.I.P.",
+        url: "https://www.livenationhip.co.jp/",
+      },
+      {
+        source: "Creativeman",
+        url: "https://www.creativeman.co.jp/upcoming/",
+      },
     ]),
   );
   expect(searchSources("Ado 東京").map((source) => source.source)).toEqual([
@@ -3199,7 +3400,28 @@ test("creates ticket source search URLs including additional Japanese sources", 
     "Ticketmaster",
     "Rakuten Ticket",
     "LiveFans",
+    "Live Nation H.I.P.",
+    "Creativeman",
   ]);
+});
+
+test("plans public event source syncs without running network jobs", () => {
+  expect(normalizePublicSyncSelection(undefined).map((step) => step.script)).toEqual([
+    "sync:seed",
+    "sync:ticketmaster",
+    "sync:eplus",
+    "sync:lawson",
+    "sync:ticket-pia",
+    "sync:rakuten-ticket",
+    "sync:creativeman",
+  ]);
+  expect(normalizePublicSyncSelection("lawson, pia, lawson").map((step) => step.script)).toEqual([
+    "sync:lawson",
+    "sync:ticket-pia",
+  ]);
+  expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Lawson Ticket (sync:lawson)");
+  expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Creativeman (sync:creativeman)");
+  expect(() => normalizePublicSyncSelection("unknown-source")).toThrow("Unknown sync source");
 });
 
 test("expands regional Japanese city aliases for Korean search", () => {

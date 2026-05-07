@@ -44,8 +44,11 @@ npx playwright test
 - Public event reads are served by `api/events.ts`.
 - Admin event entry, candidate approval, URL import, search candidates, quality stats, and alert subscriptions live under `api/`.
 - Stable fallback data is synced with `npm run sync:seed`.
+- All configured public source syncs can be run in sequence with `npm run sync:public-sources`. Set `SYNC_PUBLIC_SOURCES=lawson,ticket-pia` to run a subset, or `SYNC_CONTINUE_ON_ERROR=true` to collect failures across sources during manual operations.
+- Creativeman public schedule ingestion runs with `npm run sync:creativeman`, follows public upcoming/schedule links into event detail pages, and preserves existing Creativeman rows when a run finds no usable public schedule rows.
 - Ticketmaster ingestion runs with `npm run sync:ticketmaster`.
 - e+ public search ingestion runs with `npm run sync:eplus`, maps usable public concert rows into the live catalog, merges duplicate ticket-phase listings for the same performance, and removes stale e+ rows only after a successful usable sync.
+- Lawson Ticket / ローチケ public HTML ingestion runs with `npm run sync:lawson`, reads public concert category/search pages plus `concert/mevent/?mid=...` detail pages, maps JSON-LD Event and visible search result rows into the live catalog, and removes stale Lawson Ticket rows only after a successful usable sync.
 - Ticket Pia public search ingestion runs with `npm run sync:ticket-pia`, maps the public `rlsInfo` search result rows into the live catalog, and removes stale Ticket Pia rows only after a successful usable sync.
 - Rakuten Ticket public category ingestion runs with `npm run sync:rakuten-ticket`, follows public music category links into detail pages, reuses the URL import parser, and removes stale Rakuten Ticket rows only after a successful usable sync.
 - Ticketmaster public sale and presale windows are preserved in Korean-facing sale schedule text so reminders can target the earliest available ticket window.
@@ -57,7 +60,7 @@ npx playwright test
 Open `/#admin` and enter `ADMIN_API_TOKEN`.
 
 - Use `URL로 초안 가져오기` for Ticket Pia, e+, Lawson Ticket, Rakuten Ticket, Tixplus, ticket board, LiveFans, official artist pages, or other ticket pages. When an official page links to a known ticket platform, the imported draft prefers that application link as the source ticket URL. Imported drafts are stored as pending candidates when Supabase is configured, and fall back to local browser storage when the candidate table is not ready.
-- Use `검색어 후보 만들기` to create source search links for an artist keyword across Ticket Pia, e+, Lawson Ticket, Ticketmaster, Rakuten Ticket, and LiveFans. These are review candidates, not confirmed events.
+- Use `검색어 후보 만들기` to create source search links for an artist keyword across Ticket Pia, e+, Lawson Ticket, Ticketmaster, Rakuten Ticket, LiveFans, Live Nation H.I.P., and Creativeman. These are review candidates, not confirmed events.
 - Review `URL 후보`, open the original source link when needed, then choose `초안 적용` to inspect the fields or `승인 저장` to write a complete candidate into the `events` table.
 - Use `데이터 품질` before releases to find missing links, missing sale windows, missing prices, ticket-access items that still need review, and alert queue errors.
 - Use `알림 큐` to inspect failed, due, or sent alerts. Failed alerts can be returned to the active queue with `재시도`.
@@ -148,6 +151,11 @@ SYNC_STALE_AFTER_HOURS
 - `EPLUS_SYNC_KEYWORDS` controls public e+ search keywords for the scheduled sync. It defaults to `J-POP,K-POP,ライブ,コンサート,フェス,ROCK`.
 - `EPLUS_ROW_LIMIT` caps e+ rows inserted per run. It defaults to `80`, is clamped from `1` to `120`, and can be set as a GitHub repository variable.
 - `EPLUS_FETCH_TIMEOUT_MS` controls each e+ page request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable.
+- `LAWSON_SEARCH_URLS` optionally overrides the public Lawson Ticket pages used by `npm run sync:lawson`. Use only publicly reachable `https://cdn.l-tike.com/` or `https://l-tike.com/` category/search/detail URLs.
+- `LAWSON_SYNC_KEYWORDS` controls public Lawson Ticket search keywords. It defaults to `J-POP,K-POP,ライブ,コンサート,フェス,ROCK,アジア`.
+- `LAWSON_PAGE_LIMIT` caps Lawson Ticket category/search page expansion. It defaults to `1`, is clamped from `1` to `3`, and can be set as a GitHub repository variable.
+- `LAWSON_ROW_LIMIT` caps Lawson Ticket rows inserted per run. It defaults to `80`, is clamped from `1` to `120`, and can be set as a GitHub repository variable.
+- `LAWSON_FETCH_TIMEOUT_MS` controls each Lawson Ticket HTML request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable.
 - `TICKET_PIA_SYNC_KEYWORDS` controls public Ticket Pia search keywords for the scheduled sync. It defaults to `J-POP,K-POP,ライブ,コンサート,フェス,ROCK`.
 - `TICKET_PIA_PAGE_LIMIT` caps Ticket Pia search result pages fetched per keyword. It defaults to `1`, is clamped from `1` to `3`, and can be set as a GitHub repository variable.
 - `TICKET_PIA_ROW_LIMIT` caps Ticket Pia rows inserted per run. It defaults to `80`, is clamped from `1` to `120`, and can be set as a GitHub repository variable.
@@ -156,11 +164,32 @@ SYNC_STALE_AFTER_HOURS
 - `RAKUTEN_TICKET_CATEGORY_LIMIT` caps Rakuten Ticket category pages fetched per run. It defaults to `4`, is clamped from `1` to `8`, and can be set as a GitHub repository variable.
 - `RAKUTEN_TICKET_ROW_LIMIT` caps Rakuten Ticket detail pages inserted per run. It defaults to `60`, is clamped from `1` to `100`, and can be set as a GitHub repository variable.
 - `RAKUTEN_TICKET_FETCH_TIMEOUT_MS` controls each Rakuten Ticket page request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable.
+- `CREATIVEMAN_INDEX_URLS` optionally overrides the public Creativeman schedule/index pages used by `npm run sync:creativeman`.
+- `CREATIVEMAN_INDEX_LIMIT` caps Creativeman index pages fetched per run. It defaults to `2`, is clamped from `1` to `6`, and can be set as a GitHub repository variable.
+- `CREATIVEMAN_ROW_LIMIT` caps Creativeman rows inserted per run. It defaults to `60`, is clamped from `1` to `100`, and can be set as a GitHub repository variable.
+- `CREATIVEMAN_FETCH_TIMEOUT_MS` controls each Creativeman page request timeout. It defaults to `12000`, is clamped from `3000` to `30000`, and can be set as a GitHub repository variable.
 - `ALERT_WEBHOOK_ATTEMPTS` controls retry attempts for transient alert webhook HTTP failures and network exceptions. It defaults to `3`, is clamped from `1` to `5`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `ALERT_WEBHOOK_TIMEOUT_MS` controls each alert webhook request timeout. It defaults to `10000`, is clamped from `1000` to `30000`, and can be set as a GitHub repository variable for `Dispatch Due Alerts`.
 - `ALERT_WEBHOOK_SECRET` optionally signs alert webhook payloads so downstream delivery workers can reject spoofed requests before processing.
 - `ALERT_QUEUE_CONNECT_TIMEOUT_SECONDS`, `ALERT_QUEUE_MAX_TIME_SECONDS`, and `ALERT_QUEUE_RETRY_ATTEMPTS` control the lightweight due-alert precheck in GitHub Actions. They default to `10`, `30`, and `2` so a transient Vercel or network hang cannot consume the full job timeout.
 - `SYNC_STALE_AFTER_HOURS` controls when the admin stats API marks the latest sync run as delayed. It defaults to `108` hours to cover the constrained twice-weekly Ticketmaster schedule with slack.
+
+## External Source Notes
+
+Supported automated sources:
+
+- `Ticketmaster`: official Discovery API for Japan events.
+- `e+`: public search HTML payload from `https://eplus.jp/sf/search`.
+- `Ticket Pia`: public search HTML from `https://t.pia.jp/pia/rlsInfo.do`.
+- `Lawson Ticket`: public `cdn.l-tike.com` concert/category/search HTML and public `concert/mevent/?mid=...` detail HTML. The sync prefers visible JSON-LD Event data and visible ticket-list/search-result metadata, stores the original `https://l-tike.com/order/...` ticket URL, and records runs under `Lawson Ticket`.
+- `Rakuten Ticket`: public music category/detail HTML.
+- `Creativeman`: public upcoming/schedule/detail HTML from `https://www.creativeman.co.jp/`.
+
+Lawson Ticket limitations:
+
+- The sync does not log in, open payment pages, use member-only pages, bypass bot or captcha controls, or call private/undocumented APIs. Direct `https://l-tike.com/` pages can close HTTP/2 connections from some CLI clients, so the implementation reads the publicly mirrored `https://cdn.l-tike.com/` HTML where available and normalizes stored links back to `https://l-tike.com/`.
+- 로치케 공연의 결제, 전자티켓 앱, Loppi/편의점 수령, 동행자 등록, 일본 전화번호 인증 조건은 공연마다 다릅니다. Rows are therefore stored conservatively with `ticket_access = 일본 번호 필요`, `phone_required = true`, and a Korean `foreigner_note` telling users to verify account, payment, and pickup restrictions on the original page.
+- If public HTML access fails or a run finds zero usable concert rows, existing Lawson Ticket rows are preserved and the outcome is recorded in `sync_runs`. Stale cleanup runs only after at least one usable Lawson Ticket row is produced.
 
 ## Release Operations
 

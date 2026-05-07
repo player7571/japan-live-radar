@@ -711,6 +711,12 @@ h1 {
   font-weight: 800;
 }
 
+.source-pill {
+  color: #245a45;
+  background: #e8f3ec;
+  border-color: rgba(42, 127, 93, 0.2);
+}
+
 h2 {
   font-size: 34px;
   line-height: 1.05;
