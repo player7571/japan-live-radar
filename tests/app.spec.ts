@@ -3887,16 +3887,19 @@ test("persists local alert selections", async ({ page }) => {
   await page.goto("/");
 
   await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
+  await expect(page.getByLabel("공연 상세").getByRole("button", { name: "알림 설정" })).toBeVisible();
   await page.getByRole("button", { name: "일정 알림" }).click();
 
   await expect(page.getByRole("button", { name: "알림 2개" })).toBeVisible();
   await expect(page.getByRole("button", { name: "알림 설정됨" })).toBeVisible();
+  await expect(page.getByLabel("공연 상세").getByRole("button", { name: "알림 해제" })).toBeVisible();
 
   await page.reload();
   await page.getByRole("button", { name: /ONE OK ROCK/ }).click();
 
   await expect(page.getByRole("button", { name: "알림 2개" })).toBeVisible();
   await expect(page.getByRole("button", { name: "알림 설정됨" })).toBeVisible();
+  await expect(page.getByLabel("공연 상세").getByRole("button", { name: "알림 해제" })).toBeVisible();
 });
 
 test("shows alert subscription sync feedback in the detail panel", async ({ page }) => {

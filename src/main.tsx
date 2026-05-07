@@ -1889,7 +1889,7 @@ function EventDetail({
           type="button"
         >
           <Heart size={17} fill={saved ? "currentColor" : "none"} />
-          저장
+          {saved ? "알림 해제" : "알림 설정"}
         </button>
       </div>
 
