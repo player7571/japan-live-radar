@@ -93,7 +93,7 @@ GitHub Actions is the long-running automation layer so Codex heartbeat runs do n
 - `Supabase Migrate`: applies migrations automatically when migration files land on `main`, and can also be run manually.
 - `Sync External Events`: refreshes seed, Ticketmaster, e+ public search, Lawson Ticket public HTML, Ticket Pia public search, Rakuten Ticket public category, and Creativeman public schedule data twice weekly while Actions minutes are constrained. The workflow uses a single concurrency group so scheduled and manual syncs do not overlap.
 - `Dispatch Due Alerts`: checks the protected alert queue twice daily and dispatches via `ALERT_WEBHOOK_URL` when configured. The workflow uses a single concurrency group so scheduled and manual runs do not overlap and double-send the same due alert.
-- `Production Health Check`: checks `/api/health`, the protected alert queue, and admin alert/sync stats once daily.
+- `Production Health Check`: checks `/api/health`, including source-level latest sync summaries when `sync_runs` is available, plus the protected alert queue and admin alert/sync stats once daily.
 
 Scheduled workflows create one open `automation` issue when they fail, so Codex can pick up the issue/logs and continue without waiting for a local heartbeat to have elevated permissions.
 
@@ -201,7 +201,7 @@ Normal development flow:
 4. Merge to `dev`.
 5. Let `Auto Release PR` update the open `dev` to `main` release PR.
 6. Leave the release PR open until the next release window. `Merge Release PR` runs at 09:00 and 21:00 KST, or can be run manually for an immediate production release. The workflow first reconciles `dev` with the latest `main` release commit when prior releases have made the branches diverge, merges the clean release PR, then fast-forwards `dev` to the new `main` release commit. If production deploy capacity is exhausted after merge, leave the matching automation issues open and let `Retry Production Deploy` finish the release later. While those blockers are open, automatic `main` push deploys are intentionally skipped to avoid spending more Vercel quota.
-7. Verify production with `npm run health:production` or `https://japan-live-radar.vercel.app/api/health`. With `ADMIN_API_TOKEN`, the script also verifies that alert queue tables are ready, alert errors are cleared, and sync health is current.
+7. Verify production with `npm run health:production` or `https://japan-live-radar.vercel.app/api/health`. The public health response includes `latestSyncBySource` so operators can confirm source-specific sync coverage without spending an admin request. With `ADMIN_API_TOKEN`, the script also verifies that alert queue tables are ready, alert errors are cleared, and sync health is current.
 
 If Vercel returns `api-deployments-free-per-day` or `build-rate-limit`, continue feature work on `dev` and avoid manual deploy retries until quota resets. Do not close the matching `automation` issue until a later production deploy succeeds and the health check reports `database: "reachable"`.
 
