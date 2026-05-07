@@ -489,6 +489,14 @@ function App() {
       label: option === "전체" ? `전체 (${events.length})` : `${option} (${counts.get(option) ?? 0})`,
     }));
   }, [events]);
+  const dateWindowFilterOptions = useMemo(
+    () =>
+      dateWindowOptions.map((option) => ({
+        value: option,
+        label: `${option} (${events.filter((event) => isInSelectedDateRange(event.date, option, "", "", today)).length})`,
+      })),
+    [events],
+  );
 
   useEffect(() => {
     const handleHashChange = () => setRoute(currentRoute());
@@ -825,8 +833,8 @@ function App() {
                 }}
                 aria-label="기간"
               >
-                {dateWindowOptions.map((option) => (
-                  <option key={option}>{option}</option>
+                {dateWindowFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
             </label>
