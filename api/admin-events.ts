@@ -36,7 +36,7 @@ function headerValue(req: VercelRequest, name: string) {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-store");
 
-  if (req.method && req.method !== "GET" && req.method !== "POST") {
+  if (req.method && req.method !== "GET" && req.method !== "POST" && req.method !== "DELETE") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
@@ -52,6 +52,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  if (req.method === "DELETE") {
+    const { count, error } = await supabase
+      .from("events")
+      .delete({ count: "exact" })
+      .eq("country_code", "JP");
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.status(200).json({ ok: true, deletedCount: count ?? 0 });
+    return;
+  }
 
   if (!req.method || req.method === "GET") {
     const { data, error } = await supabase
