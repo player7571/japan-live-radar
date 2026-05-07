@@ -2827,7 +2827,7 @@ test("maps Rakuten Ticket category pages and detail drafts to event rows", () =>
           <div class='column-6'>2026年 05月 16日 (土)</div>
           <div class='column-2'>開場 16:00 / 開演 17:00</div>
           <div class='column-3'>千葉県</div>
-          <div class='column-4'>市川市文化会館 大ホール</div>
+          <div class='column-4'>市川市文化会館 大ホール販売終了</div>
         </div>
         <a href="https://ticket.rakuten.co.jp/">楽天チケット</a>
       </body>
