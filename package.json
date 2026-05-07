@@ -22,7 +22,8 @@
     "sync:rakuten-ticket": "tsx scripts/sync-rakuten-ticket.ts",
     "sync:ticket-pia": "tsx scripts/sync-ticket-pia.ts",
     "sync:ticketmaster": "tsx scripts/sync-ticketmaster.ts",
-    "test:lawson": "tsx tests/lawson-parser.test.ts"
+    "test:lawson": "tsx tests/lawson-parser.test.ts",
+    "test:source-parsers": "npm run test:lawson && tsx tests/public-source-parsers.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
