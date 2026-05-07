@@ -41,13 +41,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  const readKey = serverReadKey(supabaseAnonKey ?? "", serviceRoleKey);
+  if (!supabaseUrl || !readKey) {
     res.status(200).json(seedResponse());
     return;
   }
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  const syncSupabase = createClient(supabaseUrl, serverReadKey(supabaseAnonKey, serviceRoleKey));
+  const supabase = createClient(supabaseUrl, readKey);
+  const syncSupabase = createClient(supabaseUrl, readKey);
   const eventLimit = normalizeEventApiLimit(process.env.EVENT_API_LIMIT);
   const [eventsResult, syncResult] = await Promise.all([
     supabase
