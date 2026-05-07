@@ -3797,6 +3797,8 @@ test("copies the selected concert detail link", async ({ page }) => {
 test("filters by city and ticket access without horizontal overflow", async ({ page }) => {
   await page.goto("/");
 
+  await expect(page.getByLabel("도시").locator("option[value='전체']")).toHaveText("전체 (5)");
+  await expect(page.getByLabel("도시").locator("option[value='오사카']")).toHaveText("오사카 (1)");
   await expect(page.getByLabel("구매 조건").locator("option[value='전체']")).toHaveText("전체 (5)");
   await expect(page.getByLabel("구매 조건").locator("option[value='일본 번호 필요']")).toHaveText("일본 번호 필요 (1)");
 
