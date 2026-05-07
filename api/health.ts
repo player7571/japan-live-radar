@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { serverReadKey } from "../src/lib/supabaseServer.js";
-import { rowToSyncRun, summarizeLatestSyncRuns, type SyncRunRow } from "../src/lib/syncRuns.js";
+import { defaultSyncRunLookupLimit, rowToSyncRun, summarizeLatestSyncRuns, type SyncRunRow } from "../src/lib/syncRuns.js";
 
 type VercelRequest = {
   method?: string;
@@ -55,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from("sync_runs")
       .select("source,status,fetched_count,upserted_count,skipped_count,message,finished_at")
       .order("finished_at", { ascending: false })
-      .limit(30),
+      .limit(defaultSyncRunLookupLimit),
   ]);
 
   if (eventsResult.error) {

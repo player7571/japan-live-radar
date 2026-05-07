@@ -26,7 +26,12 @@ import {
   validateProductionHealth,
 } from "../scripts/check-production-health";
 import { reachableHealthResponse } from "../api/health";
-import { formatEventSyncLabel, summarizeLatestSyncRuns } from "../src/lib/syncRuns";
+import {
+  defaultLatestSyncSourceLimit,
+  defaultSyncRunLookupLimit,
+  formatEventSyncLabel,
+  summarizeLatestSyncRuns,
+} from "../src/lib/syncRuns";
 import {
   normalizePublicSyncSelection,
   publicSyncPlanSummary,
@@ -3375,6 +3380,8 @@ test("validates production events API coverage", () => {
 });
 
 test("summarizes latest public sync runs by source", () => {
+  expect(defaultLatestSyncSourceLimit).toBeGreaterThanOrEqual(publicSyncSteps.length);
+
   expect(
     summarizeLatestSyncRuns(
       [
@@ -3471,6 +3478,17 @@ test("summarizes latest public sync runs by source", () => {
     "Live Nation H.I.P.",
     "LiveFans",
   ]);
+});
+
+test("keeps sync run lookup windows wide enough for current public sources", () => {
+  const eventApiSource = readFileSync("api/events.ts", "utf8");
+  const healthApiSource = readFileSync("api/health.ts", "utf8");
+  const adminStatsSource = readFileSync("api/admin-stats.ts", "utf8");
+
+  expect(defaultSyncRunLookupLimit).toBeGreaterThanOrEqual(publicSyncSteps.length * 6);
+  expect(eventApiSource).toContain("limit(defaultSyncRunLookupLimit)");
+  expect(healthApiSource).toContain("limit(defaultSyncRunLookupLimit)");
+  expect(adminStatsSource).toContain("limit(defaultSyncRunLookupLimit)");
 });
 
 test("formats event API sync labels with source coverage", () => {
