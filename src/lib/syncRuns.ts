@@ -31,6 +31,9 @@ export type SyncRunInput = {
   startedAt: Date;
 };
 
+export const defaultLatestSyncSourceLimit = 12;
+export const defaultSyncRunLookupLimit = 80;
+
 export function rowToSyncRun(row: SyncRunRow): SyncRunSummary {
   const status = row.status === "success" || row.status === "error" ? row.status : "unknown";
   return {
@@ -44,7 +47,7 @@ export function rowToSyncRun(row: SyncRunRow): SyncRunSummary {
   };
 }
 
-export function summarizeLatestSyncRuns(rows: SyncRunRow[], maxSources = 12) {
+export function summarizeLatestSyncRuns(rows: SyncRunRow[], maxSources = defaultLatestSyncSourceLimit) {
   const seen = new Set<string>();
   return rows
     .filter((row) => {
