@@ -187,7 +187,10 @@ function draftLooksUsable(draft: AdminEventInput, keyword: string) {
   const date = inputString(draft.date);
   const text = normalizedKeyword([artist, title, venue, link].join(" "));
   const keywordMatch = text.includes(normalizedKeyword(keyword));
-  return Boolean(title && date && venue && (keywordMatch || artist));
+  const dateTime = date ? new Date(`${date}T23:59:59+09:00`).getTime() : Number.NaN;
+  const todayTime = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00+09:00`).getTime();
+  const futureDate = Number.isFinite(dateTime) && dateTime >= todayTime;
+  return Boolean(title && date && venue && venue.length <= 120 && futureDate && (keywordMatch || artist));
 }
 
 function flattenJsonLd(value: unknown): Array<Record<string, unknown>> {

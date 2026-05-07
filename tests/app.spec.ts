@@ -4298,6 +4298,45 @@ test("builds usable artist search drafts from public event detail HTML", () => {
   });
 });
 
+test("does not accept past or noisy artist search drafts as ready candidates", async ({ page }) => {
+  await page.route("**/api/search-candidates", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        configured: true,
+        candidates: [
+          {
+            id: "search-fallback-1",
+            source: "LiveFans",
+            sourceUrl: "https://www.livefans.jp/search?option=3&keyword=chico%20with%20honeyworks",
+            status: "pending",
+            createdAt: "2026-05-07T00:00:00Z",
+            draft: {
+              artist: "chico with honeyworks",
+              title: "chico with honeyworks 공연 검색 후보",
+              city: "도쿄",
+              venue: "",
+              date: "",
+              source: "LiveFans",
+              link: "https://www.livefans.jp/search?option=3&keyword=chico%20with%20honeyworks",
+            },
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.goto("/#admin");
+  await page.getByLabel("관리자 토큰").fill("test-token");
+  await page.getByLabel("검색어 후보 수집").fill("chico with honeyworks");
+  await page.getByRole("button", { name: "후보 만들기" }).click();
+
+  await expect(page.getByText("1개 검색 후보를 만들었어요.")).toBeVisible();
+  await expect(page.getByLabel("URL 후보").getByText("chico with honeyworks", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "초안 적용" }).click();
+  await expect(page.getByText("후보를 입력폼에 적용했어요.")).toBeVisible();
+});
+
 test("plans public event source syncs without running network jobs", () => {
   const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
     scripts?: Record<string, string>;
