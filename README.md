@@ -43,6 +43,7 @@ npx playwright test
 - Database schema lives in `supabase/migrations`.
 - Public event reads are served by `api/events.ts`.
 - Admin event entry, candidate approval, URL import, search candidates, quality stats, and alert subscriptions live under `api/`.
+- Public source metadata lives in `src/lib/publicSources.ts` and is shared by `sync:public-sources`, Admin sync health, and search candidate generation so source additions stay aligned.
 - Stable fallback data is synced with `npm run sync:seed`.
 - All configured public source syncs can be run in sequence with `npm run sync:public-sources`. Set `SYNC_PUBLIC_SOURCES=lawson,ticket-pia` to run a subset, or `SYNC_CONTINUE_ON_ERROR=true` to collect failures across sources during manual operations.
 - Creativeman public schedule ingestion runs with `npm run sync:creativeman`, follows public upcoming/schedule links into event detail pages, and preserves existing Creativeman rows when a run finds no usable public schedule rows.
@@ -93,7 +94,7 @@ GitHub Actions is the long-running automation layer so Codex heartbeat runs do n
 - `Merge Release PR`: merges the open `dev` to `main` release PR after all PR checks finish successfully during the 09:00 and 21:00 KST release windows. It can also be run manually with `workflow_dispatch` when an immediate production release is desired.
 - `Retry Production Deploy`: when production deploy or health automation issues are open, retries the main production deploy once daily and closes the blockers after health passes.
 - `Supabase Migrate`: applies migrations automatically when migration files land on `main`, and can also be run manually.
-- `Sync External Events`: refreshes seed, Ticketmaster, e+ public search, Lawson Ticket public HTML, Ticket Pia public search, Rakuten Ticket public category, and Creativeman public schedule data twice weekly while Actions minutes are constrained. The workflow uses a single concurrency group so scheduled and manual syncs do not overlap.
+- `Sync External Events`: refreshes seed, Ticketmaster, e+ public search, Lawson Ticket public HTML, Ticket Pia public search, Rakuten Ticket public category, and Creativeman public schedule data twice weekly while Actions minutes are constrained. Live Nation H.I.P. and LiveFans are supported by `npm run sync:public-sources` and Admin sync health, but are intentionally left out of the scheduled workflow until Actions budget allows broader scheduled coverage. The workflow uses a single concurrency group so scheduled and manual syncs do not overlap.
 - `Dispatch Due Alerts`: checks the protected alert queue twice daily and dispatches via `ALERT_WEBHOOK_URL` when configured. The workflow uses a single concurrency group so scheduled and manual runs do not overlap and double-send the same due alert.
 - `Production Health Check`: checks `/api/health`, including source-level latest sync summaries when `sync_runs` is available, plus the protected alert queue and admin alert/sync stats once daily.
 
@@ -227,6 +228,8 @@ Supported automated sources:
 - `Creativeman`: public upcoming/schedule/detail HTML from `https://www.creativeman.co.jp/`.
 - `Live Nation H.I.P.`: public home page links and visible public artist/event schedule HTML from `https://www.livenationhip.co.jp/`.
 - `LiveFans`: public search and event detail HTML from `https://www.livefans.jp/`, limited to Japan venue rows and linked public ticket pages when present.
+
+`src/lib/publicSources.ts` is the source registry for public sync scripts, Admin sync-health coverage, and Admin search-candidate links. When adding a source, update that registry first, then add the parser/sync script and docs. Scheduled GitHub Actions may still run a smaller subset when quota is constrained; missing run history is surfaced in Admin sync health without failing production health by itself.
 
 Lawson Ticket limitations:
 
