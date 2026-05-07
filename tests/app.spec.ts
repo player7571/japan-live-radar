@@ -3456,6 +3456,29 @@ test("expands regional Japanese city aliases for Korean search", () => {
   expect(matches(okinawaEvent, "naha")).toBe(true);
 });
 
+test("expands promoter source aliases for Korean search", () => {
+  const liveNationEvent = {
+    ...seedEvents[0],
+    id: "source-live-nation",
+    source: "Live Nation H.I.P.",
+  };
+  const creativemanEvent = {
+    ...seedEvents[0],
+    id: "source-creativeman",
+    source: "Creativeman",
+  };
+
+  const matches = (event: typeof seedEvents[number], query: string) => {
+    const text = eventSearchText(event);
+    return searchVariants(query).some((variant) => text.includes(variant));
+  };
+
+  expect(matches(liveNationEvent, "라이브네이션")).toBe(true);
+  expect(matches(liveNationEvent, "힙재팬")).toBe(true);
+  expect(matches(creativemanEvent, "크리에이티브맨")).toBe(true);
+  expect(matches(creativemanEvent, "크리에이티브맨프로덕션")).toBe(true);
+});
+
 test("searches concerts and opens the detail panel", async ({ page }) => {
   await page.goto("/");
 
