@@ -114,6 +114,7 @@ type AdminStats = {
     errorSources: string[];
     staleSources: string[];
     emptySources?: string[];
+    missingSources?: string[];
   } | null;
   quality: {
     missingLink: number;
@@ -191,6 +192,11 @@ function formatAdminSyncHealth(syncHealth: AdminStats["syncHealth"]) {
   }
   if (syncHealth.status === "empty") {
     return `빈 결과 · ${syncHealth.emptySources?.join(", ") || "출처 미정"}`;
+  }
+  if ((syncHealth.missingSources?.length ?? 0) > 0) {
+    return `정상 · 미실행 ${syncHealth.missingSources?.slice(0, 2).join(", ")}${
+      (syncHealth.missingSources?.length ?? 0) > 2 ? ` 외 ${(syncHealth.missingSources?.length ?? 0) - 2}개` : ""
+    }`;
   }
   return "정상";
 }

@@ -41,6 +41,7 @@ type AdminStatsResponse = {
     errorSources?: string[];
     staleSources?: string[];
     emptySources?: string[];
+    missingSources?: string[];
   } | null;
 };
 
@@ -177,6 +178,9 @@ export function validateAdminStatsHealth(stats: AdminStatsResponse) {
   if (syncHealth.status === "empty") {
     console.warn(`Sync health produced no usable rows: ${syncHealth.emptySources?.join(", ") || "source unknown"}`);
     return;
+  }
+  if ((syncHealth.missingSources?.length ?? 0) > 0) {
+    console.warn(`Sync health has sources without run history: ${syncHealth.missingSources?.join(", ")}`);
   }
   if (syncHealth.status !== "healthy") {
     throw new Error(`Sync health status is ${syncHealth.status ?? "unknown"}`);

@@ -45,6 +45,17 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const adminApiToken = process.env.ADMIN_API_TOKEN;
 export const defaultSyncStaleAfterHours = 108;
+export const trackedSyncSources = [
+  "Seed",
+  "Ticketmaster",
+  "e+",
+  "Lawson Ticket",
+  "Ticket Pia",
+  "Rakuten Ticket",
+  "Creativeman",
+  "Live Nation H.I.P.",
+  "LiveFans",
+];
 const syncStaleAfterHours = Number.parseInt(
   process.env.SYNC_STALE_AFTER_HOURS ?? String(defaultSyncStaleAfterHours),
   10,
@@ -218,10 +229,13 @@ export function summarizeSyncHealth(
   staleAfterHours = Number.isFinite(syncStaleAfterHours) && syncStaleAfterHours > 0
     ? syncStaleAfterHours
     : defaultSyncStaleAfterHours,
+  expectedSources: string[] = [],
 ) {
   const latestRuns = summarizeSyncRunsAt(rows, now);
   const nowTime = now.getTime();
   const staleAfterMs = staleAfterHours * 60 * 60 * 1000;
+  const latestSourceNames = new Set(latestRuns.map((row) => row.source.toLowerCase()));
+  const missingSources = expectedSources.filter((source) => !latestSourceNames.has(source.toLowerCase()));
 
   if (latestRuns.length === 0) {
     return {
@@ -231,6 +245,7 @@ export function summarizeSyncHealth(
       errorSources: [] as string[],
       staleSources: [] as string[],
       emptySources: [] as string[],
+      missingSources,
     };
   }
 
@@ -266,6 +281,7 @@ export function summarizeSyncHealth(
     errorSources,
     staleSources,
     emptySources,
+    missingSources,
   };
 }
 
@@ -345,7 +361,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? null
       : summarizeAlertQueue((alertsResult.data ?? []) as AlertStatsRow[]),
     syncRuns: missingSyncRunTable(syncRunsResult.error) ? null : summarizeSyncRuns(syncRows),
-    syncHealth: missingSyncRunTable(syncRunsResult.error) ? null : summarizeSyncHealth(syncRows),
+    syncHealth: missingSyncRunTable(syncRunsResult.error) ? null : summarizeSyncHealth(syncRows, new Date(), undefined, trackedSyncSources),
     quality: {
       missingLink,
       missingSaleWindow,
