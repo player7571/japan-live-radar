@@ -122,6 +122,8 @@ import {
   normalizeTicketmasterPageLimit,
   searchProfiles,
   shouldDeleteStaleTicketmasterRows,
+  summarizeTicketmasterSkipReasons,
+  ticketmasterSkipReason,
   toTicketmasterEventRow,
 } from "../scripts/sync-ticketmaster";
 import { toEventRow } from "../src/lib/adminEventRows";
@@ -1889,6 +1891,40 @@ test("preserves Ticketmaster rows when a sync produces zero usable rows", () => 
   expect(shouldDeleteStaleTicketmasterRows(3, [])).toBe(true);
   expect(shouldDeleteStaleTicketmasterRows(0, [])).toBe(false);
   expect(shouldDeleteStaleTicketmasterRows(3, ["music-keyword"])).toBe(false);
+});
+
+test("summarizes Ticketmaster skipped event reasons for sync diagnostics", () => {
+  const missingDateEvent = {
+    id: "tm-missing-date",
+    name: "YOASOBI Arena",
+    classifications: [{ segment: { name: "Music" } }],
+  };
+  const sportsEvent = {
+    id: "tm-sports",
+    name: "B League Osaka",
+    dates: { start: { localDate: "2026-09-12" } },
+    classifications: [{ segment: { name: "Sports" }, genre: { name: "Basketball" } }],
+  };
+  const vagueEvent = {
+    id: "tm-vague",
+    name: "Tokyo Fan Meeting",
+    dates: { start: { localDate: "2026-09-13" } },
+    classifications: [{ segment: { name: "Miscellaneous" }, genre: { name: "Community" } }],
+  };
+  const concertEvent = {
+    id: "tm-concert",
+    name: "Ado Live",
+    dates: { start: { localDate: "2026-09-14" } },
+    classifications: [{ segment: { name: "Music" }, genre: { name: "J-Pop" } }],
+  };
+
+  expect(ticketmasterSkipReason(missingDateEvent)).toBe("missing date");
+  expect(ticketmasterSkipReason(sportsEvent)).toBe("non-concert signal: sports");
+  expect(ticketmasterSkipReason(vagueEvent)).toBe("missing concert signal");
+  expect(ticketmasterSkipReason(concertEvent)).toBeNull();
+  expect(summarizeTicketmasterSkipReasons([missingDateEvent, sportsEvent, vagueEvent, sportsEvent, concertEvent])).toBe(
+    "non-concert signal: sports: 2; missing concert signal: 1; missing date: 1",
+  );
 });
 
 test("summarizes latest sync run per source for admin quality checks", () => {
