@@ -3739,6 +3739,11 @@ test("plans public event source syncs without running network jobs", () => {
     "sync:lawson",
     "sync:ticket-pia",
   ]);
+  expect(
+    normalizePublicSyncSelection("Lawson Ticket, ticket pia, Rakuten Ticket, creative man").map(
+      (step) => step.script,
+    ),
+  ).toEqual(["sync:lawson", "sync:ticket-pia", "sync:rakuten-ticket", "sync:creativeman"]);
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Lawson Ticket (sync:lawson)");
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Creativeman (sync:creativeman)");
   expect(() => normalizePublicSyncSelection("unknown-source")).toThrow("Unknown sync source");
