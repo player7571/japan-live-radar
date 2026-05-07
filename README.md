@@ -60,10 +60,10 @@ npx playwright test
 
 ## Admin Operations
 
-Open `/#admin` and enter `ADMIN_API_TOKEN`.
+Open `/#admin` and enter `ADMIN_API_TOKEN`. In local development, the token is usually stored in `.env.admin.local`; copy only the value after `ADMIN_API_TOKEN=` into the admin token field. A `401 Unauthorized` response means the token is missing, was copied with extra quotes/spaces, or does not match the Vercel production environment value.
 
 - Use `URL로 초안 가져오기` for Ticket Pia, e+, Lawson Ticket, Rakuten Ticket, Tixplus, ticket board, LiveFans, official artist pages, or other ticket pages. When an official page links to a known ticket platform, the imported draft prefers that application link as the source ticket URL. Imported drafts are stored as pending candidates when Supabase is configured, and fall back to local browser storage when the candidate table is not ready.
-- Use `검색어 후보 만들기` to create source search links for an artist keyword across Ticket Pia, e+, Lawson Ticket, Ticketmaster, Rakuten Ticket, LiveFans, Live Nation H.I.P., and Creativeman. These are review candidates, not confirmed events.
+- Use `검색어 후보 만들기` to collect artist-keyword candidates across Ticket Pia, e+, Lawson Ticket, Ticketmaster, Rakuten Ticket, LiveFans, Live Nation H.I.P., and Creativeman. The API first tries to parse public, future-dated detail pages that match the keyword, rejects stale or unrelated pages, then falls back to source search URL candidates when a safe detail candidate is not available. These are review candidates, not confirmed events.
 - Review `URL 후보`, open the original source link when needed, then choose `초안 적용` to inspect the fields or `승인 저장` to write a complete candidate into the `events` table.
 - Use `데이터 품질` before releases to find missing links, missing sale windows, missing prices, ticket-access items that still need review, and alert queue errors.
 - Use `알림 큐` to inspect failed, due, or sent alerts. Failed alerts can be returned to the active queue with `재시도`.
@@ -119,7 +119,7 @@ VERCEL_TOKEN
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` power event reads, admin writes, imports, candidates, stats, health checks, and alert queue APIs.
 - `TICKETMASTER_API_KEY` powers the scheduled Ticketmaster sync.
 - `SUPABASE_DB_URL` is used only by migration automation.
-- `ADMIN_API_TOKEN` protects the admin import, candidate, quality, and alert queue APIs.
+- `ADMIN_API_TOKEN` protects the admin import, candidate, quality, and alert queue APIs. For local admin use, keep the same value in `.env.admin.local` and paste that raw value into `/#admin`.
 - `ALERT_WEBHOOK_URL` is optional until real alert delivery is connected; without it, due alerts are marked `error` instead of pretending they were sent.
 - `ALERT_WEBHOOK_SECRET` is optional and signs alert webhook payloads for downstream delivery workers.
 - `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, and `VERCEL_TOKEN` allow GitHub Actions to sync Vercel environments, build, deploy, and retry production after quota resets.
