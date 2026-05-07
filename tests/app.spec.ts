@@ -3437,6 +3437,40 @@ test("summarizes latest public sync runs by source", () => {
       finishedAt: null,
     },
   ]);
+
+  expect(
+    summarizeLatestSyncRuns(
+      [
+        "Seed",
+        "Ticketmaster",
+        "e+",
+        "Lawson Ticket",
+        "Ticket Pia",
+        "Rakuten Ticket",
+        "Creativeman",
+        "Live Nation H.I.P.",
+        "LiveFans",
+      ].map((source, index) => ({
+        source,
+        status: "success",
+        fetched_count: 10,
+        upserted_count: 8,
+        skipped_count: 2,
+        message: null,
+        finished_at: `2026-05-07T10:${String(index).padStart(2, "0")}:00Z`,
+      })),
+    ).map((row) => row.source),
+  ).toEqual([
+    "Seed",
+    "Ticketmaster",
+    "e+",
+    "Lawson Ticket",
+    "Ticket Pia",
+    "Rakuten Ticket",
+    "Creativeman",
+    "Live Nation H.I.P.",
+    "LiveFans",
+  ]);
 });
 
 test("formats event API sync labels with source coverage", () => {
