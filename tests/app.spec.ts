@@ -15,7 +15,7 @@ import {
   normalizeAlertContactEmail,
   normalizeAlertLeadTimeHours,
 } from "../api/alerts";
-import { seedResponse } from "../api/events";
+import { normalizeEventApiLimit, seedResponse } from "../api/events";
 import { assertPublicResolvedAddresses, extractDraft, safeUrl } from "../api/import-url";
 import { searchSources } from "../api/search-candidates";
 import { migrationFiles } from "../scripts/apply-migrations";
@@ -2707,6 +2707,14 @@ test("serves the shared seed event catalog from the events API fallback", () => 
     events: seedEvents,
     source: "seed",
   });
+});
+
+test("normalizes the public events API row limit", () => {
+  expect(normalizeEventApiLimit(undefined)).toBe(300);
+  expect(normalizeEventApiLimit("178")).toBe(178);
+  expect(normalizeEventApiLimit("10")).toBe(50);
+  expect(normalizeEventApiLimit("900")).toBe(500);
+  expect(normalizeEventApiLimit("not-a-number")).toBe(300);
 });
 
 test("prefers the server key for protected server-side reads", () => {

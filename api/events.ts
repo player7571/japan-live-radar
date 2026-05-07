@@ -18,6 +18,13 @@ type VercelResponse = {
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const defaultEventApiLimit = 300;
+
+export function normalizeEventApiLimit(value: string | undefined) {
+  const parsed = value ? Number(value) : Number.NaN;
+  if (!Number.isFinite(parsed)) return defaultEventApiLimit;
+  return Math.min(Math.max(Math.trunc(parsed), 50), 500);
+}
 
 export function seedResponse(): EventApiResponse {
   return {
@@ -41,6 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
   const syncSupabase = createClient(supabaseUrl, serverReadKey(supabaseAnonKey, serviceRoleKey));
+  const eventLimit = normalizeEventApiLimit(process.env.EVENT_API_LIMIT);
   const [eventsResult, syncResult] = await Promise.all([
     supabase
       .from("events")
@@ -50,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq("country_code", "JP")
       .gte("date", new Date().toISOString().slice(0, 10))
       .order("date", { ascending: true })
-      .limit(100),
+      .limit(eventLimit),
     syncSupabase
       .from("sync_runs")
       .select("source,status,fetched_count,upserted_count,skipped_count,message,finished_at")
