@@ -440,10 +440,20 @@ function App() {
       })),
     ];
   }, [events]);
-  const artistOptions = useMemo(
-    () => ["전체", ...Array.from(new Set(events.map((event) => event.artist))).sort((a, b) => a.localeCompare(b, "ko"))],
-    [events],
-  );
+  const artistOptions = useMemo(() => {
+    const counts = events.reduce<Map<Event["artist"], number>>((acc, event) => {
+      acc.set(event.artist, (acc.get(event.artist) ?? 0) + 1);
+      return acc;
+    }, new Map());
+    const artists = Array.from(counts.keys()).sort((a, b) => a.localeCompare(b, "ko"));
+    return [
+      { value: "전체" as const, label: `전체 (${events.length})` },
+      ...artists.map((artistValue) => ({
+        value: artistValue,
+        label: `${artistValue} (${counts.get(artistValue) ?? 0})`,
+      })),
+    ];
+  }, [events]);
   const sourceOptions = useMemo(() => {
     const counts = events.reduce<Map<Event["source"], number>>((acc, event) => {
       acc.set(event.source, (acc.get(event.source) ?? 0) + 1);
@@ -764,7 +774,7 @@ function App() {
                 aria-label="아티스트"
               >
                 {artistOptions.map((option) => (
-                  <option key={option}>{option}</option>
+                  <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
             </label>
