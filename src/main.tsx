@@ -817,6 +817,7 @@ function App() {
             한국에서 예매 쉬운 공연
           </button>
           <button
+            className={dateWindow === "여름 원정" ? "active" : ""}
             type="button"
             onClick={() => {
               setDateWindow("여름 원정");
