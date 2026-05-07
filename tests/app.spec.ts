@@ -51,6 +51,15 @@ import {
   normalizeLiveNationHipRowLimit,
 } from "../scripts/sync-livenation-hip";
 import {
+  extractLiveFansDetailUrls,
+  extractLiveFansRows,
+  liveFansLogicalEventKey,
+  liveFansSearchUrls,
+  normalizeLiveFansFetchTimeoutMs,
+  normalizeLiveFansKeywordLimit,
+  normalizeLiveFansRowLimit,
+} from "../scripts/sync-livefans";
+import {
   eplusLogicalEventKey,
   eplusSearchUrls,
   extractEplusPayload,
@@ -2578,6 +2587,64 @@ test("maps Live Nation H.I.P. public pages to event rows", () => {
   expect(liveNationHipIndexUrls()).toEqual(["https://www.livenationhip.co.jp/"]);
 });
 
+test("maps LiveFans public event pages to event rows", () => {
+  const searchHtml = `
+    <a href="/events/1904728">J-POP CLASSIC CLUB TOKYO 2026卒業コンサート</a>
+    <a href="https://www.livefans.jp/events/1944221">J-POP SOUND CAPSULE</a>
+    <a href="/artists/1756">ONE OK ROCK</a>
+  `;
+  const detailUrl = "https://www.livefans.jp/events/1904728";
+  const detailHtml = `
+    <html>
+      <head>
+        <title>J-POP CLASSIC CLUB TOKYO 2026卒業コンサート ＠ 東京音楽大学 100周年記念ホール (東京都) (2026.03.19) | LiveFans</title>
+        <meta property="og:image" content="https://cdn.livefans.jp/event.jpg">
+      </head>
+      <body>
+        J-POP CLASSIC CLUB TOKYO 2026卒業コンサート
+        クリップ0人 参加する0人 レビュー:--件 クリップ:0
+        2026/03/19 (木) 18:00 開演 @東京音楽大学 100周年記念ホール (東京都)[出演] J-POP CLASSIC CLUB TOKYO
+        この公演情報を利用して新規投稿する
+        広告・PRチケットぴあ 情報: 最終更新日:2026/01/20
+        発売種別・期間発売情報公演日会場 一般発売発売中 ~2026-03-18 23:59
+        <a href="http://click.linksynergy.com/fs-bin/click?RD_PARM1=http%253A%252F%252Fticket.pia.jp%252Fpia%252Fevent.do%253FeventCd%253D2600001">一般発売/J-POP CLASSIC CLUB TOKYO</a>
+      </body>
+    </html>
+  `;
+  const rows = extractLiveFansRows(detailHtml, detailUrl, new Date("2026-01-01T00:00:00+09:00"));
+
+  expect(extractLiveFansDetailUrls(searchHtml)).toEqual([
+    "https://www.livefans.jp/events/1904728",
+    "https://www.livefans.jp/events/1944221",
+  ]);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    source: "LiveFans",
+    artist: "J-POP CLASSIC CLUB TOKYO",
+    title: "J-POP CLASSIC CLUB TOKYO 2026卒業コンサート",
+    city: "도쿄",
+    venue: "東京音楽大学 100周年記念ホール",
+    date: "2026-03-19",
+    time: "18:00",
+    sale_type: "선착 판매",
+    sale_window: "一般発売発売中 ~2026-03-18 23:59",
+    ticket_access: "일본 번호 필요",
+    phone_required: true,
+    link: "https://ticket.pia.jp/pia/event.do?eventCd=2600001",
+    image: "https://cdn.livefans.jp/event.jpg",
+  });
+  expect(liveFansLogicalEventKey(rows[0])).toBe(
+    "j-pop classic club tokyo 2026卒業コンサート|2026-03-19|18:00|東京音楽大学 100周年記念ホール|도쿄",
+  );
+  expect(normalizeLiveFansRowLimit(undefined)).toBe(60);
+  expect(normalizeLiveFansRowLimit("200")).toBe(100);
+  expect(normalizeLiveFansKeywordLimit(undefined)).toBe(4);
+  expect(normalizeLiveFansKeywordLimit("20")).toBe(8);
+  expect(normalizeLiveFansFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeLiveFansFetchTimeoutMs("1000")).toBe(3000);
+  expect(liveFansSearchUrls()[0]).toBe("https://www.livefans.jp/search?option=3&keyword=K-POP");
+});
+
 test("maps Rakuten Ticket category pages and detail drafts to event rows", () => {
   const categoryHtml = `
     <a href="https://ticket.rakuten.co.jp/music/jpop/rtiz516/">さだまさし</a>
@@ -3855,19 +3922,28 @@ test("plans public event source syncs without running network jobs", () => {
     "sync:rakuten-ticket",
     "sync:creativeman",
     "sync:livenation-hip",
+    "sync:livefans",
   ]);
   expect(normalizePublicSyncSelection("lawson, pia, lawson").map((step) => step.script)).toEqual([
     "sync:lawson",
     "sync:ticket-pia",
   ]);
   expect(
-    normalizePublicSyncSelection("Lawson Ticket, ticket pia, Rakuten Ticket, creative man, live nation hip").map(
+    normalizePublicSyncSelection("Lawson Ticket, ticket pia, Rakuten Ticket, creative man, live nation hip, livefans").map(
       (step) => step.script,
     ),
-  ).toEqual(["sync:lawson", "sync:ticket-pia", "sync:rakuten-ticket", "sync:creativeman", "sync:livenation-hip"]);
+  ).toEqual([
+    "sync:lawson",
+    "sync:ticket-pia",
+    "sync:rakuten-ticket",
+    "sync:creativeman",
+    "sync:livenation-hip",
+    "sync:livefans",
+  ]);
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Lawson Ticket (sync:lawson)");
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Creativeman (sync:creativeman)");
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Live Nation H.I.P. (sync:livenation-hip)");
+  expect(publicSyncPlanSummary(publicSyncSteps)).toContain("LiveFans (sync:livefans)");
   expect(() => normalizePublicSyncSelection("unknown-source")).toThrow("Unknown sync source");
 });
 
