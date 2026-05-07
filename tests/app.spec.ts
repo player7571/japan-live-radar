@@ -133,6 +133,7 @@ import { seedEvents } from "../src/data/seedEvents";
 import { buildAlertEventSnapshot } from "../src/lib/alertSnapshot";
 import { splitCandidateRowsByExistingStatus } from "../src/lib/candidateDedupe";
 import { currentTokyoDay, getSaleStatus } from "../src/lib/saleStatus";
+import { eventDisplayArtist, eventDisplayTitle } from "../src/lib/eventDisplay";
 import { isInDateWindow, isInSelectedDateRange, summerTravelRange } from "../src/lib/dateFilters";
 import { eventSearchText, searchVariants } from "../src/lib/searchAliases";
 
@@ -2777,6 +2778,17 @@ test("uses the Creativeman page title when the artist heading is missing", () =>
     city: "오사카",
     venue: "Zepp Namba",
   });
+});
+
+test("uses event titles for generic source artist labels in the app display", () => {
+  const event = {
+    artist: "Creativeman 공연",
+    title: "LOUDNESS",
+    source: "Creativeman",
+  };
+
+  expect(eventDisplayArtist(event)).toBe("LOUDNESS");
+  expect(eventDisplayTitle(event)).toBe("");
 });
 
 test("maps Live Nation H.I.P. public pages to event rows", () => {

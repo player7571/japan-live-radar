@@ -30,6 +30,7 @@ import { seedEvents } from "./data/seedEvents";
 import { buildAlertEventSnapshot } from "./lib/alertSnapshot";
 import { calculateReminderAt, canScheduleReminder, normalizeAlertLeadTimeHours } from "./lib/alertSchedule";
 import { dateWindowOptions, isInSelectedDateRange, type DateWindow } from "./lib/dateFilters";
+import { eventDisplayArtist, eventDisplayTitle } from "./lib/eventDisplay";
 import { currentTokyoDay, getSaleStatus, type SaleStatus } from "./lib/saleStatus";
 import { eventSearchText, searchVariants } from "./lib/searchAliases";
 import { formatEventSyncLabel } from "./lib/syncRuns";
@@ -447,8 +448,9 @@ function App() {
     ];
   }, [events]);
   const artistOptions = useMemo(() => {
-    const counts = events.reduce<Map<Event["artist"], number>>((acc, event) => {
-      acc.set(event.artist, (acc.get(event.artist) ?? 0) + 1);
+    const counts = events.reduce<Map<string, number>>((acc, event) => {
+      const displayArtist = eventDisplayArtist(event);
+      acc.set(displayArtist, (acc.get(displayArtist) ?? 0) + 1);
       return acc;
     }, new Map());
     const artists = Array.from(counts.keys()).sort((a, b) => a.localeCompare(b, "ko"));
@@ -542,7 +544,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (artist !== "전체" && !events.some((event) => event.artist === artist)) {
+    if (artist !== "전체" && !events.some((event) => eventDisplayArtist(event) === artist)) {
       setArtist("전체");
     }
     if (city !== "전체" && !events.some((event) => event.city === city)) {
@@ -570,7 +572,7 @@ function App() {
     return events.filter((event) => {
       const text = eventSearchText(event);
       const queryMatch = queryVariants.length === 0 || queryVariants.some((variant) => text.includes(variant));
-      const artistMatch = artist === "전체" || event.artist === artist;
+      const artistMatch = artist === "전체" || eventDisplayArtist(event) === artist;
       const cityMatch = city === "전체" || event.city === city;
       const sourceMatch = source === "전체" || event.source === source;
       const accessMatch = access === "전체" || event.ticketAccess === access;
@@ -778,7 +780,7 @@ function App() {
           <img src={heroEvent.image} alt="" />
           <div className="hero-copy">
             <span>{heroEvent.city} · {heroEvent.genre}</span>
-            <strong>{heroEvent.artist}</strong>
+            <strong>{eventDisplayArtist(heroEvent)}</strong>
             <p>{heroEvent.date.replaceAll("-", ".")} · {heroEvent.venue}</p>
           </div>
         </section>
@@ -954,36 +956,40 @@ function App() {
                 </button>
               </div>
             )}
-            {filteredEvents.map((event) => (
-              <button
-                className={`event-card ${selectedEvent && event.id === selectedEvent.id ? "active" : ""}`}
-                key={event.id}
-                onClick={() => selectEvent(event.id)}
-              >
-                <img src={event.image} alt="" />
-                <div className="event-card-body">
-                  <div className="event-card-title">
-                    <strong>{event.artist}</strong>
-                    <span>{event.title}</span>
+            {filteredEvents.map((event) => {
+              const displayArtist = eventDisplayArtist(event);
+              const displayTitle = eventDisplayTitle(event);
+              return (
+                <button
+                  className={`event-card ${selectedEvent && event.id === selectedEvent.id ? "active" : ""}`}
+                  key={event.id}
+                  onClick={() => selectEvent(event.id)}
+                >
+                  <img src={event.image} alt="" />
+                  <div className="event-card-body">
+                    <div className="event-card-title">
+                      <strong>{displayArtist}</strong>
+                      {displayTitle ? <span>{displayTitle}</span> : null}
+                    </div>
+                    <div className="meta-row">
+                      <CalendarDays size={14} />
+                      {event.date.replaceAll("-", ".")} · {event.time}
+                    </div>
+                    <div className="meta-row">
+                      <MapPin size={14} />
+                      {event.city} · {event.venue}
+                    </div>
+                    <div className="tag-row">
+                      <span className="mini-pill source-pill">{event.source}</span>
+                      <StatusPill status={event.ticketAccess} />
+                      <span className="mini-pill">{event.saleType}</span>
+                      <SaleStatusPill status={getSaleStatus(event, today)} />
+                    </div>
                   </div>
-                  <div className="meta-row">
-                    <CalendarDays size={14} />
-                    {event.date.replaceAll("-", ".")} · {event.time}
-                  </div>
-                  <div className="meta-row">
-                    <MapPin size={14} />
-                    {event.city} · {event.venue}
-                  </div>
-                  <div className="tag-row">
-                    <span className="mini-pill source-pill">{event.source}</span>
-                    <StatusPill status={event.ticketAccess} />
-                    <span className="mini-pill">{event.saleType}</span>
-                    <SaleStatusPill status={getSaleStatus(event, today)} />
-                  </div>
-                </div>
-                <ChevronRight className="card-arrow" size={18} />
-              </button>
-            ))}
+                  <ChevronRight className="card-arrow" size={18} />
+                </button>
+              );
+            })}
           </div>
 
           {selectedEvent ? (
@@ -1087,28 +1093,31 @@ function SavedAlertsPanel({
             </span>
           ) : null}
           <div className="saved-alert-list">
-            {events.map((event) => (
-              <article className="saved-alert-item" key={event.id}>
-                <button
-                  type="button"
-                  aria-label={`${event.artist} 알림 공연 열기`}
-                  onClick={() => onSelect(event.id)}
-                >
-                  <span>{event.date.replaceAll("-", ".")} · {event.city}</span>
-                  <strong>{event.artist}</strong>
-                  <small>{event.saleWindow}</small>
-                  <small>알림 예정 · {formatAlertReminder(event, leadTimeHours)}</small>
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label={`${event.artist} 알림 해제`}
-                  onClick={() => onRemove(event.id)}
-                  type="button"
-                >
-                  <X size={17} />
-                </button>
-              </article>
-            ))}
+            {events.map((event) => {
+              const displayArtist = eventDisplayArtist(event);
+              return (
+                <article className="saved-alert-item" key={event.id}>
+                  <button
+                    type="button"
+                    aria-label={`${displayArtist} 알림 공연 열기`}
+                    onClick={() => onSelect(event.id)}
+                  >
+                    <span>{event.date.replaceAll("-", ".")} · {event.city}</span>
+                    <strong>{displayArtist}</strong>
+                    <small>{event.saleWindow}</small>
+                    <small>알림 예정 · {formatAlertReminder(event, leadTimeHours)}</small>
+                  </button>
+                  <button
+                    className="icon-button"
+                    aria-label={`${displayArtist} 알림 해제`}
+                    onClick={() => onRemove(event.id)}
+                    type="button"
+                  >
+                    <X size={17} />
+                  </button>
+                </article>
+              );
+            })}
           </div>
         </>
       )}
@@ -1883,8 +1892,8 @@ function AdminPage() {
           {recentEvents.map((event) => (
             <article className="recent-event" key={event.id}>
               <div>
-                <strong>{event.artist}</strong>
-                <span>{event.title}</span>
+                <strong>{eventDisplayArtist(event)}</strong>
+                {eventDisplayTitle(event) ? <span>{eventDisplayTitle(event)}</span> : null}
               </div>
               <span>{event.city} · {event.venue}</span>
               <span>{event.date.replaceAll("-", ".")} · {event.source}</span>
@@ -1961,6 +1970,8 @@ function EventDetail({
 }) {
   const alertSchedulable = canScheduleReminder(event, today, alertLeadTimeHours);
   const alertDisabled = !saved && !alertSchedulable;
+  const displayArtist = eventDisplayArtist(event);
+  const displayTitle = eventDisplayTitle(event);
 
   return (
     <aside className="detail-panel" aria-label="공연 상세">
@@ -1983,8 +1994,8 @@ function EventDetail({
           <StatusPill status={event.ticketAccess} />
         </div>
 
-        <h2>{event.artist}</h2>
-        <p className="detail-title">{event.title}</p>
+        <h2>{displayArtist}</h2>
+        {displayTitle ? <p className="detail-title">{displayTitle}</p> : null}
 
         <div className="fact-grid">
           <Fact icon={<CalendarDays size={18} />} label="공연일" value={`${event.date.replaceAll("-", ".")} ${event.time}`} />
