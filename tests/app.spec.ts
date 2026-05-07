@@ -26,7 +26,7 @@ import {
   validateProductionHealth,
 } from "../scripts/check-production-health";
 import { reachableHealthResponse } from "../api/health";
-import { publicEventSources, trackedSyncSources } from "../src/lib/publicSources";
+import { publicEventSources, publicSearchSources, trackedSyncSources } from "../src/lib/publicSources";
 import {
   defaultLatestSyncSourceLimit,
   defaultSyncRunLookupLimit,
@@ -4029,6 +4029,9 @@ test("keeps approved or rejected candidate URLs out of pending upserts", () => {
 });
 
 test("creates ticket source search URLs including additional Japanese sources", () => {
+  expect(searchSources("Ado 東京").map((source) => source.source)).toEqual(
+    publicSearchSources.map((source) => source.syncRunSource),
+  );
   expect(searchSources("Ado 東京")).toEqual(
     expect.arrayContaining([
       {
