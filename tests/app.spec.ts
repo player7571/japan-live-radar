@@ -4142,7 +4142,6 @@ test("persists an alert lead time in the saved alerts panel", async ({ page }) =
   await page.getByRole("button", { name: "알림 2개" }).click();
 
   await page.getByLabel("알림 시점").selectOption("24");
-  await page.getByLabel("저장한 알림").getByRole("button", { name: "저장" }).click();
   await expect(page.getByLabel("저장한 알림").getByRole("status")).toHaveText("알림 시점을 저장했어요.");
   await expect(page.getByLabel("저장한 알림").getByText(/알림 예정 ·/).first()).toBeVisible();
 
