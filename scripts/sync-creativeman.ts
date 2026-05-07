@@ -135,6 +135,13 @@ function eventTitle($: cheerio.CheerioAPI, artist: string) {
   return title || artist;
 }
 
+function normalizeCreativemanArtist(artist: string, title: string) {
+  const normalizedArtist = compactText(artist);
+  const normalizedTitle = compactText(title);
+  if (!normalizedArtist || normalizedArtist === "Creativeman 공연") return normalizedTitle || "Creativeman 공연";
+  return normalizedArtist;
+}
+
 function pageImage($: cheerio.CheerioAPI, sourceUrl: string) {
   const image = $("meta[property='og:image']").attr("content") || $("img[src]").first().attr("src");
   if (!image) return null;
@@ -248,8 +255,9 @@ export function extractCreativemanDetailUrls(html: string, baseUrl = "https://ww
 
 export function extractCreativemanRows(html: string, sourceUrl: string, now = new Date()) {
   const $ = cheerio.load(html);
-  const artist = eventArtist($);
-  const title = eventTitle($, artist);
+  const rawArtist = eventArtist($);
+  const title = eventTitle($, rawArtist);
+  const artist = normalizeCreativemanArtist(rawArtist, title);
   const image = pageImage($, sourceUrl);
   const pageText = compactText($("body").text());
   const access = ticketAccessFromPage(pageText);
