@@ -143,10 +143,6 @@ function compactText(value: string | null | undefined) {
   return cheerio.load(value).text().normalize("NFKC").replace(/\s+/g, " ").trim();
 }
 
-function postgrestStringList(values: string[]) {
-  return `(${values.map((value) => `"${value.replaceAll('"', '\\"')}"`).join(",")})`;
-}
-
 const cityAliases: Array<[string[], string]> = [
   [["東京都", "東京"], "도쿄"],
   [["大阪府", "大阪"], "오사카"],
@@ -615,14 +611,31 @@ async function main() {
       throw new Error(`Supabase Lawson Ticket upsert failed: ${error.message}`);
     }
 
-    const { error: staleError, count: staleDeletedCount } = await supabase
+    const currentSourceEventIds = new Set(rows.map((row) => row.source_event_id));
+    const { data: existingRows, error: existingRowsError } = await supabase
       .from("events")
-      .delete({ count: "exact" })
-      .eq("source", lawsonSource)
-      .not("source_event_id", "in", postgrestStringList(rows.map((row) => row.source_event_id)));
+      .select("id, source_event_id")
+      .eq("source", lawsonSource);
 
-    if (staleError) {
-      throw new Error(`Supabase stale Lawson Ticket cleanup failed: ${staleError.message}`);
+    if (existingRowsError) {
+      throw new Error(`Supabase stale Lawson Ticket lookup failed: ${existingRowsError.message}`);
+    }
+
+    const staleIds = (existingRows ?? [])
+      .filter((row) => !currentSourceEventIds.has(row.source_event_id as string))
+      .map((row) => row.id as string);
+
+    let staleDeletedCount = 0;
+    if (staleIds.length > 0) {
+      const { error: staleError, count } = await supabase
+        .from("events")
+        .delete({ count: "exact" })
+        .in("id", staleIds);
+
+      if (staleError) {
+        throw new Error(`Supabase stale Lawson Ticket cleanup failed: ${staleError.message}`);
+      }
+      staleDeletedCount = count ?? staleIds.length;
     }
 
     await recordSyncRun(supabase, {
@@ -631,11 +644,11 @@ async function main() {
       fetchedCount,
       upsertedCount: rows.length,
       skippedCount,
-      message: `Synced ${rows.length} Lawson Ticket public HTML events. Removed ${staleDeletedCount ?? 0} stale Lawson Ticket rows.`,
+      message: `Synced ${rows.length} Lawson Ticket public HTML events. Removed ${staleDeletedCount} stale Lawson Ticket rows.`,
       startedAt,
     });
     console.log(
-      `Synced ${rows.length} Lawson Ticket events. Skipped ${skippedCount}. Removed ${staleDeletedCount ?? 0} stale rows.`,
+      `Synced ${rows.length} Lawson Ticket events. Skipped ${skippedCount}. Removed ${staleDeletedCount} stale rows.`,
     );
   } catch (error) {
     await recordSyncRun(supabase, {
