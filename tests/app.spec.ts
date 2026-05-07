@@ -3634,6 +3634,34 @@ test("expands promoter source aliases for Korean search", () => {
   expect(matches(creativemanEvent, "크리에이티브맨프로덕션")).toBe(true);
 });
 
+test("matches Japanese source labels with Korean ticket-site aliases", () => {
+  const lawsonEvent = {
+    ...seedEvents[0],
+    id: "source-lawson-ja",
+    source: "ローチケ",
+  };
+  const rakutenEvent = {
+    ...seedEvents[0],
+    id: "source-rakuten-ja",
+    source: "楽天チケット",
+  };
+  const creativemanEvent = {
+    ...seedEvents[0],
+    id: "source-creativeman-ja",
+    source: "クリエイティブマン",
+  };
+
+  const matches = (event: typeof seedEvents[number], query: string) => {
+    const text = eventSearchText(event);
+    return searchVariants(query).some((variant) => text.includes(variant));
+  };
+
+  expect(matches(lawsonEvent, "로치케")).toBe(true);
+  expect(matches(lawsonEvent, "로손티켓")).toBe(true);
+  expect(matches(rakutenEvent, "라쿠텐티켓")).toBe(true);
+  expect(matches(creativemanEvent, "크리에이티브맨")).toBe(true);
+});
+
 test("keeps travel date filters relative to the current season", () => {
   const may2026 = new Date("2026-05-07T00:00:00+09:00");
   const september2026 = new Date("2026-09-01T00:00:00+09:00");
