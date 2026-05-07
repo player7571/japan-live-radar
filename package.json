@@ -17,6 +17,7 @@
     "sync:creativeman": "tsx scripts/sync-creativeman.ts",
     "sync:eplus": "tsx scripts/sync-eplus.ts",
     "sync:lawson": "tsx scripts/sync-lawson.ts",
+    "sync:livenation-hip": "tsx scripts/sync-livenation-hip.ts",
     "sync:rakuten-ticket": "tsx scripts/sync-rakuten-ticket.ts",
     "sync:ticket-pia": "tsx scripts/sync-ticket-pia.ts",
     "sync:ticketmaster": "tsx scripts/sync-ticketmaster.ts",

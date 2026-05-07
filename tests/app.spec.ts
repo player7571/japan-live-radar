@@ -42,6 +42,15 @@ import {
   normalizeCreativemanRowLimit,
 } from "../scripts/sync-creativeman";
 import {
+  extractLiveNationHipDetailUrls,
+  extractLiveNationHipRows,
+  liveNationHipIndexUrls,
+  liveNationHipLogicalEventKey,
+  normalizeLiveNationHipFetchTimeoutMs,
+  normalizeLiveNationHipIndexLimit,
+  normalizeLiveNationHipRowLimit,
+} from "../scripts/sync-livenation-hip";
+import {
   eplusLogicalEventKey,
   eplusSearchUrls,
   extractEplusPayload,
@@ -2458,6 +2467,80 @@ test("maps Creativeman public detail pages to event rows", () => {
   ]);
 });
 
+test("maps Live Nation H.I.P. public pages to event rows", () => {
+  const indexHtml = `
+    <a href="https://www.livenationhip.co.jp/all-events/lany-tickets-ae771408">LANY</a>
+    <a href="/all-events/charlie-puth-tickets-ae809419">Charlie Puth</a>
+    <a href="https://www.livenationhip.co.jp/all-events/bus-tickets-ae1656613">bus transfer</a>
+    <a href="https://example.com/all-events/external-tickets-ae1">external</a>
+  `;
+  const detailUrl = "https://www.livenationhip.co.jp/all-events/lany-tickets-ae771408";
+  const detailHtml = `
+    <html>
+      <head>
+        <title>LANY: soft world tour Tickets, Tour and Concert Dates - www.livenationhip.co.jp</title>
+        <meta property="og:title" content="LANY: soft world tour Tickets, Tour and Concert Dates - www.livenationhip.co.jp">
+        <meta property="og:image" content="https://networksites.livenationinternational.com/networksites/p2hfko3k/lanyhpbanner.jpg">
+      </head>
+      <body>
+        <a href="#tickets">TICKETS</a>
+        <a href="#buy-tickets">BUY TICKETS</a>
+        <main>
+          LANY | レイニー soft world tour
+          SCHEDULE
+          【SOLD OUT】2026年10月5日(月)Zepp NambaOPEN 18:00 / START 19:00
+          【追加公演】2026年10月6日(火)Zepp NambaOPEN 18:00 / START 19:00
+          2026年10月7日(水)有明アリーナOPEN 17:30 / START 19:00
+          TICKETS
+          大阪公演 ■GOLDスタンディング ¥29,800 ■スタンディング ¥12,800
+          東京公演 ■PLATINUM席 ¥39,880
+          最速抽選先行は4/22(水)正午より受付開始
+        </main>
+      </body>
+    </html>
+  `;
+  const rows = extractLiveNationHipRows(detailHtml, detailUrl, new Date("2026-05-01T00:00:00+09:00"));
+
+  expect(extractLiveNationHipDetailUrls(indexHtml)).toEqual([
+    "https://www.livenationhip.co.jp/all-events/lany-tickets-ae771408",
+    "https://www.livenationhip.co.jp/all-events/charlie-puth-tickets-ae809419",
+    "https://www.livenationhip.co.jp/all-events/bus-tickets-ae1656613",
+  ]);
+  expect(rows).toHaveLength(3);
+  expect(rows[0]).toMatchObject({
+    source: "Live Nation H.I.P.",
+    artist: "LANY",
+    title: "LANY: soft world tour",
+    city: "오사카",
+    venue: "Zepp Namba",
+    date: "2026-10-05",
+    time: "19:00",
+    sale_type: "추첨 접수",
+    sale_window: "最速抽選先行は4/22(水)正午より受付開始",
+    price: "¥29,800 / ¥12,800 / ¥39,880",
+    ticket_access: "확인 필요",
+    phone_required: true,
+    link: detailUrl,
+    image: "https://networksites.livenationinternational.com/networksites/p2hfko3k/lanyhpbanner.jpg",
+  });
+  expect(rows[2]).toMatchObject({
+    city: "도쿄",
+    venue: "有明アリーナ",
+    date: "2026-10-07",
+    time: "19:00",
+  });
+  expect(liveNationHipLogicalEventKey(rows[0])).toBe(
+    "lany: soft world tour|2026-10-05|19:00|zepp namba|오사카",
+  );
+  expect(normalizeLiveNationHipRowLimit(undefined)).toBe(60);
+  expect(normalizeLiveNationHipRowLimit("200")).toBe(100);
+  expect(normalizeLiveNationHipIndexLimit(undefined)).toBe(1);
+  expect(normalizeLiveNationHipIndexLimit("20")).toBe(4);
+  expect(normalizeLiveNationHipFetchTimeoutMs(undefined)).toBe(12000);
+  expect(normalizeLiveNationHipFetchTimeoutMs("1000")).toBe(3000);
+  expect(liveNationHipIndexUrls()).toEqual(["https://www.livenationhip.co.jp/"]);
+});
+
 test("maps Rakuten Ticket category pages and detail drafts to event rows", () => {
   const categoryHtml = `
     <a href="https://ticket.rakuten.co.jp/music/jpop/rtiz516/">さだまさし</a>
@@ -3734,18 +3817,20 @@ test("plans public event source syncs without running network jobs", () => {
     "sync:ticket-pia",
     "sync:rakuten-ticket",
     "sync:creativeman",
+    "sync:livenation-hip",
   ]);
   expect(normalizePublicSyncSelection("lawson, pia, lawson").map((step) => step.script)).toEqual([
     "sync:lawson",
     "sync:ticket-pia",
   ]);
   expect(
-    normalizePublicSyncSelection("Lawson Ticket, ticket pia, Rakuten Ticket, creative man").map(
+    normalizePublicSyncSelection("Lawson Ticket, ticket pia, Rakuten Ticket, creative man, live nation hip").map(
       (step) => step.script,
     ),
-  ).toEqual(["sync:lawson", "sync:ticket-pia", "sync:rakuten-ticket", "sync:creativeman"]);
+  ).toEqual(["sync:lawson", "sync:ticket-pia", "sync:rakuten-ticket", "sync:creativeman", "sync:livenation-hip"]);
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Lawson Ticket (sync:lawson)");
   expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Creativeman (sync:creativeman)");
+  expect(publicSyncPlanSummary(publicSyncSteps)).toContain("Live Nation H.I.P. (sync:livenation-hip)");
   expect(() => normalizePublicSyncSelection("unknown-source")).toThrow("Unknown sync source");
 });
 
