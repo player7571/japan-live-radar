@@ -3662,6 +3662,20 @@ test("matches Japanese source labels with Korean ticket-site aliases", () => {
   expect(matches(creativemanEvent, "크리에이티브맨")).toBe(true);
 });
 
+test("search text includes ticket detail fields for Korean trip planning", () => {
+  const matches = (event: typeof seedEvents[number], query: string) => {
+    const text = eventSearchText(event);
+    return searchVariants(query).some((variant) => text.includes(variant));
+  };
+
+  expect(matches(seedEvents[1], "스마치케")).toBe(true);
+  expect(matches(seedEvents[2], "앱스토어")).toBe(true);
+  expect(matches(seedEvents[3], "해외카드")).toBe(true);
+  expect(matches(seedEvents[0], "5.20")).toBe(true);
+  expect(matches(seedEvents[1], "2026-07-03")).toBe(true);
+  expect(matches(seedEvents[2], "12500")).toBe(true);
+});
+
 test("keeps travel date filters relative to the current season", () => {
   const may2026 = new Date("2026-05-07T00:00:00+09:00");
   const september2026 = new Date("2026-09-01T00:00:00+09:00");
@@ -3733,8 +3747,10 @@ test("searches concerts with Japanese city and ticket-condition aliases", async 
   await expect(page.getByRole("button", { name: /RADWIMPS/ })).toBeVisible();
 
   await page.getByPlaceholder("아티스트, 공연명, 회장 검색").fill("sms인증");
-  await expect(page.getByText("1개 공연")).toBeVisible();
+  await expect(page.getByText("3개 공연")).toBeVisible();
+  await expect(page.getByRole("button", { name: /YOASOBI/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /ONE OK ROCK/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Ado/ })).toBeVisible();
 });
 
 test("opens shared event detail URLs and keeps the selected event in the URL", async ({ page }) => {

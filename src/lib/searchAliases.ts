@@ -50,8 +50,11 @@ export const koreanSearchAliases: Array<[string, string[]]> = [
   ["다카사키", ["takasaki", "高崎", "群馬", "gunma", "군마"]],
   ["우쓰노미야", ["utsunomiya", "宇都宮", "栃木", "tochigi", "도치기"]],
   ["미토", ["mito", "水戸", "茨城", "ibaraki", "이바라키"]],
-  ["한국 구매 가능", ["한국예매", "한국예매가능", "해외예매", "해외판매", "외국인판매", "한국구매"]],
-  ["일본 번호 필요", ["일본번호", "일본번호필요", "일본전화번호", "sms인증", "문자인증", "전화번호인증"]],
+  ["한국 구매 가능", ["한국예매", "한국예매가능", "해외예매", "해외판매", "외국인판매", "한국구매", "해외카드"]],
+  [
+    "일본 번호 필요",
+    ["일본번호", "일본번호필요", "일본전화번호", "sms인증", "문자인증", "전화번호인증", "전자티켓", "스마치케", "앱스토어", "loppi"],
+  ],
   ["확인 필요", ["확인필요", "조건확인", "구매조건확인"]],
   ["추첨 접수", ["추첨", "로터리", "lottery", "抽選", "抽せん"]],
   ["일반 판매", ["일반판매", "general sale", "一般発売", "一般販売"]],
@@ -90,6 +93,11 @@ export function eventSearchText(event: Event) {
     event.source,
     event.ticketAccess,
     event.saleType,
+    event.saleWindow,
+    event.price,
+    event.foreignerNote,
+    event.date,
+    event.time,
   ];
   const aliases = koreanSearchAliases.flatMap(([canonical, values]) => {
     const eventValues = baseValues.map(normalizeSearchValue);
