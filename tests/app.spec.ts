@@ -22,6 +22,7 @@ import { migrationFiles } from "../scripts/apply-migrations";
 import {
   validateAdminAlertsHealth,
   validateAdminStatsHealth,
+  validateProductionEvents,
   validateProductionHealth,
 } from "../scripts/check-production-health";
 import { reachableHealthResponse } from "../api/health";
@@ -3033,6 +3034,57 @@ test("normalizes public health last sync rows", () => {
       },
     ],
   });
+});
+
+test("validates production events API coverage", () => {
+  expect(() =>
+    validateProductionEvents({
+      source: "supabase",
+      events: [
+        {
+          artist: "Ado",
+          title: "Blue Flame Tour",
+          city: "요코하마",
+          venue: "K-Arena Yokohama",
+          date: "2026-11-12",
+          source: "Lawson Ticket",
+          ticketAccess: "일본 번호 필요",
+          saleType: "일반 판매",
+          saleWindow: "일반 판매: 2026.05.20 10:00",
+          phoneRequired: true,
+          foreignerNote: "로치케 계정, 결제, 수령 제한을 확인하세요.",
+          link: "https://l-tike.com/concert/example/",
+        },
+      ],
+      meta: {
+        latestSyncBySource: [{ source: "Lawson Ticket", status: "success" }],
+      },
+    }),
+  ).not.toThrow();
+  expect(() => validateProductionEvents({ source: "seed", events: [] })).toThrow(
+    "Production events API is using seed data",
+  );
+  expect(() =>
+    validateProductionEvents({
+      source: "supabase",
+      events: [
+        {
+          artist: "Ado",
+          title: "Blue Flame Tour",
+          city: "요코하마",
+          venue: "K-Arena Yokohama",
+          date: "2026-11-12",
+          source: "Lawson Ticket",
+          ticketAccess: "일본 번호 필요",
+          saleType: "일반 판매",
+          saleWindow: "일반 판매: 2026.05.20 10:00",
+          phoneRequired: true,
+          foreignerNote: "로치케 계정, 결제, 수령 제한을 확인하세요.",
+          link: "not-a-url",
+        },
+      ],
+    }),
+  ).toThrow("Production events API contains an event with an invalid source link");
 });
 
 test("summarizes latest public sync runs by source", () => {
