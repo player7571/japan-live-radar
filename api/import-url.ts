@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { lookup } from "node:dns/promises";
+import { extractLiveFansRows } from "../scripts/sync-livefans";
 import { extractLiveNationHipRows } from "../scripts/sync-livenation-hip";
 
 type VercelRequest = {
@@ -972,6 +973,10 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
   const liveNationHipRow = sourceUrl.hostname.toLowerCase().includes("livenationhip.co.jp")
     ? extractLiveNationHipRows(html, sourceUrl.toString(), new Date(0))[0]
     : null;
+  const liveFansRow = sourceUrl.hostname.toLowerCase().includes("livefans.jp")
+    ? extractLiveFansRows(html, sourceUrl.toString(), new Date(0))[0]
+    : null;
+  const parsedSourceRow = liveNationHipRow ?? liveFansRow;
   const jsonLdItems = $("script[type='application/ld+json']")
     .toArray()
     .flatMap((element) => {
@@ -1042,24 +1047,24 @@ export function extractDraft(html: string, sourceUrl: URL): ImportedDraft {
 
   return {
     ...fallbackDraft,
-    artist: firstString(liveNationHipRow?.artist, performer.name, artistFromTitle(title), title),
-    title: firstString(liveNationHipRow?.title, title),
-    city: liveNationHipRow?.city ?? cityFromText(textForCity),
-    venue: firstString(liveNationHipRow?.venue, venue),
-    date: firstString(liveNationHipRow?.date, eventDate),
-    time: firstString(liveNationHipRow?.time, normalizeTime(firstString(rakutenPerformance?.time, dateSource))),
-    source: liveNationHipRow?.source ?? sourceFromHostname(ticketLink.hostname),
-    ticketAccess: toTicketAccess(liveNationHipRow?.ticket_access) ?? access.ticketAccess,
-    saleType: toSaleType(liveNationHipRow?.sale_type) ?? saleTypeFromText(`${description} ${pageText}`),
-    saleWindow: firstString(liveNationHipRow?.sale_window, saleWindow),
-    price: firstString(liveNationHipRow?.price, price),
-    phoneRequired: liveNationHipRow?.phone_required ?? access.phoneRequired,
+    artist: firstString(parsedSourceRow?.artist, performer.name, artistFromTitle(title), title),
+    title: firstString(parsedSourceRow?.title, title),
+    city: parsedSourceRow?.city ?? cityFromText(textForCity),
+    venue: firstString(parsedSourceRow?.venue, venue),
+    date: firstString(parsedSourceRow?.date, eventDate),
+    time: firstString(parsedSourceRow?.time, normalizeTime(firstString(rakutenPerformance?.time, dateSource))),
+    source: parsedSourceRow?.source ?? sourceFromHostname(ticketLink.hostname),
+    ticketAccess: toTicketAccess(parsedSourceRow?.ticket_access) ?? access.ticketAccess,
+    saleType: toSaleType(parsedSourceRow?.sale_type) ?? saleTypeFromText(`${description} ${pageText}`),
+    saleWindow: firstString(parsedSourceRow?.sale_window, saleWindow),
+    price: firstString(parsedSourceRow?.price, price),
+    phoneRequired: parsedSourceRow?.phone_required ?? access.phoneRequired,
     foreignerNote: firstString(
-      liveNationHipRow?.foreigner_note,
+      parsedSourceRow?.foreigner_note,
       importForeignerNote(description, access.foreignerNote, pageText),
     ),
-    link: firstString(liveNationHipRow?.link, ticketLink.toString()),
-    image: firstString(liveNationHipRow?.image, image, propertyContent($, "meta[property='og:image']")),
+    link: firstString(parsedSourceRow?.link, ticketLink.toString()),
+    image: firstString(parsedSourceRow?.image, image, propertyContent($, "meta[property='og:image']")),
   };
 }
 
