@@ -17,7 +17,7 @@ import {
 } from "../api/alerts";
 import { normalizeEventApiLimit, seedResponse } from "../api/events";
 import { assertPublicResolvedAddresses, extractDraft, safeUrl } from "../api/import-url";
-import { extractSearchCandidateUrls, searchSources } from "../api/search-candidates";
+import { draftFromSearchDetail, extractSearchCandidateUrls, searchSources } from "../api/search-candidates";
 import { migrationFiles } from "../scripts/apply-migrations";
 import {
   validateAdminAlertsHealth,
@@ -4260,6 +4260,42 @@ test("extracts detail candidates from public artist search pages", () => {
     "https://www.creativeman.co.jp/event/loudness-45th-anniversary/",
     "https://www.creativeman.co.jp/event/other-band/",
   ]);
+});
+
+test("builds usable artist search drafts from public event detail HTML", () => {
+  const html = `
+    <html>
+      <head>
+        <meta property="og:title" content="CHiCO with HoneyWorks Zepp Tour | ローチケ">
+        <script type="application/ld+json">
+          {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "CHiCO with HoneyWorks Zepp Tour",
+            "startDate": "2026-08-01T18:00:00+09:00",
+            "location": {
+              "@type": "Place",
+              "name": "Zepp Haneda",
+              "address": { "addressRegion": "東京都", "addressLocality": "大田区" }
+            },
+            "performer": { "@type": "MusicGroup", "name": "CHiCO with HoneyWorks" }
+          }
+        </script>
+      </head>
+      <body>受付期間: 2026/6/1(月) 12:00 - 2026/6/8(月) 23:59 ￥8,800</body>
+    </html>
+  `;
+
+  expect(draftFromSearchDetail(html, new URL("https://l-tike.com/order/?gLcode=12345"), "chico with honeyworks")).toMatchObject({
+    artist: "CHiCO with HoneyWorks",
+    title: "CHiCO with HoneyWorks Zepp Tour",
+    city: "도쿄",
+    venue: "Zepp Haneda",
+    date: "2026-08-01",
+    time: "18:00",
+    source: "Lawson Ticket",
+    link: "https://l-tike.com/order/?gLcode=12345",
+  });
 });
 
 test("plans public event source syncs without running network jobs", () => {
